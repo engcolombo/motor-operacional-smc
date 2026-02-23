@@ -5,37 +5,47 @@
 <title>Motor Operacional SMC</title>
 
 <style>
+
 body {
     font-family: Arial, sans-serif;
     background-color: #f4f6f8;
-    padding: 40px;
+    padding: 30px;
 }
 
+/* Container geral permite múltiplos cards lado a lado */
+.wrapper {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* Card compacto */
 .container {
     background: white;
-    padding: 30px;
-    max-width: 600px;
-    margin: auto;
+    padding: 20px;
+    width: 360px;
     border-radius: 8px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.05);
 }
 
 h1 {
     text-align: center;
-    margin-bottom: 25px;
+    margin-bottom: 20px;
+    font-size: 18px;
 }
 
 label {
     font-weight: bold;
     font-size: 13px;
-    margin-top: 10px;
+    margin-top: 6px;
     display: block;
 }
 
 select, button {
     width: 100%;
-    padding: 10px;
-    margin-bottom: 15px;
+    padding: 8px;
+    margin-bottom: 10px;
     font-size: 14px;
 }
 
@@ -51,8 +61,8 @@ button:hover {
 }
 
 .resultado {
-    margin-top: 20px;
-    padding: 20px;
+    margin-top: 10px;
+    padding: 15px;
     border-radius: 6px;
     font-weight: bold;
     text-align: center;
@@ -64,15 +74,25 @@ button:hover {
 .fraco { background:#ffe5b4; color:#8a4b00; }
 .evitar { background:#f8d7da; color:#721c24; }
 
+.gatilhosBox {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f1f1f1;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
 </style>
 </head>
 
 <body>
 
-<div class="container">
-<h1>Motor Operacional SMC – Trap D-1</h1>
+<div class="wrapper">
 
-<label>Gatilho</label>
+<div class="container">
+<h1>Trap D-1</h1>
+
+<label>Setup</label>
 <select id="gatilho">
 <option value=""></option>
 <option>Trap Máxima D-1</option>
@@ -131,21 +151,13 @@ button:hover {
 <option>Nao</option>
 </select>
 
-<label>Gatilhos Autorizados</label>
-<select id="gatilhoAutorizado">
-<option value=""></option>
-<option>Rossadinha vwap</option>
-<option>FF-FD vwap</option>
-<option>PFR 10m</option>
-<option>Inside bar reversão</option>
-<option>CHOCH</option>
-<option>POI</option>
-</select>
+<button onclick="avaliar()">Avaliar</button>
 
-<button onclick="avaliar()">Avaliar Trap</button>
+<div id="resultado" class="resultado"></div>
 
-<div id="resultado"></div>
+<div id="gatilhosAutorizados" class="gatilhosBox"></div>
 
+</div>
 </div>
 
 <script>
@@ -164,7 +176,7 @@ let obs = document.getElementById("obs").value;
 let pontos = 0;
 
 if(gatilho === "") {
-    alert("Selecione o gatilho primeiro.");
+    alert("Selecione o setup.");
     return;
 }
 
@@ -220,7 +232,7 @@ if(gatilho === "Trap Mínima D-1" && macro === "Baixa") {
 /* CLASSIFICAÇÃO */
 
 let resultadoDiv = document.getElementById("resultado");
-let gatilhoSelect = document.getElementById("gatilhoAutorizado");
+let gatilhosDiv = document.getElementById("gatilhosAutorizados");
 
 let classe = "";
 let texto = "";
@@ -229,39 +241,22 @@ let autorizados = [];
 if(pontos >= 14) {
     classe="excelente";
     texto="🔵 EXCELENTE";
-    autorizados = [
-        "Rossadinha vwap",
-        "FF-FD vwap",
-        "PFR 10m",
-        "Inside bar reversão",
-        "CHOCH",
-        "POI"
-    ];
+    autorizados = ["Rossadinha vwap","FF-FD vwap","PFR 10m","Inside bar reversão","CHOCH","POI"];
 }
 else if(pontos >= 12) {
     classe="muito";
     texto="🟢 BOM";
-    autorizados = [
-        "Rossadinha vwap",
-        "Inside bar reversão",
-        "POI",
-        "FF-FD vwap"
-    ];
+    autorizados = ["Rossadinha vwap","Inside bar reversão","POI","FF-FD vwap"];
 }
 else if(pontos >= 8) {
     classe="medio";
     texto="🟡 MÉDIO";
-    autorizados = [
-        "Inside bar reversão",
-        "POI"
-    ];
+    autorizados = ["Inside bar reversão","POI"];
 }
 else if(pontos >= 4) {
     classe="fraco";
     texto="🟠 FRACO";
-    autorizados = [
-        "POI"
-    ];
+    autorizados = ["POI"];
 }
 else {
     classe="evitar";
@@ -269,28 +264,19 @@ else {
     autorizados = [];
 }
 
-/* Atualiza visual */
-
 resultadoDiv.className = "resultado " + classe;
 resultadoDiv.innerHTML = texto + "<br>Pontuação: " + pontos;
 
-/* Atualiza lista de gatilhos autorizados */
-
-gatilhoSelect.innerHTML = "";
+/* Mostra gatilhos abaixo do resultado */
 
 if(autorizados.length === 0){
-    let opt = document.createElement("option");
-    opt.text = "Nenhum setup autorizado";
-    gatilhoSelect.add(opt);
+    gatilhosDiv.innerHTML = "<strong>Gatilhos Autorizados:</strong><br>Nenhum";
 } else {
-    autorizados.forEach(function(item){
-        let opt = document.createElement("option");
-        opt.text = item;
-        gatilhoSelect.add(opt);
-    });
+    gatilhosDiv.innerHTML = "<strong>Gatilhos Autorizados:</strong><br>" + autorizados.join("<br>");
 }
 
 }
+
 </script>
 
 </body>
