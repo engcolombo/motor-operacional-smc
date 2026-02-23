@@ -5,7 +5,6 @@
 <title>Motor Operacional SMC</title>
 
 <style>
-
 body {
     font-family: Arial, sans-serif;
     background-color: #f4f6f8;
@@ -27,12 +26,6 @@ body {
     box-shadow: 0 4px 10px rgba(0,0,0,0.05);
 }
 
-h1 {
-    text-align: center;
-    margin-bottom: 20px;
-    font-size: 18px;
-}
-
 label {
     font-weight: bold;
     font-size: 13px;
@@ -40,7 +33,7 @@ label {
     display: block;
 }
 
-select, button {
+select, button, textarea {
     width: 100%;
     padding: 8px;
     margin-bottom: 10px;
@@ -80,15 +73,32 @@ button:hover {
     font-size: 13px;
 }
 
+/* MODAL */
+.modal {
+    display:none;
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background:rgba(0,0,0,0.5);
+    justify-content:center;
+    align-items:center;
+}
+
+.modal-content {
+    background:white;
+    padding:20px;
+    width:300px;
+    border-radius:8px;
+}
 </style>
 </head>
 
 <body>
 
 <div class="wrapper">
-
 <div class="container">
-<h1>Trap D-1</h1>
 
 <label>Setup</label>
 <select id="gatilho">
@@ -154,12 +164,44 @@ button:hover {
 <div id="resultado" class="resultado"></div>
 <div id="gatilhosAutorizados" class="gatilhosBox"></div>
 
+<button id="btnRegistrar" style="display:none;" onclick="abrirModal()">Registrar Trade</button>
+<button id="btnExportar" style="display:none;" onclick="exportarCSV()">Exportar CSV</button>
+
+</div>
+</div>
+
+<!-- MODAL -->
+<div class="modal" id="modal">
+<div class="modal-content">
+
+<label>Alvo</label>
+<select id="alvo">
+<option>1:1R</option>
+<option>1:2R</option>
+<option>1:3R</option>
+<option>Stop</option>
+</select>
+
+<label>Parcial?</label>
+<select id="parcial">
+<option>Sim</option>
+<option>Não</option>
+</select>
+
+<label>Observação</label>
+<textarea id="obsTrade"></textarea>
+
+<button onclick="salvarTrade()">Salvar</button>
+
 </div>
 </div>
 
 <script>
 
-function avaliar() {
+let trades = [];
+let ultimoResultado = {};
+
+function avaliar(){
 
 let gatilho = document.getElementById("gatilho").value;
 let macro = document.getElementById("macro").value;
@@ -172,104 +214,92 @@ let obs = document.getElementById("obs").value;
 
 let pontos = 0;
 
-if(gatilho === "") {
-    alert("Selecione o setup.");
-    return;
+if(gatilho===""){ alert("Selecione o setup"); return; }
+
+if(gatilho==="Trap na Máxima - VENDA"){
+if(macro==="Baixa")pontos+=4;
+if(macro==="Lateral")pontos+=2;
+if(macro==="Alta")pontos+=1;
+if(micro==="Lateral")pontos+=2;
+if(micro==="Baixa")pontos+=1;
+if(mm80==="Caindo")pontos+=3;
+if(mm80==="Subindo")pontos+=2;
 }
 
-/* TRAP NA MÁXIMA - VENDA */
-
-if(gatilho === "Trap na Máxima - VENDA") {
-
-    if(macro === "Baixa") pontos += 4;
-    if(macro === "Lateral") pontos += 2;
-    if(macro === "Alta") pontos += 1;
-
-    if(micro === "Lateral") pontos += 2;
-    if(micro === "Baixa") pontos += 1;
-
-    if(mm80 === "Caindo") pontos += 3;
-    if(mm80 === "Subindo") pontos += 2;
+if(gatilho==="Trap na Mínima - COMPRA"){
+if(macro==="Alta")pontos+=4;
+if(macro==="Lateral")pontos+=2;
+if(macro==="Baixa")pontos+=1;
+if(micro==="Lateral")pontos+=2;
+if(micro==="Alta")pontos+=1;
+if(mm80==="Subindo")pontos+=3;
+if(mm80==="Caindo")pontos+=2;
 }
 
-/* TRAP NA MÍNIMA - COMPRA */
+if(vwap==="Distante")pontos+=4;
+if(vwap==="Proximo")pontos+=1;
+if(estoc==="Divergente")pontos+=2;
+if(obp==="Sim")pontos+=2;
+if(obs==="Sim")pontos+=1;
 
-if(gatilho === "Trap na Mínima - COMPRA") {
+if(gatilho==="Trap na Máxima - VENDA" && macro==="Alta" && pontos>13)pontos=13;
+if(gatilho==="Trap na Mínima - COMPRA" && macro==="Baixa" && pontos>13)pontos=13;
 
-    if(macro === "Alta") pontos += 4;
-    if(macro === "Lateral") pontos += 2;
-    if(macro === "Baixa") pontos += 1;
+let resultado="";
+if(pontos>=14)resultado="EXCELENTE";
+else if(pontos>=12)resultado="BOM";
+else if(pontos>=8)resultado="MÉDIO";
+else if(pontos>=4)resultado="FRACO";
+else resultado="EVITAR";
 
-    if(micro === "Lateral") pontos += 2;
-    if(micro === "Alta") pontos += 1;
+document.getElementById("resultado").innerHTML=resultado+"<br>Pontuação: "+pontos;
 
-    if(mm80 === "Subindo") pontos += 3;
-    if(mm80 === "Caindo") pontos += 2;
+if(resultado!=="EVITAR"){
+document.getElementById("btnRegistrar").style.display="block";
+}else{
+document.getElementById("btnRegistrar").style.display="none";
 }
 
-/* FATORES GERAIS */
-
-if(vwap === "Distante") pontos += 4;
-if(vwap === "Proximo") pontos += 1;
-
-if(estoc === "Divergente") pontos += 2;
-if(obp === "Sim") pontos += 2;
-if(obs === "Sim") pontos += 1;
-
-/* TETO ESTRUTURAL */
-
-if(gatilho === "Trap na Máxima - VENDA" && macro === "Alta") {
-    if(pontos > 13) pontos = 13;
+ultimoResultado={
+data:new Date().toLocaleString(),
+setup:gatilho,
+macro, micro, mm80, vwap, estoc, obp, obs,
+pontos, resultado
+};
 }
 
-if(gatilho === "Trap na Mínima - COMPRA" && macro === "Baixa") {
-    if(pontos > 13) pontos = 13;
+function abrirModal(){
+document.getElementById("modal").style.display="flex";
 }
 
-/* CLASSIFICAÇÃO */
+function salvarTrade(){
 
-let resultadoDiv = document.getElementById("resultado");
-let gatilhosDiv = document.getElementById("gatilhosAutorizados");
+let alvo=document.getElementById("alvo").value;
+let parcial=document.getElementById("parcial").value;
+let observacao=document.getElementById("obsTrade").value;
 
-let classe = "";
-let texto = "";
-let autorizados = [];
+let trade={...ultimoResultado, alvo, parcial, observacao};
 
-if(pontos >= 14) {
-    classe="excelente";
-    texto="🔵 EXCELENTE";
-    autorizados = ["Rossadinha vwap","FF-FD vwap","PFR 10m","Inside bar reversão","CHOCH","POI"];
-}
-else if(pontos >= 12) {
-    classe="muito";
-    texto="🟢 BOM";
-    autorizados = ["Rossadinha vwap","Inside bar reversão","POI","FF-FD vwap"];
-}
-else if(pontos >= 8) {
-    classe="medio";
-    texto="🟡 MÉDIO";
-    autorizados = ["Inside bar reversão","POI"];
-}
-else if(pontos >= 4) {
-    classe="fraco";
-    texto="🟠 FRACO";
-    autorizados = ["POI"];
-}
-else {
-    classe="evitar";
-    texto="🔴 EVITAR";
-    autorizados = [];
+trades.push(trade);
+
+document.getElementById("modal").style.display="none";
+document.getElementById("btnExportar").style.display="block";
+alert("Trade registrado!");
 }
 
-resultadoDiv.className = "resultado " + classe;
-resultadoDiv.innerHTML = texto + "<br>Pontuação: " + pontos;
+function exportarCSV(){
 
-if(autorizados.length === 0){
-    gatilhosDiv.innerHTML = "<strong>Gatilhos Autorizados:</strong><br>Nenhum";
-} else {
-    gatilhosDiv.innerHTML = "<strong>Gatilhos Autorizados:</strong><br>" + autorizados.join("<br>");
-}
+let csv="Data,Setup,Macro,Micro,MM80,VWAP,Estoc,OBPrimario,OBSecundario,Pontos,Resultado,Alvo,Parcial,Observacao\n";
 
+trades.forEach(t=>{
+csv+=`${t.data},${t.setup},${t.macro},${t.micro},${t.mm80},${t.vwap},${t.estoc},${t.obp},${t.obs},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.observacao}\n`;
+});
+
+let blob=new Blob([csv],{type:"text/csv"});
+let link=document.createElement("a");
+link.href=URL.createObjectURL(blob);
+link.download="trades_smc.csv";
+link.click();
 }
 
 </script>
