@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Motor Operacional SMC</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f6f8;
+    padding: 40px;
+}
+
+.container {
+    background: white;
+    padding: 30px;
+    max-width: 500px;
+    margin: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+select, button {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+button {
+    background-color: #003366;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #002244;
+}
+
+.resultado {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 5px;
+    font-weight: bold;
+    text-align: center;
+}
+.valido {
+    background-color: #d4edda;
+    color: #155724;
+}
+.emocional {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+<h1>Motor Operacional SMC</h1>
+
+<select id="trade">
+<option value="">Compra / Venda</option>
+<option>Compra</option>
+<option>Venda</option>
+</select>
+
+<select id="macro">
+<option value="">Tendência Macro</option>
+<option>Alta</option>
+<option>Baixa</option>
+<option>Lateral</option>
+</select>
+
+<select id="micro">
+<option value="">Tendência Micro</option>
+<option>Alta</option>
+<option>Baixa</option>
+<option>Lateral</option>
+</select>
+
+<select id="mm80">
+<option value="">MM80</option>
+<option>Subindo</option>
+<option>Caindo</option>
+</select>
+
+<select id="vwap">
+<option value="">Posição VWAP</option>
+<option>Distante</option>
+<option>Proximo</option>
+<option>Toque</option>
+</select>
+
+<button onclick="validar()">Validar Setup</button>
+
+<div id="resultado"></div>
+
+</div>
+
+<script>
+function validar() {
+
+let trade = document.getElementById("trade").value;
+let macro = document.getElementById("macro").value;
+let micro = document.getElementById("micro").value;
+let mm80 = document.getElementById("mm80").value;
+let vwap = document.getElementById("vwap").value;
+
+let resultadoDiv = document.getElementById("resultado");
+
+if (
+    trade === "Venda" &&
+    macro === "Alta" &&
+    micro === "Alta" &&
+    mm80 === "Subindo" &&
+    vwap === "Distante"
+) {
+    resultadoDiv.className = "resultado valido";
+    resultadoDiv.innerHTML = "SETUP PERMITIDO: Trap Máxima D-1";
+    return;
+}
+
+if (
+    trade === "Compra" &&
+    macro === "Baixa" &&
+    micro === "Baixa" &&
+    mm80 === "Caindo" &&
+    vwap === "Distante"
+) {
+    resultadoDiv.className = "resultado valido";
+    resultadoDiv.innerHTML = "SETUP PERMITIDO: Trap Mínima D-1";
+    return;
+}
+
+resultadoDiv.className = "resultado emocional";
+resultadoDiv.innerHTML = "STATUS: EMOCIONAL - Nenhum trap permitido nesse cenário";
+
+}
+</script>
+
+</body>
+</html>
