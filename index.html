@@ -5,93 +5,18 @@
 <title>Motor Operacional SMC</title>
 
 <style>
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f6f8;
-    padding: 30px;
-}
-
-.wrapper {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
-.container {
-    background: white;
-    padding: 20px;
-    width: 360px;
-    border-radius: 8px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-}
-
-label {
-    font-weight: bold;
-    font-size: 13px;
-    margin-top: 6px;
-    display: block;
-}
-
-select, button, textarea {
-    width: 100%;
-    padding: 8px;
-    margin-bottom: 10px;
-    font-size: 14px;
-}
-
-button {
-    background-color: #003366;
-    color: white;
-    border: none;
-    cursor: pointer;
-}
-
-button:hover {
-    background-color: #002244;
-}
-
-.resultado {
-    margin-top: 10px;
-    padding: 15px;
-    border-radius: 6px;
-    font-weight: bold;
-    text-align: center;
-}
-
-.excelente { background:#cce5ff; color:#004085; }
-.muito { background:#d4edda; color:#155724; }
-.medio { background:#fff3cd; color:#856404; }
-.fraco { background:#ffe5b4; color:#8a4b00; }
-.evitar { background:#f8d7da; color:#721c24; }
-
-.gatilhosBox {
-    margin-top: 10px;
-    padding: 10px;
-    background: #f1f1f1;
-    border-radius: 6px;
-    font-size: 13px;
-}
-
-/* MODAL */
-.modal {
-    display:none;
-    position:fixed;
-    top:0;
-    left:0;
-    width:100%;
-    height:100%;
-    background:rgba(0,0,0,0.5);
-    justify-content:center;
-    align-items:center;
-}
-
-.modal-content {
-    background:white;
-    padding:20px;
-    width:300px;
-    border-radius:8px;
-}
+body { font-family: Arial; background:#f4f6f8; padding:30px; }
+.wrapper { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; }
+.container { background:white; padding:20px; width:360px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
+label { font-weight:bold; font-size:13px; margin-top:6px; display:block; }
+select, button, textarea { width:100%; padding:8px; margin-bottom:10px; font-size:14px; }
+button { background:#003366; color:white; border:none; cursor:pointer; }
+button:hover { background:#002244; }
+.resultado { margin-top:10px; padding:15px; border-radius:6px; font-weight:bold; text-align:center; }
+.gatilhosBox { margin-top:10px; padding:10px; background:#f1f1f1; border-radius:6px; font-size:13px; }
+.stats { margin-top:15px; padding:10px; background:#e9ecef; border-radius:6px; font-size:13px; }
+.modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; }
+.modal-content { background:white; padding:20px; width:300px; border-radius:8px; }
 </style>
 </head>
 
@@ -102,75 +27,45 @@ button:hover {
 
 <label>Setup</label>
 <select id="gatilho">
-<option value=""></option>
+<option></option>
 <option>Trap na Máxima - VENDA</option>
 <option>Trap na Mínima - COMPRA</option>
 </select>
 
 <label>Tendência Macro</label>
-<select id="macro">
-<option value=""></option>
-<option>Alta</option>
-<option>Baixa</option>
-<option>Lateral</option>
-</select>
+<select id="macro"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
 <label>Tendência Micro</label>
-<select id="micro">
-<option value=""></option>
-<option>Alta</option>
-<option>Baixa</option>
-<option>Lateral</option>
-</select>
+<select id="micro"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
 <label>MM80</label>
-<select id="mm80">
-<option value=""></option>
-<option>Subindo</option>
-<option>Caindo</option>
-</select>
+<select id="mm80"><option></option><option>Subindo</option><option>Caindo</option></select>
 
 <label>VWAP</label>
-<select id="vwap">
-<option value=""></option>
-<option>Distante</option>
-<option>Proximo</option>
-<option>Toque</option>
-</select>
+<select id="vwap"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
 
 <label>Estocástico</label>
-<select id="estoc">
-<option value=""></option>
-<option>Divergente</option>
-<option>Nao divergente</option>
-</select>
+<select id="estoc"><option></option><option>Divergente</option><option>Nao divergente</option></select>
 
 <label>OB Primário</label>
-<select id="obp">
-<option value=""></option>
-<option>Sim</option>
-<option>Nao</option>
-</select>
+<select id="obp"><option></option><option>Sim</option><option>Nao</option></select>
 
 <label>OB Secundário</label>
-<select id="obs">
-<option value=""></option>
-<option>Sim</option>
-<option>Nao</option>
-</select>
+<select id="obs"><option></option><option>Sim</option><option>Nao</option></select>
 
 <button onclick="avaliar()">Avaliar</button>
 
 <div id="resultado" class="resultado"></div>
-<div id="gatilhosAutorizados" class="gatilhosBox"></div>
 
 <button id="btnRegistrar" style="display:none;" onclick="abrirModal()">Registrar Trade</button>
-<button id="btnExportar" style="display:none;" onclick="exportarCSV()">Exportar CSV</button>
+<button onclick="exportarCSV()">Exportar CSV</button>
+<button onclick="limparHistorico()">Limpar Histórico</button>
+
+<div class="stats" id="estatisticas"></div>
 
 </div>
 </div>
 
-<!-- MODAL -->
 <div class="modal" id="modal">
 <div class="modal-content">
 
@@ -188,9 +83,6 @@ button:hover {
 <option>Não</option>
 </select>
 
-<label>Observação</label>
-<textarea id="obsTrade"></textarea>
-
 <button onclick="salvarTrade()">Salvar</button>
 
 </div>
@@ -198,23 +90,23 @@ button:hover {
 
 <script>
 
-let trades = [];
+let trades = JSON.parse(localStorage.getItem("tradesSMC")) || [];
 let ultimoResultado = {};
 
 function avaliar(){
 
-let gatilho = document.getElementById("gatilho").value;
-let macro = document.getElementById("macro").value;
-let micro = document.getElementById("micro").value;
-let mm80 = document.getElementById("mm80").value;
-let vwap = document.getElementById("vwap").value;
-let estoc = document.getElementById("estoc").value;
-let obp = document.getElementById("obp").value;
-let obs = document.getElementById("obs").value;
+let gatilho = gatilho.value;
+let macro = macro.value;
+let micro = micro.value;
+let mm80 = mm80.value;
+let vwap = vwap.value;
+let estoc = estoc.value;
+let obp = obp.value;
+let obs = obs.value;
 
 let pontos = 0;
 
-if(gatilho===""){ alert("Selecione o setup"); return; }
+if(gatilho==="") return alert("Selecione o setup");
 
 if(gatilho==="Trap na Máxima - VENDA"){
 if(macro==="Baixa")pontos+=4;
@@ -252,55 +144,73 @@ else if(pontos>=8)resultado="MÉDIO";
 else if(pontos>=4)resultado="FRACO";
 else resultado="EVITAR";
 
-document.getElementById("resultado").innerHTML=resultado+"<br>Pontuação: "+pontos;
+resultadoDiv.innerHTML=resultado+"<br>Pontuação: "+pontos;
 
-if(resultado!=="EVITAR"){
-document.getElementById("btnRegistrar").style.display="block";
-}else{
-document.getElementById("btnRegistrar").style.display="none";
+btnRegistrar.style.display = resultado==="EVITAR" ? "none" : "block";
+
+ultimoResultado={data:new Date().toLocaleString(),setup:gatilho,pontos,resultado};
 }
 
-ultimoResultado={
-data:new Date().toLocaleString(),
-setup:gatilho,
-macro, micro, mm80, vwap, estoc, obp, obs,
-pontos, resultado
-};
-}
-
-function abrirModal(){
-document.getElementById("modal").style.display="flex";
-}
+function abrirModal(){ modal.style.display="flex"; }
 
 function salvarTrade(){
+let alvo=alvo.value;
+let parcial=parcial.value;
 
-let alvo=document.getElementById("alvo").value;
-let parcial=document.getElementById("parcial").value;
-let observacao=document.getElementById("obsTrade").value;
+let r=0;
+if(alvo==="1:1R")r=1;
+if(alvo==="1:2R")r=2;
+if(alvo==="1:3R")r=3;
+if(alvo==="Stop")r=-1;
 
-let trade={...ultimoResultado, alvo, parcial, observacao};
+let trade={...ultimoResultado,alvo,parcial,r};
 
 trades.push(trade);
+localStorage.setItem("tradesSMC",JSON.stringify(trades));
 
-document.getElementById("modal").style.display="none";
-document.getElementById("btnExportar").style.display="block";
-alert("Trade registrado!");
+modal.style.display="none";
+atualizarEstatisticas();
+}
+
+function atualizarEstatisticas(){
+
+let total=trades.length;
+let wins=trades.filter(t=>t.r>0).length;
+let stops=trades.filter(t=>t.r<0).length;
+let rTotal=trades.reduce((acc,t)=>acc+t.r,0);
+let winrate= total? ((wins/total)*100).toFixed(1):0;
+let payoff= total? (rTotal/total).toFixed(2):0;
+
+estatisticas.innerHTML=
+`Total: ${total}<br>
+Wins: ${wins}<br>
+Stops: ${stops}<br>
+Winrate: ${winrate}%<br>
+R Total: ${rTotal}<br>
+Payoff Médio: ${payoff}R`;
 }
 
 function exportarCSV(){
-
-let csv="Data,Setup,Macro,Micro,MM80,VWAP,Estoc,OBPrimario,OBSecundario,Pontos,Resultado,Alvo,Parcial,Observacao\n";
-
+let csv="Data,Setup,Pontos,Resultado,Alvo,Parcial,R\n";
 trades.forEach(t=>{
-csv+=`${t.data},${t.setup},${t.macro},${t.micro},${t.mm80},${t.vwap},${t.estoc},${t.obp},${t.obs},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.observacao}\n`;
+csv+=`${t.data},${t.setup},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.r}\n`;
 });
-
 let blob=new Blob([csv],{type:"text/csv"});
 let link=document.createElement("a");
 link.href=URL.createObjectURL(blob);
 link.download="trades_smc.csv";
 link.click();
 }
+
+function limparHistorico(){
+if(confirm("Deseja apagar todo histórico?")){
+trades=[];
+localStorage.removeItem("tradesSMC");
+atualizarEstatisticas();
+}
+}
+
+atualizarEstatisticas();
 
 </script>
 
