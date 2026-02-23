@@ -178,13 +178,24 @@ if(estoc === "Divergente") pontos += 2;
 if(obp === "Sim") pontos += 2;
 if(obs === "Sim") pontos += 1;
 
+/* 🔥 TETO ESTRUTURAL BASEADO NO MACRO */
+
+if(gatilho === "Trap Máxima D-1" && macro === "Alta") {
+    if(pontos > 13) pontos = 13;
+}
+
+if(gatilho === "Trap Mínima D-1" && macro === "Baixa") {
+    if(pontos > 13) pontos = 13;
+}
+
+
 let resultadoDiv = document.getElementById("resultado");
 
 let classe = "";
 let texto = "";
 
 if(pontos >= 14) { classe="excelente"; texto="🔵 EXCELENTE"; }
-else if(pontos >= 12) { classe="muito"; texto="🟢  BOM"; }
+else if(pontos >= 12) { classe="muito"; texto="🟢 BOM"; }
 else if(pontos >= 8) { classe="medio"; texto="🟡 MÉDIO"; }
 else if(pontos >= 4) { classe="fraco"; texto="🟠 FRACO"; }
 else { classe="evitar"; texto="🔴 EVITAR"; }
@@ -193,7 +204,6 @@ resultadoDiv.className = "resultado " + classe;
 resultadoDiv.innerHTML = texto + "<br>Pontuação: " + pontos;
 
 }
-
 </script>
 
 </body>
