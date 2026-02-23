@@ -131,6 +131,17 @@ button:hover {
 <option>Nao</option>
 </select>
 
+<label>Gatilhos Autorizados</label>
+<select id="gatilhoAutorizado">
+<option value=""></option>
+<option>Rossadinha vwap</option>
+<option>FF-FD vwap</option>
+<option>PFR 10m</option>
+<option>Inside bar reversão</option>
+<option>CHOCH</option>
+<option>POI</option>
+</select>
+
 <button onclick="avaliar()">Avaliar Trap</button>
 
 <div id="resultado"></div>
@@ -167,7 +178,6 @@ if(gatilho === "Trap Máxima D-1") {
 
     if(micro === "Lateral") pontos += 2;
     if(micro === "Baixa") pontos += 1;
-    if(micro === "Alta") pontos += 0;
 
     if(mm80 === "Caindo") pontos += 3;
     if(mm80 === "Subindo") pontos += 2;
@@ -183,7 +193,6 @@ if(gatilho === "Trap Mínima D-1") {
 
     if(micro === "Lateral") pontos += 2;
     if(micro === "Alta") pontos += 1;
-    if(micro === "Baixa") pontos += 0;
 
     if(mm80 === "Subindo") pontos += 3;
     if(mm80 === "Caindo") pontos += 2;
@@ -193,13 +202,12 @@ if(gatilho === "Trap Mínima D-1") {
 
 if(vwap === "Distante") pontos += 4;
 if(vwap === "Proximo") pontos += 1;
-if(vwap === "Toque") pontos += 0;
 
 if(estoc === "Divergente") pontos += 2;
 if(obp === "Sim") pontos += 2;
 if(obs === "Sim") pontos += 1;
 
-/* 🔥 TETO ESTRUTURAL */
+/* TETO ESTRUTURAL */
 
 if(gatilho === "Trap Máxima D-1" && macro === "Alta") {
     if(pontos > 13) pontos = 13;
