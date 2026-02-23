@@ -6,14 +6,13 @@
 
 <style>
 body { font-family: Arial; background:#f4f6f8; padding:30px; }
-.wrapper { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; }
+.wrapper { display:flex; justify-content:center; }
 .container { background:white; padding:20px; width:360px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
 label { font-weight:bold; font-size:13px; margin-top:6px; display:block; }
 select, button, textarea { width:100%; padding:8px; margin-bottom:10px; font-size:14px; }
 button { background:#003366; color:white; border:none; cursor:pointer; }
 button:hover { background:#002244; }
 .resultado { margin-top:10px; padding:15px; border-radius:6px; font-weight:bold; text-align:center; }
-.gatilhosBox { margin-top:10px; padding:10px; background:#f1f1f1; border-radius:6px; font-size:13px; }
 .stats { margin-top:15px; padding:10px; background:#e9ecef; border-radius:6px; font-size:13px; }
 .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; }
 .modal-content { background:white; padding:20px; width:300px; border-radius:8px; }
@@ -27,31 +26,45 @@ button:hover { background:#002244; }
 
 <label>Setup</label>
 <select id="gatilho">
-<option></option>
+<option value=""></option>
 <option>Trap na Máxima - VENDA</option>
 <option>Trap na Mínima - COMPRA</option>
 </select>
 
 <label>Tendência Macro</label>
-<select id="macro"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
+<select id="macro">
+<option></option><option>Alta</option><option>Baixa</option><option>Lateral</option>
+</select>
 
 <label>Tendência Micro</label>
-<select id="micro"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
+<select id="micro">
+<option></option><option>Alta</option><option>Baixa</option><option>Lateral</option>
+</select>
 
 <label>MM80</label>
-<select id="mm80"><option></option><option>Subindo</option><option>Caindo</option></select>
+<select id="mm80">
+<option></option><option>Subindo</option><option>Caindo</option>
+</select>
 
 <label>VWAP</label>
-<select id="vwap"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
+<select id="vwap">
+<option></option><option>Distante</option><option>Proximo</option><option>Toque</option>
+</select>
 
 <label>Estocástico</label>
-<select id="estoc"><option></option><option>Divergente</option><option>Nao divergente</option></select>
+<select id="estoc">
+<option></option><option>Divergente</option><option>Nao divergente</option>
+</select>
 
 <label>OB Primário</label>
-<select id="obp"><option></option><option>Sim</option><option>Nao</option></select>
+<select id="obp">
+<option></option><option>Sim</option><option>Nao</option>
+</select>
 
 <label>OB Secundário</label>
-<select id="obs"><option></option><option>Sim</option><option>Nao</option></select>
+<select id="obs">
+<option></option><option>Sim</option><option>Nao</option>
+</select>
 
 <button onclick="avaliar()">Avaliar</button>
 
@@ -95,19 +108,20 @@ let ultimoResultado = {};
 
 function avaliar(){
 
-let gatilho = gatilho.value;
-let macro = macro.value;
-let micro = micro.value;
-let mm80 = mm80.value;
-let vwap = vwap.value;
-let estoc = estoc.value;
-let obp = obp.value;
-let obs = obs.value;
+let gatilho = document.getElementById("gatilho").value;
+let macro = document.getElementById("macro").value;
+let micro = document.getElementById("micro").value;
+let mm80 = document.getElementById("mm80").value;
+let vwap = document.getElementById("vwap").value;
+let estoc = document.getElementById("estoc").value;
+let obp = document.getElementById("obp").value;
+let obs = document.getElementById("obs").value;
+
+if(gatilho===""){ alert("Selecione o setup."); return; }
 
 let pontos = 0;
 
-if(gatilho==="") return alert("Selecione o setup");
-
+/* TRAP VENDA */
 if(gatilho==="Trap na Máxima - VENDA"){
 if(macro==="Baixa")pontos+=4;
 if(macro==="Lateral")pontos+=2;
@@ -118,6 +132,7 @@ if(mm80==="Caindo")pontos+=3;
 if(mm80==="Subindo")pontos+=2;
 }
 
+/* TRAP COMPRA */
 if(gatilho==="Trap na Mínima - COMPRA"){
 if(macro==="Alta")pontos+=4;
 if(macro==="Lateral")pontos+=2;
@@ -128,12 +143,14 @@ if(mm80==="Subindo")pontos+=3;
 if(mm80==="Caindo")pontos+=2;
 }
 
+/* Fatores gerais */
 if(vwap==="Distante")pontos+=4;
 if(vwap==="Proximo")pontos+=1;
 if(estoc==="Divergente")pontos+=2;
 if(obp==="Sim")pontos+=2;
 if(obs==="Sim")pontos+=1;
 
+/* Teto estrutural */
 if(gatilho==="Trap na Máxima - VENDA" && macro==="Alta" && pontos>13)pontos=13;
 if(gatilho==="Trap na Mínima - COMPRA" && macro==="Baixa" && pontos>13)pontos=13;
 
@@ -144,18 +161,30 @@ else if(pontos>=8)resultado="MÉDIO";
 else if(pontos>=4)resultado="FRACO";
 else resultado="EVITAR";
 
-resultadoDiv.innerHTML=resultado+"<br>Pontuação: "+pontos;
+document.getElementById("resultado").innerHTML=resultado+"<br>Pontuação: "+pontos;
 
-btnRegistrar.style.display = resultado==="EVITAR" ? "none" : "block";
-
-ultimoResultado={data:new Date().toLocaleString(),setup:gatilho,pontos,resultado};
+if(resultado!=="EVITAR"){
+document.getElementById("btnRegistrar").style.display="block";
+}else{
+document.getElementById("btnRegistrar").style.display="none";
 }
 
-function abrirModal(){ modal.style.display="flex"; }
+ultimoResultado={
+data:new Date().toLocaleString(),
+setup:gatilho,
+macro, micro, mm80, vwap, estoc, obp, obs,
+pontos, resultado
+};
+}
+
+function abrirModal(){
+document.getElementById("modal").style.display="flex";
+}
 
 function salvarTrade(){
-let alvo=alvo.value;
-let parcial=parcial.value;
+
+let alvo=document.getElementById("alvo").value;
+let parcial=document.getElementById("parcial").value;
 
 let r=0;
 if(alvo==="1:1R")r=1;
@@ -168,8 +197,10 @@ let trade={...ultimoResultado,alvo,parcial,r};
 trades.push(trade);
 localStorage.setItem("tradesSMC",JSON.stringify(trades));
 
-modal.style.display="none";
+document.getElementById("modal").style.display="none";
+
 atualizarEstatisticas();
+alert("Trade registrado!");
 }
 
 function atualizarEstatisticas(){
@@ -181,7 +212,7 @@ let rTotal=trades.reduce((acc,t)=>acc+t.r,0);
 let winrate= total? ((wins/total)*100).toFixed(1):0;
 let payoff= total? (rTotal/total).toFixed(2):0;
 
-estatisticas.innerHTML=
+document.getElementById("estatisticas").innerHTML=
 `Total: ${total}<br>
 Wins: ${wins}<br>
 Stops: ${stops}<br>
@@ -191,9 +222,9 @@ Payoff Médio: ${payoff}R`;
 }
 
 function exportarCSV(){
-let csv="Data,Setup,Pontos,Resultado,Alvo,Parcial,R\n";
+let csv="Data,Setup,Macro,Micro,MM80,VWAP,Estoc,OBPrimario,OBSecundario,Pontos,Resultado,Alvo,Parcial,R\n";
 trades.forEach(t=>{
-csv+=`${t.data},${t.setup},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.r}\n`;
+csv+=`${t.data},${t.setup},${t.macro},${t.micro},${t.mm80},${t.vwap},${t.estoc},${t.obp},${t.obs},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.r}\n`;
 });
 let blob=new Blob([csv],{type:"text/csv"});
 let link=document.createElement("a");
