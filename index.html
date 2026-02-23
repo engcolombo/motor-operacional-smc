@@ -12,7 +12,6 @@ body {
     padding: 30px;
 }
 
-/* Container geral permite múltiplos cards lado a lado */
 .wrapper {
     display: flex;
     gap: 20px;
@@ -20,7 +19,6 @@ body {
     justify-content: center;
 }
 
-/* Card compacto */
 .container {
     background: white;
     padding: 20px;
@@ -95,8 +93,8 @@ button:hover {
 <label>Setup</label>
 <select id="gatilho">
 <option value=""></option>
-<option>Trap Máxima D-1</option>
-<option>Trap Mínima D-1</option>
+<option>Trap na Máxima - VENDA</option>
+<option>Trap na Mínima - COMPRA</option>
 </select>
 
 <label>Tendência Macro</label>
@@ -154,7 +152,6 @@ button:hover {
 <button onclick="avaliar()">Avaliar</button>
 
 <div id="resultado" class="resultado"></div>
-
 <div id="gatilhosAutorizados" class="gatilhosBox"></div>
 
 </div>
@@ -180,9 +177,9 @@ if(gatilho === "") {
     return;
 }
 
-/* TRAP MÁXIMA */
+/* TRAP NA MÁXIMA - VENDA */
 
-if(gatilho === "Trap Máxima - VENDA") {
+if(gatilho === "Trap na Máxima - VENDA") {
 
     if(macro === "Baixa") pontos += 4;
     if(macro === "Lateral") pontos += 2;
@@ -195,9 +192,9 @@ if(gatilho === "Trap Máxima - VENDA") {
     if(mm80 === "Subindo") pontos += 2;
 }
 
-/* TRAP MÍNIMA */
+/* TRAP NA MÍNIMA - COMPRA */
 
-if(gatilho === "Trap Mínima - COMPRA") {
+if(gatilho === "Trap na Mínima - COMPRA") {
 
     if(macro === "Alta") pontos += 4;
     if(macro === "Lateral") pontos += 2;
@@ -221,11 +218,11 @@ if(obs === "Sim") pontos += 1;
 
 /* TETO ESTRUTURAL */
 
-if(gatilho === "Trap Máxima D-1" && macro === "Alta") {
+if(gatilho === "Trap na Máxima - VENDA" && macro === "Alta") {
     if(pontos > 13) pontos = 13;
 }
 
-if(gatilho === "Trap Mínima D-1" && macro === "Baixa") {
+if(gatilho === "Trap na Mínima - COMPRA" && macro === "Baixa") {
     if(pontos > 13) pontos = 13;
 }
 
@@ -266,8 +263,6 @@ else {
 
 resultadoDiv.className = "resultado " + classe;
 resultadoDiv.innerHTML = texto + "<br>Pontuação: " + pontos;
-
-/* Mostra gatilhos abaixo do resultado */
 
 if(autorizados.length === 0){
     gatilhosDiv.innerHTML = "<strong>Gatilhos Autorizados:</strong><br>Nenhum";
