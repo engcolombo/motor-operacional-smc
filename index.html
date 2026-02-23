@@ -220,21 +220,77 @@ if(gatilho === "Trap Mínima D-1" && macro === "Baixa") {
 /* CLASSIFICAÇÃO */
 
 let resultadoDiv = document.getElementById("resultado");
+let gatilhoSelect = document.getElementById("gatilhoAutorizado");
 
 let classe = "";
 let texto = "";
+let autorizados = [];
 
-if(pontos >= 14) { classe="excelente"; texto="🔵 EXCELENTE"; }
-else if(pontos >= 12) { classe="muito"; texto="🟢 BOM"; }
-else if(pontos >= 8) { classe="medio"; texto="🟡 MÉDIO"; }
-else if(pontos >= 4) { classe="fraco"; texto="🟠 FRACO"; }
-else { classe="evitar"; texto="🔴 EVITAR"; }
+if(pontos >= 14) {
+    classe="excelente";
+    texto="🔵 EXCELENTE";
+    autorizados = [
+        "Rossadinha vwap",
+        "FF-FD vwap",
+        "PFR 10m",
+        "Inside bar reversão",
+        "CHOCH",
+        "POI"
+    ];
+}
+else if(pontos >= 12) {
+    classe="muito";
+    texto="🟢 BOM";
+    autorizados = [
+        "Rossadinha vwap",
+        "Inside bar reversão",
+        "POI",
+        "FF-FD vwap"
+    ];
+}
+else if(pontos >= 8) {
+    classe="medio";
+    texto="🟡 MÉDIO";
+    autorizados = [
+        "Inside bar reversão",
+        "POI"
+    ];
+}
+else if(pontos >= 4) {
+    classe="fraco";
+    texto="🟠 FRACO";
+    autorizados = [
+        "POI"
+    ];
+}
+else {
+    classe="evitar";
+    texto="🔴 EVITAR";
+    autorizados = [];
+}
+
+/* Atualiza visual */
 
 resultadoDiv.className = "resultado " + classe;
 resultadoDiv.innerHTML = texto + "<br>Pontuação: " + pontos;
 
+/* Atualiza lista de gatilhos autorizados */
+
+gatilhoSelect.innerHTML = "";
+
+if(autorizados.length === 0){
+    let opt = document.createElement("option");
+    opt.text = "Nenhum setup autorizado";
+    gatilhoSelect.add(opt);
+} else {
+    autorizados.forEach(function(item){
+        let opt = document.createElement("option");
+        opt.text = item;
+        gatilhoSelect.add(opt);
+    });
 }
 
+}
 </script>
 
 </body>
