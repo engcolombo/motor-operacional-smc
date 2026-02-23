@@ -130,42 +130,38 @@ let pontos = 0;
 
 if(trade === "Venda") {
 
-    if(macro === "Baixa") pontos += 5;
-    if(macro === "Lateral") pontos += 4;
-    if(macro === "Alta") pontos += 2;
+    if(macro === "Baixa") pontos += 4;
+    if(macro === "Lateral") pontos += 3;
+    if(macro === "Alta") pontos += 1;
 
-    if(mm80 === "Caindo") pontos += 4;
-    if(mm80 === "Subindo") pontos += 3;
+    if(mm80 === "Caindo") pontos += 3;
+    if(mm80 === "Subindo") pontos += 2;
 
 }
 
 if(trade === "Compra") {
 
-    if(macro === "Alta") pontos += 5;
-    if(macro === "Lateral") pontos += 4;
-    if(macro === "Baixa") pontos += 2;
+    if(macro === "Alta") pontos += 4;
+    if(macro === "Lateral") pontos += 3;
+    if(macro === "Baixa") pontos += 1;
 
-    if(mm80 === "Subindo") pontos += 4;
-    if(mm80 === "Caindo") pontos += 3;
+    if(mm80 === "Subindo") pontos += 3;
+    if(mm80 === "Caindo") pontos += 2;
 }
 
-if(vwap === "Distante") pontos += 5;
-if(vwap === "Proximo") pontos += 3;
-if(vwap === "Toque") pontos += 2;
-
-if(estoc === "Divergente") pontos += 1;
-if(obp === "Sim") pontos += 1;
-if(obs === "Sim") pontos += 1;
+if(vwap === "Distante") pontos += 4;
+if(vwap === "Proximo") pontos += 2;
+if(vwap === "Toque") pontos += 1;
 
 let resultadoDiv = document.getElementById("resultado");
 
 let classe = "";
 let texto = "";
 
-if(pontos >= 13) { classe="excelente"; texto="🔵 EXCELENTE"; }
-else if(pontos >= 10) { classe="muito"; texto="🟢 MUITO BOM"; }
-else if(pontos >= 7) { classe="medio"; texto="🟡 MÉDIO"; }
-else if(pontos >= 4) { classe="fraco"; texto="🟠 FRACO"; }
+if(pontos >= 10) { classe="excelente"; texto="🔵 EXCELENTE"; }
+else if(pontos >= 8) { classe="muito"; texto="🟢 MUITO BOM"; }
+else if(pontos >= 5) { classe="medio"; texto="🟡 MÉDIO"; }
+else if(pontos >= 3) { classe="fraco"; texto="🟠 FRACO"; }
 else { classe="evitar"; texto="🔴 EVITAR"; }
 
 resultadoDiv.className = "resultado " + classe;
@@ -173,6 +169,7 @@ resultadoDiv.innerHTML = texto + "<br>Pontuação: " + pontos;
 
 }
 
+    
 </script>
 
 </body>
