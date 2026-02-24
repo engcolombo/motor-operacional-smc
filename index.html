@@ -884,11 +884,19 @@ origemAtual = prefix;
 let setupValue = document.getElementById("gatilho"+prefix).value;
 let macroValue = document.getElementById("macro"+prefix).value;
 let microValue = document.getElementById("micro"+prefix).value;
-let mm80Value = document.getElementById("mm80"+prefix).value;
-let vwapValue = document.getElementById("vwap"+prefix).value;
-let estocValue = document.getElementById("estoc"+prefix).value;
-let obpValue = document.getElementById("obp"+prefix).value;
-let obsValue = document.getElementById("obs"+prefix).value;
+/* ================= FIX CAMPOS OPCIONAIS ================= */
+let mm80Element = document.getElementById("mm80"+prefix);
+let vwapElement = document.getElementById("vwap"+prefix);
+let estocElement = document.getElementById("estoc"+prefix);
+let obpElement = document.getElementById("obp"+prefix);
+let obsElement = document.getElementById("obs"+prefix);
+
+let mm80Value = mm80Element ? mm80Element.value : "";
+let vwapValue = vwapElement ? vwapElement.value : "";
+let estocValue = estocElement ? estocElement.value : "";
+let obpValue = obpElement ? obpElement.value : "";
+let obsValue = obsElement ? obsElement.value : "";
+/* ================= FIM FIX ================= */
 
 if(setupValue===""){ alert("Selecione o setup."); return; }
 
@@ -949,6 +957,11 @@ gatilhosPermitidos=["POI"];
 /* ================= INICIO LOGICA INSTITUCIONAL SMC ================= */
 if(prefix==="B"){
 
+    /* valida direção obrigatória */
+if(!direcaoValue){
+alert("Selecione COMPRA ou VENDA");
+return;
+}
 let direcaoValue = document.getElementById("direcaoB").value;
 let tocouVwapValue = document.getElementById("tocouVwapB").value;
 
