@@ -956,15 +956,15 @@ gatilhosPermitidos=["POI"];
 /* ================= SMC ================= */
 /* ================= INICIO LOGICA INSTITUCIONAL SMC ================= */
 if(prefix==="B"){
+    
+let direcaoValue = document.getElementById("direcaoB").value;
+let tocouVwapValue = document.getElementById("tocouVwapB").value;
 
-    /* valida direção obrigatória */
+/* ✅ VALIDAÇÃO DEVE VIR DEPOIS DA DECLARAÇÃO */
 if(!direcaoValue){
 alert("Selecione COMPRA ou VENDA");
 return;
 }
-let direcaoValue = document.getElementById("direcaoB").value;
-let tocouVwapValue = document.getElementById("tocouVwapB").value;
-
 /* 1 HTF BIAS (MACRO) */
 if(direcaoValue==="Compra"){
     if(macroValue==="Alta") pontos+=5;
