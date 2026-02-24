@@ -1009,4 +1009,38 @@ let wins=trades.filter(t=>t.r>0).length;
 let stops=trades.filter(t=>t.r<0).length;
 let rTotal=trades.reduce((acc,t)=>acc+t.r,0);
 let winrate= total?((wins/total)*100).toFixed(1):0;
-let payoff= total?(rTotal/total).toFixed(
+let payoff= total?(rTotal/total).toFixed(2):0;
+
+document.getElementById("stat-total").innerText = total;
+document.getElementById("stat-wins").innerText = wins;
+document.getElementById("stat-stops").innerText = stops;
+document.getElementById("stat-winrate").innerText = winrate + '%';
+document.getElementById("stat-rtotal").innerText = rTotal;
+document.getElementById("stat-payoff").innerText = payoff + 'R';
+}
+
+function exportarCSV(){
+let csv="Data,Hora,Origem,Setup,GatilhoExecutado,Macro,Micro,MM80,VWAP,Estoc,OBPrimario,OBSecundario,Pontos,Resultado,Alvo,Parcial,R\n";
+trades.forEach(t=>{
+csv+=`${t.data},${t.hora},${t.origem},${t.setup},${t.gatilhoExecutado},${t.macro},${t.micro},${t.mm80},${t.vwap},${t.estoc},${t.obp},${t.obs},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.r}\n`;
+});
+let blob=new Blob([csv],{type:"text/csv"});
+let link=document.createElement("a");
+link.href=URL.createObjectURL(blob);
+link.download="trades_smc.csv";
+link.click();
+}
+
+function limparHistorico(){
+if(confirm("Deseja apagar todo histórico?")){
+trades=[];
+localStorage.removeItem("tradesSMC");
+atualizarEstatisticas();
+}
+}
+
+atualizarEstatisticas();
+
+</script>
+</body>
+</html>
