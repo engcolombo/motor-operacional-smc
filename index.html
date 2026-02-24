@@ -48,8 +48,8 @@ button:hover { background:#002244; }
 }
 
 .stats {
-    margin-top:15px;
-    padding:10px;
+    margin-top:20px;
+    padding:15px;
     background:#e9ecef;
     border-radius:6px;
     font-size:13px;
@@ -80,7 +80,7 @@ button:hover { background:#002244; }
 
 <div class="wrapper">
 
-<!-- SETUP A -->
+<!-- ================= SETUP A (ORIGINAL INTACTO) ================= -->
 <div class="container">
 <h3>Setup A</h3>
 
@@ -92,39 +92,25 @@ button:hover { background:#002244; }
 </select>
 
 <label>Tendência Macro</label>
-<select id="macroA">
-<option></option><option>Alta</option><option>Baixa</option><option>Lateral</option>
-</select>
+<select id="macroA"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
 <label>Tendência Micro</label>
-<select id="microA">
-<option></option><option>Alta</option><option>Baixa</option><option>Lateral</option>
-</select>
+<select id="microA"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
 <label>MM80</label>
-<select id="mm80A">
-<option></option><option>Subindo</option><option>Caindo</option>
-</select>
+<select id="mm80A"><option></option><option>Subindo</option><option>Caindo</option></select>
 
 <label>VWAP</label>
-<select id="vwapA">
-<option></option><option>Distante</option><option>Proximo</option><option>Toque</option>
-</select>
+<select id="vwapA"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
 
 <label>Estocástico</label>
-<select id="estocA">
-<option></option><option>Divergente</option><option>Nao divergente</option>
-</select>
+<select id="estocA"><option></option><option>Divergente</option><option>Nao divergente</option></select>
 
 <label>OB Primário</label>
-<select id="obpA">
-<option></option><option>Sim</option><option>Nao</option>
-</select>
+<select id="obpA"><option></option><option>Sim</option><option>Nao</option></select>
 
 <label>OB Secundário</label>
-<select id="obsA">
-<option></option><option>Sim</option><option>Nao</option>
-</select>
+<select id="obsA"><option></option><option>Sim</option><option>Nao</option></select>
 
 <button onclick="avaliar('A')">Avaliar</button>
 
@@ -135,7 +121,7 @@ button:hover { background:#002244; }
 
 </div>
 
-<!-- SETUP B -->
+<!-- ================= SETUP B (CÓPIA EXATA) ================= -->
 <div class="container">
 <h3>Setup B</h3>
 
@@ -147,39 +133,25 @@ button:hover { background:#002244; }
 </select>
 
 <label>Tendência Macro</label>
-<select id="macroB">
-<option></option><option>Alta</option><option>Baixa</option><option>Lateral</option>
-</select>
+<select id="macroB"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
 <label>Tendência Micro</label>
-<select id="microB">
-<option></option><option>Alta</option><option>Baixa</option><option>Lateral</option>
-</select>
+<select id="microB"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
 <label>MM80</label>
-<select id="mm80B">
-<option></option><option>Subindo</option><option>Caindo</option>
-</select>
+<select id="mm80B"><option></option><option>Subindo</option><option>Caindo</option></select>
 
 <label>VWAP</label>
-<select id="vwapB">
-<option></option><option>Distante</option><option>Proximo</option><option>Toque</option>
-</select>
+<select id="vwapB"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
 
 <label>Estocástico</label>
-<select id="estocB">
-<option></option><option>Divergente</option><option>Nao divergente</option>
-</select>
+<select id="estocB"><option></option><option>Divergente</option><option>Nao divergente</option></select>
 
 <label>OB Primário</label>
-<select id="obpB">
-<option></option><option>Sim</option><option>Nao</option>
-</select>
+<select id="obpB"><option></option><option>Sim</option><option>Nao</option></select>
 
 <label>OB Secundário</label>
-<select id="obsB">
-<option></option><option>Sim</option><option>Nao</option>
-</select>
+<select id="obsB"><option></option><option>Sim</option><option>Nao</option></select>
 
 <button onclick="avaliar('B')">Avaliar</button>
 
@@ -193,13 +165,12 @@ button:hover { background:#002244; }
 </div>
 
 <!-- HISTÓRICO GLOBAL -->
-<div class="container" style="margin:auto; margin-top:30px; max-width:800px;">
+<div class="stats" id="estatisticas"></div>
+
 <button onclick="exportarCSV()">Exportar CSV</button>
 <button onclick="limparHistorico()">Limpar Histórico</button>
-<div class="stats" id="estatisticas"></div>
-</div>
 
-<!-- MODAL ÚNICO -->
+<!-- MODAL -->
 <div class="modal" id="modal">
 <div class="modal-content">
 
@@ -224,19 +195,15 @@ button:hover { background:#002244; }
 
 <script>
 
-/* === TODA SUA LÓGICA ORIGINAL PERMANECE AQUI === */
-/* (mantida intacta, apenas parametrizada por A ou B) */
+/* ================= LÓGICA ORIGINAL INTACTA ================= */
 
 let trades = JSON.parse(localStorage.getItem("tradesSMC")) || [];
 let ultimoResultado = {};
-let setupAtual = null;
-
-/* AQUI ENTRA SUA FUNÇÃO AVALIAR ORIGINAL
-   apenas trocando IDs para usar sufixo dinâmico */
+let origemAtual = null;
 
 function avaliar(prefix){
 
-setupAtual = prefix;
+origemAtual = prefix;
 
 let setupValue = document.getElementById("gatilho"+prefix).value;
 let macroValue = document.getElementById("macro"+prefix).value;
@@ -251,8 +218,7 @@ if(setupValue===""){ alert("Selecione o setup."); return; }
 
 let pontos = 0;
 
-/* >>> AQUI VOCÊ PODE COLAR EXATAMENTE SUA LÓGICA ORIGINAL <<< */
-/* (não modifiquei pontuações nem regras) */
+/* ===== SUA LÓGICA ORIGINAL ===== */
 
 if(setupValue==="Trap na Máxima - VENDA"){
 if(macroValue==="Baixa")pontos+=4;
@@ -280,31 +246,62 @@ if(estocValue==="Divergente")pontos+=2;
 if(obpValue==="Sim")pontos+=2;
 if(obsValue==="Sim")pontos+=1;
 
-/* Classificação original */
+/* ===== CLASSIFICAÇÃO + GATILHOS (ORIGINAL) ===== */
+
 let resultado="";
 let classe="";
+let gatilhosPermitidos=[];
 let bolinha="●";
 
-if(pontos>=14){ resultado="EXCELENTE"; classe="excelente"; }
-else if(pontos>=12){ resultado="BOM"; classe="bom"; }
-else if(pontos>=8){ resultado="MÉDIO"; classe="medio"; }
-else if(pontos>=4){ resultado="FRACO"; classe="fraco"; }
-else { resultado="EVITAR"; classe="fraco"; }
+if(pontos>=14){
+resultado="EXCELENTE";
+classe="excelente";
+gatilhosPermitidos=["Rossadinha vwap","FF-FD vwap","PFR 10m","Inside bar reversão","CHOCH","POI"];
+}
+else if(pontos>=12){
+resultado="BOM";
+classe="bom";
+gatilhosPermitidos=["Rossadinha vwap","Inside bar reversão","POI","FF-FD vwap"];
+}
+else if(pontos>=8){
+resultado="MÉDIO";
+classe="medio";
+gatilhosPermitidos=["Inside bar reversão","POI"];
+}
+else if(pontos>=4){
+resultado="FRACO";
+classe="fraco";
+gatilhosPermitidos=["POI"];
+}
+else{
+resultado="EVITAR";
+classe="fraco";
+gatilhosPermitidos=[];
+}
 
 let resultadoDiv=document.getElementById("resultado"+prefix);
 resultadoDiv.className="resultado "+classe;
 resultadoDiv.innerHTML=`${bolinha} ${resultado}<br>Pontuação: ${pontos}`;
 
-if(resultado!=="EVITAR"){
-document.getElementById("btnRegistrar"+prefix).style.display="block";
-}else{
+let gatilhosDiv=document.getElementById("gatilhosPermitidos"+prefix);
+
+if(gatilhosPermitidos.length===0){
+gatilhosDiv.innerHTML="";
 document.getElementById("btnRegistrar"+prefix).style.display="none";
+}else{
+let html="<strong>Gatilhos Autorizados:</strong><br>";
+gatilhosPermitidos.forEach(g=>{
+html+=`<label><input type="radio" name="gatilhoExec${prefix}" value="${g}"> ${g}</label><br>`;
+});
+gatilhosDiv.innerHTML=html;
+document.getElementById("btnRegistrar"+prefix).style.display="block";
 }
 
 let agora=new Date();
 ultimoResultado={
 data:agora.toLocaleDateString(),
 hora:agora.toLocaleTimeString(),
+origem:prefix,
 setup:setupValue,
 macro:macroValue,
 micro:microValue,
@@ -314,22 +311,28 @@ estoc:estocValue,
 obp:obpValue,
 obs:obsValue,
 pontos,
-resultado,
-origem:prefix
+resultado
 };
 
 }
 
-/* Modal e histórico continuam idênticos */
-
 function abrirModal(prefix){
-setupAtual = prefix;
+origemAtual = prefix;
 document.getElementById("modal").style.display="flex";
 }
 
 function salvarTrade(){
+
+let radioSelecionado=document.querySelector(`input[name="gatilhoExec${origemAtual}"]:checked`);
+
+if(!radioSelecionado){
+alert("Selecione o gatilho executado.");
+return;
+}
+
 let alvoValue=document.getElementById("alvo").value;
 let parcialValue=document.getElementById("parcial").value;
+let gatilhoExecutado=radioSelecionado.value;
 
 let r=0;
 if(alvoValue==="1:1R")r=1;
@@ -337,7 +340,7 @@ if(alvoValue==="1:2R")r=2;
 if(alvoValue==="1:3R")r=3;
 if(alvoValue==="Stop")r=-1;
 
-let trade={...ultimoResultado,alvo:alvoValue,parcial:parcialValue,r};
+let trade={...ultimoResultado,gatilhoExecutado,alvo:alvoValue,parcial:parcialValue,r};
 
 trades.push(trade);
 localStorage.setItem("tradesSMC",JSON.stringify(trades));
@@ -364,9 +367,9 @@ Payoff Médio: ${payoff}R`;
 }
 
 function exportarCSV(){
-let csv="Data,Hora,Origem,Setup,Macro,Micro,MM80,VWAP,Estoc,OBPrimario,OBSecundario,Pontos,Resultado,Alvo,Parcial,R\n";
+let csv="Data,Hora,Origem,Setup,GatilhoExecutado,Macro,Micro,MM80,VWAP,Estoc,OBPrimario,OBSecundario,Pontos,Resultado,Alvo,Parcial,R\n";
 trades.forEach(t=>{
-csv+=`${t.data},${t.hora},${t.origem},${t.setup},${t.macro},${t.micro},${t.mm80},${t.vwap},${t.estoc},${t.obp},${t.obs},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.r}\n`;
+csv+=`${t.data},${t.hora},${t.origem},${t.setup},${t.gatilhoExecutado},${t.macro},${t.micro},${t.mm80},${t.vwap},${t.estoc},${t.obp},${t.obs},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.r}\n`;
 });
 let blob=new Blob([csv],{type:"text/csv"});
 let link=document.createElement("a");
