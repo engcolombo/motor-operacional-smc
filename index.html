@@ -8,70 +8,57 @@
 
 <style>
 body {
-    background: linear-gradient(135deg, #0f3d91, #1e4ed8);
+    background: linear-gradient(135deg, #0b2c6b, #1e4ed8);
     min-height: 100vh;
-}
-
-.page {
-    padding: 40px 20px;
+    padding:30px;
 }
 
 .card {
-    border-radius: 18px;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+    border-radius:18px;
+    box-shadow:0 20px 40px rgba(0,0,0,0.2);
 }
 
 .form-select, .btn {
-    border-radius: 14px !important;
+    border-radius:14px !important;
 }
 
-.hidden {
-    display:none;
+.resultado {
+    margin-top:10px;
+    padding:15px;
+    border-radius:14px;
+    font-weight:bold;
+    text-align:center;
 }
 
-.fade {
-    animation: fadeIn 0.3s ease-in-out;
+.excelente { background:#dbeafe; color:#1e3a8a; }
+.bom { background:#dcfce7; color:#166534; }
+.medio { background:#fef9c3; color:#854d0e; }
+.fraco { background:#fee2e2; color:#991b1b; }
+
+.gatilhos-box {
+    background:#f1f5f9;
+    padding:12px;
+    border-radius:14px;
+    margin-top:10px;
+    font-size:13px;
 }
 
-@keyframes fadeIn {
-    from {opacity:0; transform:translateY(10px);}
-    to {opacity:1; transform:translateY(0);}
-}
+.hidden { display:none; }
 
-.dashboard-card {
+.dashboard-card{
     border-radius:18px;
     padding:20px;
     color:white;
     text-align:center;
-    box-shadow:0 15px 35px rgba(0,0,0,0.2);
-}
-
-.modal {
-    display:none;
-    position:fixed;
-    top:0;
-    left:0;
-    width:100%;
-    height:100%;
-    background:rgba(0,0,0,0.5);
-    justify-content:center;
-    align-items:center;
-}
-
-.modal-content {
-    background:white;
-    padding:25px;
-    width:320px;
-    border-radius:18px;
+    box-shadow:0 15px 35px rgba(0,0,0,0.3);
 }
 </style>
 </head>
 
 <body>
 
-<div class="page container-xl">
+<div class="container-xl">
 
-<!-- ===== BOTÕES TOPO ===== -->
 <div class="d-flex justify-content-between mb-4">
 <h2 class="text-white">Motor Operacional SMC</h2>
 <div>
@@ -81,115 +68,177 @@ body {
 </div>
 
 <!-- ================= TELA OPERACIONAL ================= -->
-<div id="paginaOperacional" class="fade">
-
-<div class="row g-4">
-<!-- COLE AQUI SEUS 3 CARDS ORIGINAIS (TRAP / SMC / OB) -->
-<!-- NÃO ALTERE NADA DOS IDs OU BOTÕES -->
-</div>
-
-</div>
-
-<!-- ================= TELA DASHBOARD ================= -->
-<div id="paginaDashboard" class="hidden fade">
+<div id="paginaOperacional">
 
 <div class="row g-4">
 
-<div class="col-md-2">
-<div class="dashboard-card bg-blue">
-<h6>Total</h6>
-<h2 id="statTotal">0</h2>
-</div>
-</div>
+<!-- ================= TRAP ================= -->
+<div class="col-md-4">
+<div class="card p-3">
+<h4>TRAP máxima e mínima</h4>
 
-<div class="col-md-2">
-<div class="dashboard-card bg-green">
-<h6>Wins</h6>
-<h2 id="statWins">0</h2>
-</div>
-</div>
-
-<div class="col-md-2">
-<div class="dashboard-card bg-red">
-<h6>Stops</h6>
-<h2 id="statStops">0</h2>
-</div>
-</div>
-
-<div class="col-md-2">
-<div class="dashboard-card bg-yellow">
-<h6>Winrate</h6>
-<h2 id="statWinrate">0%</h2>
-</div>
-</div>
-
-<div class="col-md-2">
-<div class="dashboard-card bg-indigo">
-<h6>R Total</h6>
-<h2 id="statRTotal">0</h2>
-</div>
-</div>
-
-<div class="col-md-2">
-<div class="dashboard-card bg-cyan">
-<h6>Payoff Médio</h6>
-<h2 id="statPayoff">0R</h2>
-</div>
-</div>
-
-</div>
-
-<div class="mt-4">
-<button class="btn btn-success" onclick="exportarCSV()">Exportar CSV</button>
-<button class="btn btn-danger" onclick="limparHistorico()">Limpar Histórico</button>
-</div>
-
-</div>
-
-</div>
-
-<!-- Modal -->
-<div class="modal" id="modal">
-<div class="modal-content">
-
-<label class="form-label">Alvo</label>
-<select id="alvo" class="form-select">
-<option>1:1R</option>
-<option>1:2R</option>
-<option>1:3R</option>
-<option>Stop</option>
+<label>Setup</label>
+<select id="gatilhoA" class="form-select">
+<option></option>
+<option>Trap na Máxima - VENDA</option>
+<option>Trap na Mínima - COMPRA</option>
 </select>
 
-<label class="form-label mt-3">Parcial?</label>
-<select id="parcial" class="form-select">
-<option>Sim</option>
-<option>Não</option>
+<label>Tendência Macro</label>
+<select id="macroA" class="form-select"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
+
+<label>Tendência Micro</label>
+<select id="microA" class="form-select"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
+
+<label>MM80</label>
+<select id="mm80A" class="form-select"><option></option><option>Subindo</option><option>Caindo</option></select>
+
+<label>VWAP</label>
+<select id="vwapA" class="form-select"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
+
+<label>Estocástico</label>
+<select id="estocA" class="form-select"><option></option><option>Divergente</option><option>Nao divergente</option></select>
+
+<label>OB Primário</label>
+<select id="obpA" class="form-select"><option></option><option>Sim</option><option>Nao</option></select>
+
+<label>OB Secundário</label>
+<select id="obsA" class="form-select"><option></option><option>Sim</option><option>Nao</option></select>
+
+<button class="btn btn-primary w-100 mt-2" onclick="avaliar('A')">Avaliar</button>
+
+<div id="resultadoA" class="resultado"></div>
+<div id="gatilhosPermitidosA" class="gatilhos-box"></div>
+<button id="btnRegistrarA" class="btn btn-outline-primary w-100 mt-2" style="display:none;" onclick="abrirModal('A')">Registrar Trade</button>
+</div>
+</div>
+
+<!-- ================= SMC ================= -->
+<div class="col-md-4">
+<div class="card p-3">
+<h4>SMC</h4>
+
+<label>Setup</label>
+<select id="gatilhoB" class="form-select">
+<option></option>
+<option>Captura de liquidez em range</option>
+<option>Captura de liquidez de BOS relevante</option>
 </select>
 
-<button class="btn btn-primary w-100 mt-3" onclick="salvarTrade()">Salvar</button>
+<label>Tendência Macro</label>
+<select id="macroB" class="form-select"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
+
+<label>Tendência Micro</label>
+<select id="microB" class="form-select"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
+
+<label>CHOCH</label>
+<select id="mm80B" class="form-select"><option></option><option>Sim</option><option>Não</option></select>
+
+<label>VWAP oposta</label>
+<select id="vwapB" class="form-select"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
+
+<label>Capturou liquidez?</label>
+<select id="estocB" class="form-select"><option></option><option>Sim</option><option>Não</option></select>
+
+<label>FVG</label>
+<select id="fvgB" class="form-select"><option></option><option>Sim</option><option>Não</option></select>
+
+<label>OB Primário</label>
+<select id="obpB" class="form-select"><option></option><option>Sim</option><option>Nao</option></select>
+
+<label>OB Secundário</label>
+<select id="obsB" class="form-select"><option></option><option>Sim</option><option>Nao</option></select>
+
+<button class="btn btn-primary w-100 mt-2" onclick="avaliar('B')">Avaliar</button>
+
+<div id="resultadoB" class="resultado"></div>
+<div id="gatilhosPermitidosB" class="gatilhos-box"></div>
+<button id="btnRegistrarB" class="btn btn-outline-primary w-100 mt-2" style="display:none;" onclick="abrirModal('B')">Registrar Trade</button>
+</div>
+</div>
+
+<!-- ================= OB ================= -->
+<div class="col-md-4">
+<div class="card p-3">
+<h4>OB / VWAP / POC</h4>
+
+<label>Setup</label>
+<select id="gatilhoC" class="form-select">
+<option></option>
+<option>OB HTF</option>
+<option>OB interno</option>
+<option>VWAP</option>
+<option>Volume Profile POC</option>
+</select>
+
+<label>Tendência Macro</label>
+<select id="macroC" class="form-select"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
+
+<label>Tendência Micro</label>
+<select id="microC" class="form-select"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
+
+<label>CHOCH</label>
+<select id="mm80C" class="form-select"><option></option><option>Sim</option><option>Não</option></select>
+
+<label>VWAP oposta</label>
+<select id="vwapC" class="form-select"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
+
+<label>Capturou liquidez?</label>
+<select id="estocC" class="form-select"><option></option><option>Sim</option><option>Não</option></select>
+
+<label>FVG</label>
+<select id="fvgC" class="form-select"><option></option><option>Sim</option><option>Não</option></select>
+
+<label>OB Primário</label>
+<select id="obpC" class="form-select"><option></option><option>Sim</option><option>Nao</option></select>
+
+<label>OB Secundário</label>
+<select id="obsC" class="form-select"><option></option><option>Sim</option><option>Nao</option></select>
+
+<button class="btn btn-primary w-100 mt-2" onclick="avaliar('C')">Avaliar</button>
+
+<div id="resultadoC" class="resultado"></div>
+<div id="gatilhosPermitidosC" class="gatilhos-box"></div>
+<button id="btnRegistrarC" class="btn btn-outline-primary w-100 mt-2" style="display:none;" onclick="abrirModal('C')">Registrar Trade</button>
+</div>
+</div>
 
 </div>
+</div>
+
+<!-- ================= DASHBOARD ================= -->
+<div id="paginaDashboard" class="hidden mt-4">
+
+<div class="row g-4">
+
+<div class="col-md-2"><div class="dashboard-card bg-blue"><h6>Total</h6><h2 id="statTotal">0</h2></div></div>
+<div class="col-md-2"><div class="dashboard-card bg-green"><h6>Wins</h6><h2 id="statWins">0</h2></div></div>
+<div class="col-md-2"><div class="dashboard-card bg-red"><h6>Stops</h6><h2 id="statStops">0</h2></div></div>
+<div class="col-md-2"><div class="dashboard-card bg-yellow"><h6>Winrate</h6><h2 id="statWinrate">0%</h2></div></div>
+<div class="col-md-2"><div class="dashboard-card bg-indigo"><h6>R Total</h6><h2 id="statRTotal">0</h2></div></div>
+<div class="col-md-2"><div class="dashboard-card bg-cyan"><h6>Payoff</h6><h2 id="statPayoff">0R</h2></div></div>
+
+</div>
+
+<button class="btn btn-success mt-3" onclick="exportarCSV()">Exportar CSV</button>
+<button class="btn btn-danger mt-3" onclick="limparHistorico()">Limpar Histórico</button>
+
+</div>
+
 </div>
 
 <script>
 
-/* ===== TRANSIÇÃO ENTRE TELAS ===== */
-
+/* ===== TRANSIÇÃO ===== */
 function mostrarDashboard(){
-document.getElementById("paginaOperacional").classList.add("hidden");
-document.getElementById("paginaDashboard").classList.remove("hidden");
+document.getElementById("paginaOperacional").style.display="none";
+document.getElementById("paginaDashboard").style.display="block";
 atualizarEstatisticas();
 }
 
 function mostrarOperacional(){
-document.getElementById("paginaDashboard").classList.add("hidden");
-document.getElementById("paginaOperacional").classList.remove("hidden");
+document.getElementById("paginaDashboard").style.display="none";
+document.getElementById("paginaOperacional").style.display="block";
 }
 
-/* ===== SEU SCRIPT ORIGINAL AQUI COMPLETO (SEM ALTERAÇÃO) ===== */
-/* cole aqui exatamente seu JS anterior */
-
-</script>
-
-</body>
-</html>
+/* ===== SEU JS ORIGINAL INTEGRAL ===== */
