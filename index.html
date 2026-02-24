@@ -669,6 +669,13 @@ button:not(.stats-buttons button):hover {
         <option>Captura de liquidez de BOS relevante</option>
         </select>
 
+        <label>COMPRA / VENDA</label>
+        <select id="direcaoB">
+        <option value="" disabled selected>— Selecione —</option>
+        <option>Compra</option>
+        <option>Venda</option>
+        </select>
+
         <label>Tendência Macro</label>
         <select id="macroB">
         <option value="" disabled selected>— Selecione —</option>
@@ -685,30 +692,15 @@ button:not(.stats-buttons button):hover {
         <option>Lateral</option>
         </select>
 
-        <label>CHOCH</label>
-        <select id="mm80B">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Sim</option>
-        <option>Não</option>
-        </select>
-
         <label>VWAP oposta</label>
         <select id="vwapB">
         <option value="" disabled selected>— Selecione —</option>
         <option>Distante</option>
         <option>Proximo</option>
-        <option>Toque</option>
         </select>
 
-        <label>Capturou liquidez?</label>
-        <select id="estocB">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Sim</option>
-        <option>Não</option>
-        </select>
-
-        <label>FVG</label>
-        <select id="fvgB">
+        <label>TOCOU VWAP ?</label>
+        <select id="tocouVwapB">
         <option value="" disabled selected>— Selecione —</option>
         <option>Sim</option>
         <option>Não</option>
@@ -937,15 +929,15 @@ if(obsValue==="Sim")pontos+=1;
 
 if(pontos>=14){
 resultado="EXCELENTE";classe="excelente";
-gatilhosPermitidos=["Rossadinha vwap","FF-FD vwap","PFR 10m","Inside bar reversão / 123 ","CHOCH","POI"];
+gatilhosPermitidos=["Rossadinha vwap","FF-FD vwap","PFR 10m","Inside bar reversão","CHOCH","POI"];
 }
 else if(pontos>=12){
 resultado="BOM";classe="bom";
-gatilhosPermitidos=["Rossadinha vwap","Inside bar reversão / 123 ","POI","FF-FD vwap"];
+gatilhosPermitidos=["Rossadinha vwap","Inside bar reversão","POI","FF-FD vwap"];
 }
 else if(pontos>=8){
 resultado="MÉDIO";classe="medio";
-gatilhosPermitidos=["Inside bar reversão / 123 ","POI"];
+gatilhosPermitidos=["Inside bar reversão","POI"];
 }
 else{
 resultado="FRACO";classe="fraco";
@@ -1029,6 +1021,14 @@ obs:obsValue,
 pontos,
 resultado
 };
+
+// Adicionar campos específicos do SMC se for o caso
+if(prefix==="B"){
+let direcaoValue = document.getElementById("direcao"+prefix).value;
+let tocouVwapValue = document.getElementById("tocouVwap"+prefix).value;
+ultimoResultado.direcao = direcaoValue;
+ultimoResultado.tocouVwap = tocouVwapValue;
+}
 }
 
 function abrirModal(prefix){
