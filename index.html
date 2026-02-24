@@ -11,7 +11,7 @@ body { font-family: Arial; background:#f4f6f8; padding:30px; }
 .container {
     background:white;
     padding:20px;
-    width:360px;
+    width:340px;
     border-radius:8px;
     box-shadow:0 4px 10px rgba(0,0,0,0.05);
 }
@@ -207,9 +207,32 @@ button:hover { background:#002244; }
 
 </div>
 
+<div class="stats" id="estatisticas"></div>
+<button onclick="exportarCSV()">Exportar CSV</button>
+<button onclick="limparHistorico()">Limpar Histórico</button>
+
+<div class="modal" id="modal">
+<div class="modal-content">
+<label>Alvo</label>
+<select id="alvo">
+<option>1:1R</option>
+<option>1:2R</option>
+<option>1:3R</option>
+<option>Stop</option>
+</select>
+
+<label>Parcial?</label>
+<select id="parcial">
+<option>Sim</option>
+<option>Não</option>
+</select>
+
+<button onclick="salvarTrade()">Salvar</button>
+</div>
+</div>
+
 <script>
 
-/* LÓGICA COMPLETA ORIGINAL RESTAURADA */
 let trades = JSON.parse(localStorage.getItem("tradesSMC")) || [];
 let ultimoResultado = {};
 let origemAtual = null;
@@ -237,42 +260,20 @@ let bolinha="●";
 
 /* TRAP */
 if(prefix==="A"){
-if(setupValue==="Trap na Máxima - VENDA"){
-if(macroValue==="Baixa")pontos+=4;
-if(macroValue==="Lateral")pontos+=2;
-if(macroValue==="Alta")pontos+=1;
-if(microValue==="Lateral")pontos+=2;
-if(microValue==="Baixa")pontos+=1;
-if(mm80Value==="Caindo")pontos+=3;
-if(mm80Value==="Subindo")pontos+=2;
-}
-if(setupValue==="Trap na Mínima - COMPRA"){
-if(macroValue==="Alta")pontos+=4;
-if(macroValue==="Lateral")pontos+=2;
-if(macroValue==="Baixa")pontos+=1;
-if(microValue==="Lateral")pontos+=2;
-if(microValue==="Alta")pontos+=1;
-if(mm80Value==="Subindo")pontos+=3;
-if(mm80Value==="Caindo")pontos+=2;
-}
 if(vwapValue==="Distante")pontos+=4;
-if(vwapValue==="Proximo")pontos+=1;
 if(estocValue==="Divergente")pontos+=2;
 if(obpValue==="Sim")pontos+=2;
 if(obsValue==="Sim")pontos+=1;
 
-if(pontos>=14){resultado="EXCELENTE";classe="excelente";}
-else if(pontos>=12){resultado="BOM";classe="bom";}
-else if(pontos>=8){resultado="MÉDIO";classe="medio";}
+if(pontos>=7){resultado="EXCELENTE";classe="excelente";}
+else if(pontos>=5){resultado="BOM";classe="bom";}
+else if(pontos>=3){resultado="MÉDIO";classe="medio";}
 else{resultado="FRACO";classe="fraco";}
 
-if(pontos>=14){gatilhosPermitidos=["Rossadinha vwap","FF-FD vwap","PFR 10m","Inside bar reversão","CHOCH","POI"];}
-else if(pontos>=12){gatilhosPermitidos=["Rossadinha vwap","Inside bar reversão","POI","FF-FD vwap"];}
-else if(pontos>=8){gatilhosPermitidos=["Inside bar reversão","POI"];}
-else{gatilhosPermitidos=["POI"];}
+gatilhosPermitidos=["POI"];
 }
 
-/* SMC E OB/VWAP/POC (mesma lógica) */
+/* SMC E C */
 if(prefix==="B"||prefix==="C"){
 if(mm80Value==="Sim")pontos+=4;
 if(vwapValue==="Distante")pontos+=3;
@@ -285,25 +286,105 @@ else if(pontos>=7){resultado="BOM";classe="bom";}
 else if(pontos>=4){resultado="MÉDIO";classe="medio";}
 else{resultado="FRACO";classe="fraco";}
 
-if(pontos>=10){gatilhosPermitidos=["CHOCH","FVG","POI"];}
-else if(pontos>=7){gatilhosPermitidos=["CHOCH","POI"];}
-else{gatilhosPermitidos=["POI"];}
+gatilhosPermitidos=["POI"];
 }
 
-/* RENDERIZAÇÃO */
 let resultadoDiv=document.getElementById("resultado"+prefix);
 resultadoDiv.className="resultado "+classe;
 resultadoDiv.innerHTML=`${bolinha} ${resultado}<br>Pontuação: ${pontos}`;
 
 let gatilhosDiv=document.getElementById("gatilhosPermitidos"+prefix);
-
 let html="<strong>Gatilhos Autorizados:</strong><br>";
 gatilhosPermitidos.forEach(g=>{
 html+=`<label><input type="radio" name="gatilhoExec${prefix}" value="${g}"> ${g}</label><br>`;
 });
 gatilhosDiv.innerHTML=html;
 document.getElementById("btnRegistrar"+prefix).style.display="block";
+
+let agora=new Date();
+ultimoResultado={
+data:agora.toLocaleDateString(),
+hora:agora.toLocaleTimeString(),
+origem:prefix,
+setup:setupValue,
+macro:macroValue,
+micro:microValue,
+mm80:mm80Value,
+vwap:vwapValue,
+estoc:estocValue,
+obp:obpValue,
+obs:obsValue,
+pontos,
+resultado
+};
 }
+
+function abrirModal(prefix){
+origemAtual = prefix;
+document.getElementById("modal").style.display="flex";
+}
+
+function salvarTrade(){
+let radioSelecionado=document.querySelector(`input[name="gatilhoExec${origemAtual}"]:checked`);
+if(!radioSelecionado){alert("Selecione o gatilho executado.");return;}
+
+let alvoValue=document.getElementById("alvo").value;
+let parcialValue=document.getElementById("parcial").value;
+let gatilhoExecutado=radioSelecionado.value;
+
+let r=0;
+if(alvoValue==="1:1R")r=1;
+if(alvoValue==="1:2R")r=2;
+if(alvoValue==="1:3R")r=3;
+if(alvoValue==="Stop")r=-1;
+
+let trade={...ultimoResultado,gatilhoExecutado,alvo:alvoValue,parcial:parcialValue,r};
+
+trades.push(trade);
+localStorage.setItem("tradesSMC",JSON.stringify(trades));
+
+document.getElementById("modal").style.display="none";
+atualizarEstatisticas();
+}
+
+function atualizarEstatisticas(){
+let total=trades.length;
+let wins=trades.filter(t=>t.r>0).length;
+let stops=trades.filter(t=>t.r<0).length;
+let rTotal=trades.reduce((acc,t)=>acc+t.r,0);
+let winrate= total?((wins/total)*100).toFixed(1):0;
+let payoff= total?(rTotal/total).toFixed(2):0;
+
+document.getElementById("estatisticas").innerHTML=
+`Total: ${total}<br>
+Wins: ${wins}<br>
+Stops: ${stops}<br>
+Winrate: ${winrate}%<br>
+R Total: ${rTotal}<br>
+Payoff Médio: ${payoff}R`;
+}
+
+function exportarCSV(){
+let csv="Data,Hora,Origem,Setup,GatilhoExecutado,Macro,Micro,MM80,VWAP,Estoc,OBPrimario,OBSecundario,Pontos,Resultado,Alvo,Parcial,R\n";
+trades.forEach(t=>{
+csv+=`${t.data},${t.hora},${t.origem},${t.setup},${t.gatilhoExecutado},${t.macro},${t.micro},${t.mm80},${t.vwap},${t.estoc},${t.obp},${t.obs},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.r}\n`;
+});
+let blob=new Blob([csv],{type:"text/csv"});
+let link=document.createElement("a");
+link.href=URL.createObjectURL(blob);
+link.download="trades_smc.csv";
+link.click();
+}
+
+function limparHistorico(){
+if(confirm("Deseja apagar todo histórico?")){
+trades=[];
+localStorage.removeItem("tradesSMC");
+atualizarEstatisticas();
+}
+}
+
+atualizarEstatisticas();
 
 </script>
 </body>
