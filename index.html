@@ -80,7 +80,6 @@ button:hover { background:#002244; }
 
 <div class="wrapper">
 
-<!-- ================= SETUP A (ORIGINAL INTACTO) ================= -->
 <!-- ================= TRAP ================= -->
 <div class="container">
 <h3>TRAP máxima e mínima</h3>
@@ -163,7 +162,7 @@ button:hover { background:#002244; }
 <option>Não</option>
 </select>
 
-    <label>FVG</label>
+<label>FVG</label>
 <select id="fvgB">
 <option></option>
 <option>Sim</option>
@@ -185,16 +184,13 @@ button:hover { background:#002244; }
 
 </div>
 
-<!-- HISTÓRICO GLOBAL -->
 <div class="stats" id="estatisticas"></div>
-
 <button onclick="exportarCSV()">Exportar CSV</button>
 <button onclick="limparHistorico()">Limpar Histórico</button>
 
 <!-- MODAL -->
 <div class="modal" id="modal">
 <div class="modal-content">
-
 <label>Alvo</label>
 <select id="alvo">
 <option>1:1R</option>
@@ -210,13 +206,10 @@ button:hover { background:#002244; }
 </select>
 
 <button onclick="salvarTrade()">Salvar</button>
-
 </div>
 </div>
 
 <script>
-
-/* ================= LÓGICA ORIGINAL INTACTA ================= */
 
 let trades = JSON.parse(localStorage.getItem("tradesSMC")) || [];
 let ultimoResultado = {};
@@ -246,100 +239,132 @@ let bolinha="●";
 /* ================= TRAP ================= */
 if(prefix === "A"){
 
-    if(setupValue==="Trap na Máxima - VENDA"){
-        if(macroValue==="Baixa")pontos+=4;
-        if(macroValue==="Lateral")pontos+=2;
-        if(macroValue==="Alta")pontos+=1;
-        if(microValue==="Lateral")pontos+=2;
-        if(microValue==="Baixa")pontos+=1;
-        if(mm80Value==="Caindo")pontos+=3;
-        if(mm80Value==="Subindo")pontos+=2;
-    }
-
-    if(setupValue==="Trap na Mínima - COMPRA"){
-        if(macroValue==="Alta")pontos+=4;
-        if(macroValue==="Lateral")pontos+=2;
-        if(macroValue==="Baixa")pontos+=1;
-        if(microValue==="Lateral")pontos+=2;
-        if(microValue==="Alta")pontos+=1;
-        if(mm80Value==="Subindo")pontos+=3;
-        if(mm80Value==="Caindo")pontos+=2;
-    }
-
-    if(vwapValue==="Distante")pontos+=4;
-    if(vwapValue==="Proximo")pontos+=1;
-    if(estocValue==="Divergente")pontos+=2;
-    if(obpValue==="Sim")pontos+=2;
-    if(obsValue==="Sim")pontos+=1;
-
-    if(pontos>=14){
-        resultado="EXCELENTE";
-        classe="excelente";
-    }
-    else if(pontos>=12){
-        resultado="BOM";
-        classe="bom";
-    }
-    else if(pontos>=8){
-        resultado="MÉDIO";
-        classe="medio";
-    }
-    else{
-        resultado="FRACO";
-        classe="fraco";
-    }
+if(setupValue==="Trap na Máxima - VENDA"){
+if(macroValue==="Baixa")pontos+=4;
+if(macroValue==="Lateral")pontos+=2;
+if(macroValue==="Alta")pontos+=1;
+if(microValue==="Lateral")pontos+=2;
+if(microValue==="Baixa")pontos+=1;
+if(mm80Value==="Caindo")pontos+=3;
+if(mm80Value==="Subindo")pontos+=2;
 }
 
+if(setupValue==="Trap na Mínima - COMPRA"){
+if(macroValue==="Alta")pontos+=4;
+if(macroValue==="Lateral")pontos+=2;
+if(macroValue==="Baixa")pontos+=1;
+if(microValue==="Lateral")pontos+=2;
+if(microValue==="Alta")pontos+=1;
+if(mm80Value==="Subindo")pontos+=3;
+if(mm80Value==="Caindo")pontos+=2;
+}
+
+if(vwapValue==="Distante")pontos+=4;
+if(vwapValue==="Proximo")pontos+=1;
+if(estocValue==="Divergente")pontos+=2;
+if(obpValue==="Sim")pontos+=2;
+if(obsValue==="Sim")pontos+=1;
+
+if(pontos>=14){ resultado="EXCELENTE"; classe="excelente"; }
+else if(pontos>=12){ resultado="BOM"; classe="bom"; }
+else if(pontos>=8){ resultado="MÉDIO"; classe="medio"; }
+else { resultado="FRACO"; classe="fraco"; }
+
+if(pontos>=14){
+gatilhosPermitidos=["Rossadinha vwap","FF-FD vwap","PFR 10m","Inside bar reversão","CHOCH","POI"];
+}
+else if(pontos>=12){
+gatilhosPermitidos=["Rossadinha vwap","Inside bar reversão","POI","FF-FD vwap"];
+}
+else if(pontos>=8){
+gatilhosPermitidos=["Inside bar reversão","POI"];
+}
+else{
+gatilhosPermitidos=["POI"];
+}
+}
 
 /* ================= SMC ================= */
 if(prefix === "B"){
 
-    if(setupValue==="Captura de liquidez em range") pontos+=3;
-    if(setupValue==="Captura de liquidez de BOS relevante") pontos+=4;
-    if(setupValue==="OB HTF") pontos+=4;
-    if(setupValue==="OB interno") pontos+=2;
-    if(setupValue==="VWAP") pontos+=2;
-    if(setupValue==="Volume Profile POC") pontos+=2;
+if(setupValue==="Captura de liquidez em range") pontos+=3;
+if(setupValue==="Captura de liquidez de BOS relevante") pontos+=4;
+if(setupValue==="OB HTF") pontos+=4;
+if(setupValue==="OB interno") pontos+=2;
+if(setupValue==="VWAP") pontos+=2;
+if(setupValue==="Volume Profile POC") pontos+=2;
 
-    if(macroValue==="Alta" || macroValue==="Baixa") pontos+=3;
-    if(macroValue==="Lateral") pontos+=1;
+if(macroValue==="Alta" || macroValue==="Baixa") pontos+=3;
+if(macroValue==="Lateral") pontos+=1;
 
-    if(microValue==="Alta" || microValue==="Baixa") pontos+=2;
+if(microValue==="Alta" || microValue==="Baixa") pontos+=2;
 
-    if(mm80Value==="Sim") pontos+=4;
+if(mm80Value==="Sim") pontos+=4;
+if(vwapValue==="Distante") pontos+=3;
+if(vwapValue==="Proximo") pontos+=1;
+if(estocValue==="Sim") pontos+=3;
 
-    if(vwapValue==="Distante") pontos+=3;
-    if(vwapValue==="Proximo") pontos+=1;
+let fvgValue = document.getElementById("fvgB").value;
+if(fvgValue==="Sim") pontos+=2;
 
-    if(estocValue==="Sim") pontos+=3;
+if(obpValue==="Sim") pontos+=2;
+if(obsValue==="Sim") pontos+=1;
 
-    let fvgValue = document.getElementById("fvgB").value;
-    if(fvgValue==="Sim") pontos+=2;
+let temChoCh = (mm80Value==="Sim");
 
-    if(obpValue==="Sim") pontos+=2;
-    if(obsValue==="Sim") pontos+=1;
+if(pontos>=18 && temChoCh){ resultado="EXCELENTE"; classe="excelente"; }
+else if(pontos>=14){ resultado="BOM"; classe="bom"; }
+else if(pontos>=9){ resultado="MÉDIO"; classe="medio"; }
+else { resultado="FRACO"; classe="fraco"; }
 
-    let temChoCh = (mm80Value==="Sim");
-
-    if(pontos>=18 && temChoCh){
-        resultado="EXCELENTE";
-        classe="excelente";
-    }
-    else if(pontos>=14){
-        resultado="BOM";
-        classe="bom";
-    }
-    else if(pontos>=9){
-        resultado="MÉDIO";
-        classe="medio";
-    }
-    else{
-        resultado="FRACO";
-        classe="fraco";
-    }
+if(pontos>=18){
+gatilhosPermitidos=["CHOCH","OB HTF","FVG","POI"];
+}
+else if(pontos>=14){
+gatilhosPermitidos=["CHOCH","OB HTF","POI"];
+}
+else{
+gatilhosPermitidos=["POI"];
+}
 }
 
+/* ===== RENDERIZAÇÃO ===== */
 
+let resultadoDiv=document.getElementById("resultado"+prefix);
+resultadoDiv.className="resultado "+classe;
+resultadoDiv.innerHTML=`${bolinha} ${resultado}<br>Pontuação: ${pontos}`;
+
+let gatilhosDiv=document.getElementById("gatilhosPermitidos"+prefix);
+
+if(gatilhosPermitidos.length===0){
+gatilhosDiv.innerHTML="";
+document.getElementById("btnRegistrar"+prefix).style.display="none";
+}else{
+let html="<strong>Gatilhos Autorizados:</strong><br>";
+gatilhosPermitidos.forEach(g=>{
+html+=`<label><input type="radio" name="gatilhoExec${prefix}" value="${g}"> ${g}</label><br>`;
+});
+gatilhosDiv.innerHTML=html;
+document.getElementById("btnRegistrar"+prefix).style.display="block";
+}
+
+let agora=new Date();
+ultimoResultado={
+data:agora.toLocaleDateString(),
+hora:agora.toLocaleTimeString(),
+origem:prefix,
+setup:setupValue,
+macro:macroValue,
+micro:microValue,
+mm80:mm80Value,
+vwap:vwapValue,
+estoc:estocValue,
+obp:obpValue,
+obs:obsValue,
+pontos,
+resultado
+};
+}
 
 function abrirModal(prefix){
 origemAtual = prefix;
