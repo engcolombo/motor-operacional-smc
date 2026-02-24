@@ -946,64 +946,70 @@ gatilhosPermitidos=["POI"];
 }
 
 /* ================= SMC ================= */
+/* ================= INICIO LOGICA INSTITUCIONAL SMC ================= */
 if(prefix==="B"){
 
 let direcaoValue = document.getElementById("direcaoB").value;
 let tocouVwapValue = document.getElementById("tocouVwapB").value;
 
-/* SETUP */
-if(setupValue==="Captura de liquidez em range") pontos+=4;
-if(setupValue==="Captura de liquidez de BOS relevante") pontos+=3;
-
-/* MACRO */
+/* 1 HTF BIAS (MACRO) */
 if(direcaoValue==="Compra"){
-    if(macroValue==="Alta") pontos+=4;
+    if(macroValue==="Alta") pontos+=5;
     if(macroValue==="Lateral") pontos+=2;
 }
 if(direcaoValue==="Venda"){
-    if(macroValue==="Baixa") pontos+=4;
+    if(macroValue==="Baixa") pontos+=5;
     if(macroValue==="Lateral") pontos+=2;
 }
 
-/* MICRO */
+/* 2 LIQUIDITY SWEEP */
+if(setupValue==="Captura de liquidez em range") pontos+=5;
+if(setupValue==="Captura de liquidez de BOS relevante") pontos+=4;
+
+/* 3 DISCOUNT ENTRY */
+if(tocouVwapValue==="Sim") pontos+=4;
+
+/* 4 POI */
+if(obpValue==="Sim"){
+    pontos+=4;
+}
+else{
+    if(obsValue==="Sim") pontos+=1;
+}
+
+/* 5 MICRO */
 if(direcaoValue==="Compra"){
     if(microValue==="Alta") pontos+=3;
     if(microValue==="Lateral") pontos+=2;
 }
+
 if(direcaoValue==="Venda"){
     if(microValue==="Baixa") pontos+=3;
     if(microValue==="Lateral") pontos+=2;
 }
 
-/* VWAP oposta */
-if(vwapValue==="Distante") pontos+=3;
+/* 6 ESPAÇO */
+if(vwapValue==="Distante") pontos+=4;
 if(vwapValue==="Proximo") pontos+=1;
-
-/* TOQUE VWAP */
-if(tocouVwapValue==="Sim") pontos+=3;
-
-/* OB */
-if(obpValue==="Sim") pontos+=4;
-if(obsValue==="Sim") pontos+=1;
 
 
 /* CLASSIFICAÇÃO */
-if(pontos>=17){
+
+if(pontos>=22){
 
 resultado="EXCELENTE";
 classe="excelente";
 
 gatilhosPermitidos=[
 "CHOCH",
-"OB primário",
+"Entrada OB primário",
 "FVG",
 "Rossadinha VWAP",
 "POI"
 ];
 
 }
-
-else if(pontos>=13){
+else if(pontos>=18){
 
 resultado="BOM";
 classe="bom";
@@ -1015,8 +1021,7 @@ gatilhosPermitidos=[
 ];
 
 }
-
-else if(pontos>=9){
+else if(pontos>=14){
 
 resultado="MÉDIO";
 classe="medio";
@@ -1027,7 +1032,6 @@ gatilhosPermitidos=[
 ];
 
 }
-
 else{
 
 resultado="FRACO";
@@ -1040,9 +1044,13 @@ gatilhosPermitidos=[
 }
 
 }
+/* ================= FIM LOGICA INSTITUCIONAL SMC ================= */
 
-if(setupValue==="Captura de liquidez em range") pontos+=3;
-if(setupValue==="Captura de liquidez de BOS relevante") pontos+=4;
+//////////////////
+
+/* ================= CARD C ================= */
+if(prefix==="C"){
+
 if(setupValue==="OB HTF") pontos+=4;
 if(setupValue==="OB interno") pontos+=2;
 if(setupValue==="VWAP") pontos+=2;
@@ -1060,7 +1068,8 @@ if(vwapValue==="Proximo") pontos+=1;
 
 if(estocValue==="Sim") pontos+=3;
 
-let fvgValue=document.getElementById("fvg"+prefix).value;
+let fvgValue=document.getElementById("fvgC").value;
+
 if(fvgValue==="Sim") pontos+=2;
 
 if(obpValue==="Sim") pontos+=2;
@@ -1069,22 +1078,35 @@ if(obsValue==="Sim") pontos+=1;
 let temChoCh=(mm80Value==="Sim");
 
 if(pontos>=18 && temChoCh){
-resultado="EXCELENTE";classe="excelente";
+
+resultado="EXCELENTE";
+classe="excelente";
 gatilhosPermitidos=["CHOCH","OB HTF","FVG","POI"];
+
 }
 else if(pontos>=14){
-resultado="BOM";classe="bom";
+
+resultado="BOM";
+classe="bom";
 gatilhosPermitidos=["CHOCH","OB HTF","POI"];
+
 }
 else if(pontos>=9){
-resultado="MÉDIO";classe="medio";
+
+resultado="MÉDIO";
+classe="medio";
 gatilhosPermitidos=["POI"];
+
 }
 else{
-resultado="FRACO";classe="fraco";
+
+resultado="FRACO";
+classe="fraco";
 gatilhosPermitidos=["POI"];
+
 }
-}
+
+}    
 
 let resultadoDiv=document.getElementById("resultado"+prefix);
 resultadoDiv.className="resultado "+classe;
