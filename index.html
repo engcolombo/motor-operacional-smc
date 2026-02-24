@@ -22,7 +22,7 @@ body {
 /* Botões no canto superior direito */
 .header-buttons {
     position: fixed;
-    top: 80px;  /* Aumentado para alinhar com os cards */
+    top: 80px;
     right: 20px;
     display: flex;
     gap: 12px;
@@ -70,7 +70,7 @@ body {
     justify-content: center;
     max-width: 1600px;
     margin: 0 auto;
-    padding-top: 20px;  /* Reduzido para 20px de padding do body */
+    padding-top: 20px;
 }
 
 /* Coluna dos cards principais */
@@ -80,15 +80,17 @@ body {
     flex-wrap: wrap;
     flex: 3;
     justify-content: center;
-    align-items: flex-start;  /* Alinha os cards pelo topo */
+    align-items: flex-start;
 }
 
-/* Coluna da estatística */
+/* Coluna da estatística - AGORA OCUPA A LARGURA DOS BOTÕES */
 .stats-column {
-    flex: 1;
-    min-width: 280px;
-    max-width: 320px;
-    margin-top: 0;  /* Reset da margem */
+    position: fixed;
+    right: 20px;
+    top: 160px; /* Posiciona abaixo dos botões (80px dos botões + 80px de espaçamento) */
+    width: 332px; /* Largura calculada: 160px * 2 + 12px de gap = 332px */
+    max-width: 332px;
+    z-index: 90;
 }
 
 .container {
@@ -99,7 +101,7 @@ body {
     border-radius: 28px;
     box-shadow: 0 25px 45px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
-    margin-top: 0;  /* Garantindo que não tenha margem superior */
+    margin-top: 0;
 }
 
 .container:hover {
@@ -286,16 +288,14 @@ select:-moz-listbox {
     display: none;
 }
 
-/* Estatísticas na vertical */
+/* Estatísticas - AGORA COM LARGURA IGUAL AOS BOTÕES */
 .stats-vertical {
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(10px);
     padding: 22px 20px;
     border-radius: 28px;
     box-shadow: 0 25px 45px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
-    position: sticky;
-    top: 100px;
-    transform: translateY(-60px); /* Move o card de estatísticas para cima para alinhar com os botões */
+    width: 100%;
 }
 
 .stats-vertical h3 {
@@ -541,13 +541,10 @@ button:not(.header-buttons button):hover {
     }
     
     .stats-column {
+        position: static;
         width: 100%;
         max-width: 380px;
-    }
-    
-    .stats-vertical {
-        position: static;
-        transform: translateY(0); /* Remove o deslocamento em telas menores */
+        margin: 20px auto 0;
     }
     
     .header-buttons {
@@ -555,7 +552,7 @@ button:not(.header-buttons button):hover {
         justify-content: center;
         margin-bottom: 20px;
         flex-wrap: wrap;
-        top: auto; /* Reset da posição fixed */
+        top: auto;
     }
 }
 
@@ -575,6 +572,10 @@ button:not(.header-buttons button):hover {
     
     .header-buttons button {
         min-width: 140px;
+    }
+    
+    .stats-column {
+        max-width: 100%;
     }
 }
 
@@ -821,7 +822,7 @@ button:not(.header-buttons button):hover {
         </div>
     </div>
 
-    <!-- Coluna da estatística -->
+    <!-- Coluna da estatística - AGORA ABAIXO DOS BOTÕES E COM MESMA LARGURA -->
     <div class="stats-column">
         <div class="stats-vertical" id="estatisticas">
             <h3>📊 Estatísticas</h3>
