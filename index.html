@@ -81,8 +81,9 @@ button:hover { background:#002244; }
 <div class="wrapper">
 
 <!-- ================= SETUP A (ORIGINAL INTACTO) ================= -->
+<!-- ================= TRAP ================= -->
 <div class="container">
-<h3>Setup A</h3>
+<h3>TRAP máxima e mínima</h3>
 
 <label>Setup</label>
 <select id="gatilhoA">
@@ -116,20 +117,22 @@ button:hover { background:#002244; }
 
 <div id="resultadoA" class="resultado"></div>
 <div id="gatilhosPermitidosA" class="gatilhos-box"></div>
-
 <button id="btnRegistrarA" style="display:none;" onclick="abrirModal('A')">Registrar Trade</button>
-
 </div>
 
-<!-- ================= SETUP B (CÓPIA EXATA) ================= -->
+<!-- ================= SMC ================= -->
 <div class="container">
-<h3>Setup B</h3>
+<h3>SMC</h3>
 
 <label>Setup</label>
 <select id="gatilhoB">
 <option></option>
-<option>Trap na Máxima - VENDA</option>
-<option>Trap na Mínima - COMPRA</option>
+<option>Captura de liquidez em range</option>
+<option>Captura de liquidez de BOS relevante</option>
+<option>OB HTF</option>
+<option>OB interno</option>
+<option>VWAP</option>
+<option>Volume Profile POC</option>
 </select>
 
 <label>Tendência Macro</label>
@@ -138,14 +141,27 @@ button:hover { background:#002244; }
 <label>Tendência Micro</label>
 <select id="microB"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
-<label>MM80</label>
-<select id="mm80B"><option></option><option>Subindo</option><option>Caindo</option></select>
+<label>CHOCH</label>
+<select id="mm80B">
+<option></option>
+<option>Sim</option>
+<option>Não</option>
+</select>
 
-<label>VWAP</label>
-<select id="vwapB"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
+<label>VWAP oposta</label>
+<select id="vwapB">
+<option></option>
+<option>Distante</option>
+<option>Proximo</option>
+<option>Toque</option>
+</select>
 
-<label>Estocástico</label>
-<select id="estocB"><option></option><option>Divergente</option><option>Nao divergente</option></select>
+<label>Capturou liquidez?</label>
+<select id="estocB">
+<option></option>
+<option>Sim</option>
+<option>Não</option>
+</select>
 
 <label>OB Primário</label>
 <select id="obpB"><option></option><option>Sim</option><option>Nao</option></select>
@@ -157,9 +173,7 @@ button:hover { background:#002244; }
 
 <div id="resultadoB" class="resultado"></div>
 <div id="gatilhosPermitidosB" class="gatilhos-box"></div>
-
 <button id="btnRegistrarB" style="display:none;" onclick="abrirModal('B')">Registrar Trade</button>
-
 </div>
 
 </div>
