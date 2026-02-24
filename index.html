@@ -7,7 +7,7 @@
 <style>
 body { font-family: Arial; background:#f4f6f8; padding:30px; }
 .wrapper { display:flex; justify-content:center; }
-.container { background:white; padding:20px; width:360px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
+.container { background:white; padding:20px; width:380px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
 
 label { font-weight:bold; font-size:13px; margin-top:6px; display:block; }
 select, button, textarea { width:100%; padding:8px; margin-bottom:10px; font-size:14px; }
@@ -31,6 +31,14 @@ button:hover { background:#002244; }
 .bom { background:#d4edda; color:#155724; }
 .medio { background:#fff3cd; color:#856404; }
 .fraco { background:#f8d7da; color:#721c24; }
+
+.gatilhos-box {
+    background:#f1f1f1;
+    padding:10px;
+    border-radius:6px;
+    margin-top:10px;
+    font-size:13px;
+}
 
 .stats {
     margin-top:15px;
@@ -112,6 +120,8 @@ button:hover { background:#002244; }
 
 <div id="resultado" class="resultado"></div>
 
+<div id="gatilhosPermitidos" class="gatilhos-box"></div>
+
 <button id="btnRegistrar" style="display:none;" onclick="abrirModal()">Registrar Trade</button>
 <button onclick="exportarCSV()">Exportar CSV</button>
 <button onclick="limparHistorico()">Limpar Histórico</button>
@@ -121,6 +131,7 @@ button:hover { background:#002244; }
 </div>
 </div>
 
+<!-- MODAL -->
 <div class="modal" id="modal">
 <div class="modal-content">
 
@@ -196,35 +207,62 @@ if(obsValue==="Sim")pontos+=1;
 if(setupValue==="Trap na Máxima - VENDA" && macroValue==="Alta" && pontos>13)pontos=13;
 if(setupValue==="Trap na Mínima - COMPRA" && macroValue==="Baixa" && pontos>13)pontos=13;
 
-/* Classificação visual */
+/* Classificação + gatilhos */
 let resultado="";
 let classe="";
 let bolinha="●";
+let gatilhosPermitidos=[];
 
-if(pontos>=14){ resultado="EXCELENTE"; classe="excelente"; }
-else if(pontos>=12){ resultado="BOM"; classe="bom"; }
-else if(pontos>=8){ resultado="MÉDIO"; classe="medio"; }
-else if(pontos>=4){ resultado="FRACO"; classe="fraco"; }
-else { resultado="EVITAR"; classe="fraco"; }
+if(pontos>=14){
+resultado="EXCELENTE";
+classe="excelente";
+gatilhosPermitidos=["Rossadinha vwap","FF-FD vwap","PFR 10m","Inside bar reversão","CHOCH","POI"];
+}
+else if(pontos>=12){
+resultado="BOM";
+classe="bom";
+gatilhosPermitidos=["Rossadinha vwap","Inside bar reversão","POI","FF-FD vwap"];
+}
+else if(pontos>=8){
+resultado="MÉDIO";
+classe="medio";
+gatilhosPermitidos=["Inside bar reversão","POI"];
+}
+else if(pontos>=4){
+resultado="FRACO";
+classe="fraco";
+gatilhosPermitidos=["POI"];
+}
+else{
+resultado="EVITAR";
+classe="fraco";
+gatilhosPermitidos=[];
+}
 
-let resultadoDiv = document.getElementById("resultado");
+let resultadoDiv=document.getElementById("resultado");
 resultadoDiv.className="resultado "+classe;
 resultadoDiv.innerHTML=`<span>${bolinha}</span> ${resultado}<br>Pontuação: ${pontos}`;
 
-if(resultado!=="EVITAR"){
-document.getElementById("btnRegistrar").style.display="block";
-}else{
+/* Mostrar gatilhos */
+let gatilhosDiv=document.getElementById("gatilhosPermitidos");
+
+if(gatilhosPermitidos.length===0){
+gatilhosDiv.innerHTML="";
 document.getElementById("btnRegistrar").style.display="none";
+}else{
+let html="<strong>Gatilhos Autorizados:</strong><br>";
+gatilhosPermitidos.forEach(g=>{
+html+=`<label><input type="radio" name="gatilhoExec" value="${g}"> ${g}</label><br>`;
+});
+gatilhosDiv.innerHTML=html;
+document.getElementById("btnRegistrar").style.display="block";
 }
 
-/* Data e Hora separadas */
-let agora = new Date();
-let dataFormatada = agora.toLocaleDateString();
-let horaFormatada = agora.toLocaleTimeString();
-
+/* Data e hora */
+let agora=new Date();
 ultimoResultado={
-data:dataFormatada,
-hora:horaFormatada,
+data:agora.toLocaleDateString(),
+hora:agora.toLocaleTimeString(),
 setup:setupValue,
 macro:macroValue,
 micro:microValue,
@@ -245,8 +283,15 @@ document.getElementById("modal").style.display="flex";
 
 function salvarTrade(){
 
+let radioSelecionado=document.querySelector('input[name="gatilhoExec"]:checked');
+if(!radioSelecionado){
+alert("Selecione o gatilho executado.");
+return;
+}
+
 let alvoValue=document.getElementById("alvo").value;
 let parcialValue=document.getElementById("parcial").value;
+let gatilhoExecutado=radioSelecionado.value;
 
 let r=0;
 if(alvoValue==="1:1R")r=1;
@@ -254,25 +299,23 @@ if(alvoValue==="1:2R")r=2;
 if(alvoValue==="1:3R")r=3;
 if(alvoValue==="Stop")r=-1;
 
-let trade={...ultimoResultado,alvo:alvoValue,parcial:parcialValue,r};
+let trade={...ultimoResultado,gatilhoExecutado,alvo:alvoValue,parcial:parcialValue,r};
 
 trades.push(trade);
 localStorage.setItem("tradesSMC",JSON.stringify(trades));
 
 document.getElementById("modal").style.display="none";
-
 atualizarEstatisticas();
 alert("Trade registrado!");
 }
 
 function atualizarEstatisticas(){
-
 let total=trades.length;
 let wins=trades.filter(t=>t.r>0).length;
 let stops=trades.filter(t=>t.r<0).length;
 let rTotal=trades.reduce((acc,t)=>acc+t.r,0);
-let winrate= total? ((wins/total)*100).toFixed(1):0;
-let payoff= total? (rTotal/total).toFixed(2):0;
+let winrate= total?((wins/total)*100).toFixed(1):0;
+let payoff= total?(rTotal/total).toFixed(2):0;
 
 document.getElementById("estatisticas").innerHTML=
 `Total: ${total}<br>
@@ -284,12 +327,10 @@ Payoff Médio: ${payoff}R`;
 }
 
 function exportarCSV(){
-let csv="Data,Hora,Setup,Macro,Micro,MM80,VWAP,Estoc,OBPrimario,OBSecundario,Pontos,Resultado,Alvo,Parcial,R\n";
-
+let csv="Data,Hora,Setup,GatilhoExecutado,Macro,Micro,MM80,VWAP,Estoc,OBPrimario,OBSecundario,Pontos,Resultado,Alvo,Parcial,R\n";
 trades.forEach(t=>{
-csv+=`${t.data},${t.hora},${t.setup},${t.macro},${t.micro},${t.mm80},${t.vwap},${t.estoc},${t.obp},${t.obs},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.r}\n`;
+csv+=`${t.data},${t.hora},${t.setup},${t.gatilhoExecutado},${t.macro},${t.micro},${t.mm80},${t.vwap},${t.estoc},${t.obp},${t.obs},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.r}\n`;
 });
-
 let blob=new Blob([csv],{type:"text/csv"});
 let link=document.createElement("a");
 link.href=URL.createObjectURL(blob);
