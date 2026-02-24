@@ -945,8 +945,101 @@ gatilhosPermitidos=["POI"];
 }
 }
 
-/* SMC + C */
-if(prefix==="B"||prefix==="C"){
+/* ================= SMC ================= */
+if(prefix==="B"){
+
+let direcaoValue = document.getElementById("direcaoB").value;
+let tocouVwapValue = document.getElementById("tocouVwapB").value;
+
+/* SETUP */
+if(setupValue==="Captura de liquidez em range") pontos+=4;
+if(setupValue==="Captura de liquidez de BOS relevante") pontos+=3;
+
+/* MACRO */
+if(direcaoValue==="Compra"){
+    if(macroValue==="Alta") pontos+=4;
+    if(macroValue==="Lateral") pontos+=2;
+}
+if(direcaoValue==="Venda"){
+    if(macroValue==="Baixa") pontos+=4;
+    if(macroValue==="Lateral") pontos+=2;
+}
+
+/* MICRO */
+if(direcaoValue==="Compra"){
+    if(microValue==="Alta") pontos+=3;
+    if(microValue==="Lateral") pontos+=2;
+}
+if(direcaoValue==="Venda"){
+    if(microValue==="Baixa") pontos+=3;
+    if(microValue==="Lateral") pontos+=2;
+}
+
+/* VWAP oposta */
+if(vwapValue==="Distante") pontos+=3;
+if(vwapValue==="Proximo") pontos+=1;
+
+/* TOQUE VWAP */
+if(tocouVwapValue==="Sim") pontos+=3;
+
+/* OB */
+if(obpValue==="Sim") pontos+=4;
+if(obsValue==="Sim") pontos+=1;
+
+
+/* CLASSIFICAÇÃO */
+if(pontos>=17){
+
+resultado="EXCELENTE";
+classe="excelente";
+
+gatilhosPermitidos=[
+"CHOCH",
+"OB primário",
+"FVG",
+"Rossadinha VWAP",
+"POI"
+];
+
+}
+
+else if(pontos>=13){
+
+resultado="BOM";
+classe="bom";
+
+gatilhosPermitidos=[
+"CHOCH",
+"OB primário",
+"POI"
+];
+
+}
+
+else if(pontos>=9){
+
+resultado="MÉDIO";
+classe="medio";
+
+gatilhosPermitidos=[
+"POI",
+"Rejeição"
+];
+
+}
+
+else{
+
+resultado="FRACO";
+classe="fraco";
+
+gatilhosPermitidos=[
+"POI"
+];
+
+}
+
+}
 
 if(setupValue==="Captura de liquidez em range") pontos+=3;
 if(setupValue==="Captura de liquidez de BOS relevante") pontos+=4;
