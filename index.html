@@ -163,6 +163,13 @@ button:hover { background:#002244; }
 <option>Não</option>
 </select>
 
+    <label>FVG</label>
+<select id="fvgB">
+<option></option>
+<option>Sim</option>
+<option>Não</option>
+</select>
+
 <label>OB Primário</label>
 <select id="obpB"><option></option><option>Sim</option><option>Nao</option></select>
 
@@ -231,9 +238,109 @@ let obsValue = document.getElementById("obs"+prefix).value;
 if(setupValue===""){ alert("Selecione o setup."); return; }
 
 let pontos = 0;
+let resultado="";
+let classe="";
+let gatilhosPermitidos=[];
+let bolinha="●";
+
+/* ================= TRAP ================= */
+if(prefix === "A"){
+
+    if(setupValue==="Trap na Máxima - VENDA"){
+        if(macroValue==="Baixa")pontos+=4;
+        if(macroValue==="Lateral")pontos+=2;
+        if(macroValue==="Alta")pontos+=1;
+        if(microValue==="Lateral")pontos+=2;
+        if(microValue==="Baixa")pontos+=1;
+        if(mm80Value==="Caindo")pontos+=3;
+        if(mm80Value==="Subindo")pontos+=2;
+    }
+
+    if(setupValue==="Trap na Mínima - COMPRA"){
+        if(macroValue==="Alta")pontos+=4;
+        if(macroValue==="Lateral")pontos+=2;
+        if(macroValue==="Baixa")pontos+=1;
+        if(microValue==="Lateral")pontos+=2;
+        if(microValue==="Alta")pontos+=1;
+        if(mm80Value==="Subindo")pontos+=3;
+        if(mm80Value==="Caindo")pontos+=2;
+    }
+
+    if(vwapValue==="Distante")pontos+=4;
+    if(vwapValue==="Proximo")pontos+=1;
+    if(estocValue==="Divergente")pontos+=2;
+    if(obpValue==="Sim")pontos+=2;
+    if(obsValue==="Sim")pontos+=1;
+
+    if(pontos>=14){
+        resultado="EXCELENTE";
+        classe="excelente";
+    }
+    else if(pontos>=12){
+        resultado="BOM";
+        classe="bom";
+    }
+    else if(pontos>=8){
+        resultado="MÉDIO";
+        classe="medio";
+    }
+    else{
+        resultado="FRACO";
+        classe="fraco";
+    }
+}
+
+
+/* ================= SMC ================= */
+if(prefix === "B"){
+
+    if(setupValue==="Captura de liquidez em range") pontos+=3;
+    if(setupValue==="Captura de liquidez de BOS relevante") pontos+=4;
+    if(setupValue==="OB HTF") pontos+=4;
+    if(setupValue==="OB interno") pontos+=2;
+    if(setupValue==="VWAP") pontos+=2;
+    if(setupValue==="Volume Profile POC") pontos+=2;
+
+    if(macroValue==="Alta" || macroValue==="Baixa") pontos+=3;
+    if(macroValue==="Lateral") pontos+=1;
+
+    if(microValue==="Alta" || microValue==="Baixa") pontos+=2;
+
+    if(mm80Value==="Sim") pontos+=4;
+
+    if(vwapValue==="Distante") pontos+=3;
+    if(vwapValue==="Proximo") pontos+=1;
+
+    if(estocValue==="Sim") pontos+=3;
+
+    let fvgValue = document.getElementById("fvgB").value;
+    if(fvgValue==="Sim") pontos+=2;
+
+    if(obpValue==="Sim") pontos+=2;
+    if(obsValue==="Sim") pontos+=1;
+
+    let temChoCh = (mm80Value==="Sim");
+
+    if(pontos>=18 && temChoCh){
+        resultado="EXCELENTE";
+        classe="excelente";
+    }
+    else if(pontos>=14){
+        resultado="BOM";
+        classe="bom";
+    }
+    else if(pontos>=9){
+        resultado="MÉDIO";
+        classe="medio";
+    }
+    else{
+        resultado="FRACO";
+        classe="fraco";
+    }
+}
 
 /* ===== SUA LÓGICA ORIGINAL ===== */
-
+if(prefix === "A"){
 if(setupValue==="Trap na Máxima - VENDA"){
 if(macroValue==="Baixa")pontos+=4;
 if(macroValue==="Lateral")pontos+=2;
@@ -328,7 +435,7 @@ pontos,
 resultado
 };
 
-}
+}}
 
 function abrirModal(prefix){
 origemAtual = prefix;
