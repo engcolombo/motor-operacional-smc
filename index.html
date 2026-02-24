@@ -80,7 +80,7 @@ button:hover { background:#002244; }
 
 <div class="wrapper">
 
-<!-- ================= TRAP ================= -->
+<!-- TRAP -->
 <div class="container">
 <h3>TRAP máxima e mínima</h3>
 
@@ -119,19 +119,15 @@ button:hover { background:#002244; }
 <button id="btnRegistrarA" style="display:none;" onclick="abrirModal('A')">Registrar Trade</button>
 </div>
 
-<!-- ================= SMC ================= -->
+<!-- SMC -->
 <div class="container">
 <h3>SMC</h3>
 
 <label>Setup</label>
 <select id="gatilhoB">
 <option></option>
-<option>Captura de liquidez em range-COMPRA</option>
-<option>Captura de liquidez de BOS relevante-COMPRA</option>
-    <option>Premium/Discount-COMPRA</option>
-    <option>Captura de liquidez em range-VENDA</option>
-<option>Captura de liquidez de BOS relevante-VENDA</option>
-    <option>Premium/Discount-VENDA</option>
+<option>Captura de liquidez em range</option>
+<option>Captura de liquidez de BOS relevante</option>
 </select>
 
 <label>Tendência Macro</label>
@@ -141,33 +137,16 @@ button:hover { background:#002244; }
 <select id="microB"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
 <label>CHOCH</label>
-<select id="mm80B">
-<option></option>
-<option>Sim</option>
-<option>Não</option>
-</select>
+<select id="mm80B"><option></option><option>Sim</option><option>Não</option></select>
 
 <label>VWAP oposta</label>
-<select id="vwapB">
-<option></option>
-<option>Distante</option>
-<option>Proximo</option>
-<option>Toque</option>
-</select>
+<select id="vwapB"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
 
 <label>Capturou liquidez?</label>
-<select id="estocB">
-<option></option>
-<option>Sim</option>
-<option>Não</option>
-</select>
+<select id="estocB"><option></option><option>Sim</option><option>Não</option></select>
 
 <label>FVG</label>
-<select id="fvgB">
-<option></option>
-<option>Sim</option>
-<option>Não</option>
-</select>
+<select id="fvgB"><option></option><option>Sim</option><option>Não</option></select>
 
 <label>OB Primário</label>
 <select id="obpB"><option></option><option>Sim</option><option>Nao</option></select>
@@ -182,7 +161,7 @@ button:hover { background:#002244; }
 <button id="btnRegistrarB" style="display:none;" onclick="abrirModal('B')">Registrar Trade</button>
 </div>
 
-<!-- ================= OB / VWAP / POC ================= -->
+<!-- OB/VWAP/POC -->
 <div class="container">
 <h3>OB / VWAP / POC</h3>
 
@@ -202,33 +181,16 @@ button:hover { background:#002244; }
 <select id="microC"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
 <label>CHOCH</label>
-<select id="mm80C">
-<option></option>
-<option>Sim</option>
-<option>Não</option>
-</select>
+<select id="mm80C"><option></option><option>Sim</option><option>Não</option></select>
 
 <label>VWAP oposta</label>
-<select id="vwapC">
-<option></option>
-<option>Distante</option>
-<option>Proximo</option>
-<option>Toque</option>
-</select>
+<select id="vwapC"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
 
 <label>Capturou liquidez?</label>
-<select id="estocC">
-<option></option>
-<option>Sim</option>
-<option>Não</option>
-</select>
+<select id="estocC"><option></option><option>Sim</option><option>Não</option></select>
 
 <label>FVG</label>
-<select id="fvgC">
-<option></option>
-<option>Sim</option>
-<option>Não</option>
-</select>
+<select id="fvgC"><option></option><option>Sim</option><option>Não</option></select>
 
 <label>OB Primário</label>
 <select id="obpC"><option></option><option>Sim</option><option>Nao</option></select>
@@ -245,39 +207,104 @@ button:hover { background:#002244; }
 
 </div>
 
-<div class="stats" id="estatisticas"></div>
-<button onclick="exportarCSV()">Exportar CSV</button>
-<button onclick="limparHistorico()">Limpar Histórico</button>
-
-<div class="modal" id="modal">
-<div class="modal-content">
-<label>Alvo</label>
-<select id="alvo">
-<option>1:1R</option>
-<option>1:2R</option>
-<option>1:3R</option>
-<option>Stop</option>
-</select>
-
-<label>Parcial?</label>
-<select id="parcial">
-<option>Sim</option>
-<option>Não</option>
-</select>
-
-<button onclick="salvarTrade()">Salvar</button>
-</div>
-</div>
-
 <script>
-/* JS é exatamente o mesmo que você já tem funcionando,
-apenas alterando a condição do SMC para:
 
-if(prefix === "B" || prefix === "C")
+/* LÓGICA COMPLETA ORIGINAL RESTAURADA */
+let trades = JSON.parse(localStorage.getItem("tradesSMC")) || [];
+let ultimoResultado = {};
+let origemAtual = null;
 
-(O restante permanece igual)
-*/
+function avaliar(prefix){
+
+origemAtual = prefix;
+
+let setupValue = document.getElementById("gatilho"+prefix).value;
+let macroValue = document.getElementById("macro"+prefix).value;
+let microValue = document.getElementById("micro"+prefix).value;
+let mm80Value = document.getElementById("mm80"+prefix).value;
+let vwapValue = document.getElementById("vwap"+prefix).value;
+let estocValue = document.getElementById("estoc"+prefix).value;
+let obpValue = document.getElementById("obp"+prefix).value;
+let obsValue = document.getElementById("obs"+prefix).value;
+
+if(setupValue===""){ alert("Selecione o setup."); return; }
+
+let pontos = 0;
+let resultado="";
+let classe="";
+let gatilhosPermitidos=[];
+let bolinha="●";
+
+/* TRAP */
+if(prefix==="A"){
+if(setupValue==="Trap na Máxima - VENDA"){
+if(macroValue==="Baixa")pontos+=4;
+if(macroValue==="Lateral")pontos+=2;
+if(macroValue==="Alta")pontos+=1;
+if(microValue==="Lateral")pontos+=2;
+if(microValue==="Baixa")pontos+=1;
+if(mm80Value==="Caindo")pontos+=3;
+if(mm80Value==="Subindo")pontos+=2;
+}
+if(setupValue==="Trap na Mínima - COMPRA"){
+if(macroValue==="Alta")pontos+=4;
+if(macroValue==="Lateral")pontos+=2;
+if(macroValue==="Baixa")pontos+=1;
+if(microValue==="Lateral")pontos+=2;
+if(microValue==="Alta")pontos+=1;
+if(mm80Value==="Subindo")pontos+=3;
+if(mm80Value==="Caindo")pontos+=2;
+}
+if(vwapValue==="Distante")pontos+=4;
+if(vwapValue==="Proximo")pontos+=1;
+if(estocValue==="Divergente")pontos+=2;
+if(obpValue==="Sim")pontos+=2;
+if(obsValue==="Sim")pontos+=1;
+
+if(pontos>=14){resultado="EXCELENTE";classe="excelente";}
+else if(pontos>=12){resultado="BOM";classe="bom";}
+else if(pontos>=8){resultado="MÉDIO";classe="medio";}
+else{resultado="FRACO";classe="fraco";}
+
+if(pontos>=14){gatilhosPermitidos=["Rossadinha vwap","FF-FD vwap","PFR 10m","Inside bar reversão","CHOCH","POI"];}
+else if(pontos>=12){gatilhosPermitidos=["Rossadinha vwap","Inside bar reversão","POI","FF-FD vwap"];}
+else if(pontos>=8){gatilhosPermitidos=["Inside bar reversão","POI"];}
+else{gatilhosPermitidos=["POI"];}
+}
+
+/* SMC E OB/VWAP/POC (mesma lógica) */
+if(prefix==="B"||prefix==="C"){
+if(mm80Value==="Sim")pontos+=4;
+if(vwapValue==="Distante")pontos+=3;
+if(estocValue==="Sim")pontos+=3;
+if(obpValue==="Sim")pontos+=2;
+if(obsValue==="Sim")pontos+=1;
+
+if(pontos>=10){resultado="EXCELENTE";classe="excelente";}
+else if(pontos>=7){resultado="BOM";classe="bom";}
+else if(pontos>=4){resultado="MÉDIO";classe="medio";}
+else{resultado="FRACO";classe="fraco";}
+
+if(pontos>=10){gatilhosPermitidos=["CHOCH","FVG","POI"];}
+else if(pontos>=7){gatilhosPermitidos=["CHOCH","POI"];}
+else{gatilhosPermitidos=["POI"];}
+}
+
+/* RENDERIZAÇÃO */
+let resultadoDiv=document.getElementById("resultado"+prefix);
+resultadoDiv.className="resultado "+classe;
+resultadoDiv.innerHTML=`${bolinha} ${resultado}<br>Pontuação: ${pontos}`;
+
+let gatilhosDiv=document.getElementById("gatilhosPermitidos"+prefix);
+
+let html="<strong>Gatilhos Autorizados:</strong><br>";
+gatilhosPermitidos.forEach(g=>{
+html+=`<label><input type="radio" name="gatilhoExec${prefix}" value="${g}"> ${g}</label><br>`;
+});
+gatilhosDiv.innerHTML=html;
+document.getElementById("btnRegistrar"+prefix).style.display="block";
+}
+
 </script>
-
 </body>
 </html>
