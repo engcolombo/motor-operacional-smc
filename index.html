@@ -19,50 +19,6 @@ body {
     position: relative;
 }
 
-/* Botões no canto superior direito */
-.header-buttons {
-    position: fixed;
-    top: 80px;  /* Aumentado para alinhar com os cards */
-    right: 20px;
-    display: flex;
-    gap: 12px;
-    z-index: 100;
-}
-
-.header-buttons button {
-    width: auto;
-    min-width: 160px;
-    padding: 12px 20px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    border: none;
-    border-radius: 40px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    background: rgba(255, 255, 255, 0.95);
-    color: #0a2647;
-    border: 2px solid white;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-}
-
-.header-buttons button:hover {
-    background: white;
-    transform: translateY(-3px);
-    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.3);
-}
-
-.header-buttons button:first-child {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    border: none;
-}
-
-.header-buttons button:first-child:hover {
-    background: linear-gradient(135deg, #059669 0%, #047857 100%);
-}
-
 /* Wrapper principal com três colunas */
 .main-wrapper {
     display: flex;
@@ -89,6 +45,9 @@ body {
     min-width: 280px;
     max-width: 320px;
     margin-top: 0;  /* Reset da margem */
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
 }
 
 .container {
@@ -356,6 +315,48 @@ select:-moz-listbox {
     color: #8b5cf6;
 }
 
+/* Botões abaixo do card de estatísticas */
+.stats-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 5px;
+    width: 100%;
+}
+
+.stats-buttons button {
+    width: 100%;
+    padding: 12px 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 40px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background: rgba(255, 255, 255, 0.95);
+    color: #0a2647;
+    border: 2px solid white;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.stats-buttons button:hover {
+    background: white;
+    transform: translateY(-3px);
+    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.3);
+}
+
+.stats-buttons button:first-child {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border: none;
+}
+
+.stats-buttons button:first-child:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
 /* Ajustes existentes */
 button {
     width: 100%;
@@ -371,13 +372,13 @@ button {
     letter-spacing: 1px;
 }
 
-button:not(.header-buttons button) {
+button:not(.stats-buttons button) {
     background: linear-gradient(135deg, #3b82f6 0%, #1e4b8f 100%);
     color: white;
     box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
 }
 
-button:not(.header-buttons button):hover {
+button:not(.stats-buttons button):hover {
     background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);
     transform: scale(1.02);
     box-shadow: 0 12px 25px rgba(59, 130, 246, 0.4);
@@ -549,14 +550,6 @@ button:not(.header-buttons button):hover {
         position: static;
         transform: translateY(0); /* Remove o deslocamento em telas menores */
     }
-    
-    .header-buttons {
-        position: static;
-        justify-content: center;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-        top: auto; /* Reset da posição fixed */
-    }
 }
 
 @media (max-width: 768px) {
@@ -572,10 +565,6 @@ button:not(.header-buttons button):hover {
     .cards-column {
         gap: 20px;
     }
-    
-    .header-buttons button {
-        min-width: 140px;
-    }
 }
 
 .container > *:last-child {
@@ -585,11 +574,6 @@ button:not(.header-buttons button):hover {
 </head>
 
 <body>
-
-<div class="header-buttons">
-    <button onclick="exportarCSV()">📥 Exportar CSV</button>
-    <button onclick="limparHistorico()">🗑️ Limpar Histórico</button>
-</div>
 
 <div class="main-wrapper">
     <!-- Coluna dos cards principais -->
@@ -851,6 +835,12 @@ button:not(.header-buttons button):hover {
                     <span class="stat-value" id="stat-payoff">0R</span>
                 </div>
             </div>
+        </div>
+        
+        <!-- Botões abaixo do card de estatísticas -->
+        <div class="stats-buttons">
+            <button onclick="exportarCSV()">📥 Exportar CSV</button>
+            <button onclick="limparHistorico()">🗑️ Limpar Histórico</button>
         </div>
     </div>
 </div>
