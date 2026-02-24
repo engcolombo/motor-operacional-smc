@@ -4,198 +4,442 @@
 <meta charset="UTF-8">
 <title>Motor Operacional SMC</title>
 
-<link href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
-
 <style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
 body {
-    background: linear-gradient(135deg, #0b2c6b, #1e4ed8);
+    background: linear-gradient(135deg, #0a2647 0%, #1e3a6b 50%, #2a4f8e 100%);
+    padding: 30px 20px;
     min-height: 100vh;
-    padding:30px;
 }
 
-.card {
-    border-radius:18px;
-    box-shadow:0 20px 40px rgba(0,0,0,0.25);
-    padding:20px;
+.wrapper {
+    display: flex;
+    gap: 25px;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 1400px;
+    margin: 0 auto;
 }
 
-.form-select, .btn {
-    border-radius:14px !important;
+.container {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    padding: 25px;
+    width: 360px;
+    border-radius: 24px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.container:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 30px 50px rgba(0, 0, 0, 0.4);
+}
+
+h3 {
+    color: #0a2647;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 3px solid #3b82f6;
+    letter-spacing: 0.5px;
+}
+
+label {
+    font-weight: 500;
+    font-size: 0.8rem;
+    margin-top: 10px;
+    margin-bottom: 4px;
+    display: block;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+select {
+    width: 100%;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 16px;
+    background-color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+    color: #1e293b;
+}
+
+select:hover {
+    border-color: #3b82f6;
+}
+
+select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+button {
+    width: 100%;
+    padding: 14px 20px;
+    margin: 8px 0;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 40px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+button:not(.stats button) {
+    background: linear-gradient(135deg, #3b82f6 0%, #1e4b8f 100%);
+    color: white;
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+}
+
+button:not(.stats button):hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);
+    transform: scale(1.02);
+    box-shadow: 0 12px 25px rgba(59, 130, 246, 0.4);
 }
 
 .resultado {
-    margin-top:10px;
-    padding:15px;
-    border-radius:14px;
-    font-weight:bold;
-    text-align:center;
+    margin-top: 15px;
+    padding: 20px;
+    border-radius: 20px;
+    font-weight: 700;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    font-size: 1.2rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-.excelente { background:#dbeafe; color:#1e3a8a; }
-.bom { background:#dcfce7; color:#166534; }
-.medio { background:#fef9c3; color:#854d0e; }
-.fraco { background:#fee2e2; color:#991b1b; }
+.excelente {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    color: #1e40af;
+    border: 2px solid #3b82f6;
+}
+
+.bom {
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+    color: #166534;
+    border: 2px solid #22c55e;
+}
+
+.medio {
+    background: linear-gradient(135deg, #fef9c3 0%, #fde047 100%);
+    color: #854d0e;
+    border: 2px solid #eab308;
+}
+
+.fraco {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #991b1b;
+    border: 2px solid #ef4444;
+}
 
 .gatilhos-box {
-    background:#f1f5f9;
-    padding:12px;
-    border-radius:14px;
-    margin-top:10px;
-    font-size:13px;
+    background: #f8fafc;
+    padding: 18px;
+    border-radius: 20px;
+    margin-top: 15px;
+    font-size: 0.9rem;
+    border: 2px solid #e2e8f0;
 }
 
-.hidden { display:none; }
-
-.dashboard-card{
-    border-radius:18px;
-    padding:20px;
-    color:white;
-    text-align:center;
-    box-shadow:0 15px 35px rgba(0,0,0,0.3);
+.gatilhos-box strong {
+    display: block;
+    margin-bottom: 12px;
+    color: #0f172a;
+    font-size: 1rem;
 }
 
-.modal-bg{
-    position:fixed;
-    top:0; left:0;
-    width:100%; height:100%;
-    background:rgba(0,0,0,0.6);
-    display:none;
-    justify-content:center;
-    align-items:center;
+.gatilhos-box label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    margin: 4px 0;
+    background: white;
+    border-radius: 40px;
+    border: 2px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 400;
+    text-transform: none;
+    font-size: 0.9rem;
 }
 
-.modal-box{
-    background:white;
-    padding:25px;
-    border-radius:18px;
-    width:350px;
+.gatilhos-box label:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+}
+
+.gatilhos-box input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #3b82f6;
+    margin: 0;
+}
+
+.stats {
+    max-width: 600px;
+    margin: 30px auto;
+    padding: 25px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 24px;
+    font-size: 1rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.stats br {
+    display: none;
+}
+
+.stats::before {
+    content: "📊 Estatísticas";
+    grid-column: 1 / -1;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #0a2647;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 3px solid #3b82f6;
+}
+
+.stats:not(:empty) {
+    display: grid;
+}
+
+.stats span {
+    background: #f1f5f9;
+    padding: 12px;
+    border-radius: 16px;
+    text-align: center;
+    font-weight: 500;
+    color: #1e293b;
+}
+
+.stats + button {
+    width: auto;
+    min-width: 200px;
+    margin: 10px;
+    display: inline-block;
+}
+
+.stats + button + button {
+    width: auto;
+    min-width: 200px;
+    margin: 10px;
+    display: inline-block;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 38, 71, 0.8);
+    backdrop-filter: blur(5px);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 35px;
+    width: 350px;
+    border-radius: 32px;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+    animation: modalSlide 0.3s ease;
+}
+
+@keyframes modalSlide {
+    from {
+        transform: translateY(-30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modal-content label {
+    font-size: 0.9rem;
+    margin-top: 15px;
+}
+
+.modal-content select {
+    margin-bottom: 15px;
+}
+
+.modal-content button {
+    margin-top: 20px;
+    background: linear-gradient(135deg, #3b82f6 0%, #1e4b8f 100%);
+}
+
+#btnRegistrarA, #btnRegistrarB, #btnRegistrarC {
+    margin-top: 20px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+}
+
+#btnRegistrarA:hover, #btnRegistrarB:hover, #btnRegistrarC:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+/* Botões de ação no final */
+body > button {
+    width: auto;
+    min-width: 200px;
+    margin: 10px;
+    background: rgba(255, 255, 255, 0.95);
+    color: #0a2647;
+    border: 2px solid white;
+}
+
+body > button:hover {
+    background: white;
+    transform: translateY(-2px);
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    body {
+        padding: 15px;
+    }
+    
+    .container {
+        width: 100%;
+        max-width: 360px;
+    }
+    
+    .stats {
+        grid-template-columns: 1fr;
+        padding: 20px;
+    }
+    
+    body > button {
+        width: calc(50% - 20px);
+        min-width: auto;
+    }
 }
 </style>
 </head>
 
 <body>
 
-<div class="container-xl">
-
-<div class="d-flex justify-content-between mb-4">
-<h2 class="text-white">Motor Operacional SMC</h2>
-<div>
-<button class="btn btn-light" onclick="mostrarOperacional()">Operacional</button>
-<button class="btn btn-warning" onclick="mostrarDashboard()">Dashboard</button>
-</div>
-</div>
-
-<!-- ================= OPERACIONAL ================= -->
-<div id="paginaOperacional">
-
-<div class="row g-4">
+<div class="wrapper">
 
 <!-- ================= TRAP ================= -->
-<div class="col-md-4">
-<div class="card">
-<h4>TRAP máxima e mínima</h4>
+<div class="container">
+<h3>⚡ TRAP máxima e mínima</h3>
 
-<select id="gatilhoA" class="form-select mb-2">
+<label>Setup</label>
+<select id="gatilhoA">
 <option></option>
 <option>Trap na Máxima - VENDA</option>
 <option>Trap na Mínima - COMPRA</option>
 </select>
 
-<select id="macroA" class="form-select mb-2">
-<option></option><option>Alta</option><option>Baixa</option><option>Lateral</option>
-</select>
+<label>Tendência Macro</label>
+<select id="macroA"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
-<select id="microA" class="form-select mb-2">
-<option></option><option>Alta</option><option>Baixa</option><option>Lateral</option>
-</select>
+<label>Tendência Micro</label>
+<select id="microA"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
-<select id="mm80A" class="form-select mb-2">
-<option></option><option>Subindo</option><option>Caindo</option>
-</select>
+<label>MM80</label>
+<select id="mm80A"><option></option><option>Subindo</option><option>Caindo</option></select>
 
-<select id="vwapA" class="form-select mb-2">
-<option></option><option>Distante</option><option>Proximo</option><option>Toque</option>
-</select>
+<label>VWAP</label>
+<select id="vwapA"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
 
-<select id="estocA" class="form-select mb-2">
-<option></option><option>Divergente</option><option>Nao divergente</option>
-</select>
+<label>Estocástico</label>
+<select id="estocA"><option></option><option>Divergente</option><option>Nao divergente</option></select>
 
-<select id="obpA" class="form-select mb-2">
-<option></option><option>Sim</option><option>Nao</option>
-</select>
+<label>OB Primário</label>
+<select id="obpA"><option></option><option>Sim</option><option>Nao</option></select>
 
-<select id="obsA" class="form-select mb-2">
-<option></option><option>Sim</option><option>Nao</option>
-</select>
+<label>OB Secundário</label>
+<select id="obsA"><option></option><option>Sim</option><option>Nao</option></select>
 
-<button class="btn btn-primary w-100" onclick="avaliar('A')">Avaliar</button>
+<button onclick="avaliar('A')">Avaliar Setup</button>
 
 <div id="resultadoA" class="resultado"></div>
 <div id="gatilhosPermitidosA" class="gatilhos-box"></div>
-<button id="btnRegistrarA" class="btn btn-outline-primary w-100 mt-2 hidden" onclick="abrirModal('A')">Registrar Trade</button>
-
-</div>
+<button id="btnRegistrarA" style="display:none;" onclick="abrirModal('A')">📝 Registrar Trade</button>
 </div>
 
 <!-- ================= SMC ================= -->
-<div class="col-md-4">
-<div class="card">
-<h4>SMC</h4>
+<div class="container">
+<h3>📈 SMC</h3>
 
-<select id="gatilhoB" class="form-select mb-2">
+<label>Setup</label>
+<select id="gatilhoB">
 <option></option>
 <option>Captura de liquidez em range</option>
 <option>Captura de liquidez de BOS relevante</option>
 </select>
 
-<select id="macroB" class="form-select mb-2">
-<option></option><option>Alta</option><option>Baixa</option><option>Lateral</option>
-</select>
+<label>Tendência Macro</label>
+<select id="macroB"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
-<select id="microB" class="form-select mb-2">
-<option></option><option>Alta</option><option>Baixa</option><option>Lateral</option>
-</select>
+<label>Tendência Micro</label>
+<select id="microB"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
-<select id="mm80B" class="form-select mb-2">
-<option></option><option>Sim</option><option>Não</option>
-</select>
+<label>CHOCH</label>
+<select id="mm80B"><option></option><option>Sim</option><option>Não</option></select>
 
-<select id="vwapB" class="form-select mb-2">
-<option></option><option>Distante</option><option>Proximo</option><option>Toque</option>
-</select>
+<label>VWAP oposta</label>
+<select id="vwapB"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
 
-<select id="estocB" class="form-select mb-2">
-<option></option><option>Sim</option><option>Não</option>
-</select>
+<label>Capturou liquidez?</label>
+<select id="estocB"><option></option><option>Sim</option><option>Não</option></select>
 
-<select id="fvgB" class="form-select mb-2">
-<option></option><option>Sim</option><option>Não</option>
-</select>
+<label>FVG</label>
+<select id="fvgB"><option></option><option>Sim</option><option>Não</option></select>
 
-<select id="obpB" class="form-select mb-2">
-<option></option><option>Sim</option><option>Nao</option>
-</select>
+<label>OB Primário</label>
+<select id="obpB"><option></option><option>Sim</option><option>Nao</option></select>
 
-<select id="obsB" class="form-select mb-2">
-<option></option><option>Sim</option><option>Nao</option>
-</select>
+<label>OB Secundário</label>
+<select id="obsB"><option></option><option>Sim</option><option>Nao</option></select>
 
-<button class="btn btn-primary w-100" onclick="avaliar('B')">Avaliar</button>
+<button onclick="avaliar('B')">Avaliar Setup</button>
 
 <div id="resultadoB" class="resultado"></div>
 <div id="gatilhosPermitidosB" class="gatilhos-box"></div>
-<button id="btnRegistrarB" class="btn btn-outline-primary w-100 mt-2 hidden" onclick="abrirModal('B')">Registrar Trade</button>
-
-</div>
+<button id="btnRegistrarB" style="display:none;" onclick="abrirModal('B')">📝 Registrar Trade</button>
 </div>
 
 <!-- ================= OB / VWAP / POC ================= -->
-<div class="col-md-4">
-<div class="card">
-<h4>OB / VWAP / POC</h4>
+<div class="container">
+<h3>🎯 OB / VWAP / POC</h3>
 
-<select id="gatilhoC" class="form-select mb-2">
+<label>Setup</label>
+<select id="gatilhoC">
 <option></option>
 <option>OB HTF</option>
 <option>OB interno</option>
@@ -203,79 +447,48 @@ body {
 <option>Volume Profile POC</option>
 </select>
 
-<select id="macroC" class="form-select mb-2">
-<option></option><option>Alta</option><option>Baixa</option><option>Lateral</option>
-</select>
+<label>Tendência Macro</label>
+<select id="macroC"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
-<select id="microC" class="form-select mb-2">
-<option></option><option>Alta</option><option>Baixa</option><option>Lateral</option>
-</select>
+<label>Tendência Micro</label>
+<select id="microC"><option></option><option>Alta</option><option>Baixa</option><option>Lateral</option></select>
 
-<select id="mm80C" class="form-select mb-2">
-<option></option><option>Sim</option><option>Não</option>
-</select>
+<label>CHOCH</label>
+<select id="mm80C"><option></option><option>Sim</option><option>Não</option></select>
 
-<select id="vwapC" class="form-select mb-2">
-<option></option><option>Distante</option><option>Proximo</option><option>Toque</option>
-</select>
+<label>VWAP oposta</label>
+<select id="vwapC"><option></option><option>Distante</option><option>Proximo</option><option>Toque</option></select>
 
-<select id="estocC" class="form-select mb-2">
-<option></option><option>Sim</option><option>Não</option>
-</select>
+<label>Capturou liquidez?</label>
+<select id="estocC"><option></option><option>Sim</option><option>Não</option></select>
 
-<select id="fvgC" class="form-select mb-2">
-<option></option><option>Sim</option><option>Não</option>
-</select>
+<label>FVG</label>
+<select id="fvgC"><option></option><option>Sim</option><option>Não</option></select>
 
-<select id="obpC" class="form-select mb-2">
-<option></option><option>Sim</option><option>Nao</option>
-</select>
+<label>OB Primário</label>
+<select id="obpC"><option></option><option>Sim</option><option>Nao</option></select>
 
-<select id="obsC" class="form-select mb-2">
-<option></option><option>Sim</option><option>Nao</option>
-</select>
+<label>OB Secundário</label>
+<select id="obsC"><option></option><option>Sim</option><option>Nao</option></select>
 
-<button class="btn btn-primary w-100" onclick="avaliar('C')">Avaliar</button>
+<button onclick="avaliar('C')">Avaliar Setup</button>
 
 <div id="resultadoC" class="resultado"></div>
 <div id="gatilhosPermitidosC" class="gatilhos-box"></div>
-<button id="btnRegistrarC" class="btn btn-outline-primary w-100 mt-2 hidden" onclick="abrirModal('C')">Registrar Trade</button>
-
-</div>
-</div>
-
-</div>
-</div>
-
-<!-- ================= DASHBOARD ================= -->
-<div id="paginaDashboard" class="hidden mt-4">
-
-<div class="row g-4">
-
-<div class="col-md-2"><div class="dashboard-card bg-blue"><h6>Total</h6><h2 id="statTotal">0</h2></div></div>
-<div class="col-md-2"><div class="dashboard-card bg-green"><h6>Wins</h6><h2 id="statWins">0</h2></div></div>
-<div class="col-md-2"><div class="dashboard-card bg-red"><h6>Stops</h6><h2 id="statStops">0</h2></div></div>
-<div class="col-md-2"><div class="dashboard-card bg-yellow"><h6>Winrate</h6><h2 id="statWinrate">0%</h2></div></div>
-<div class="col-md-2"><div class="dashboard-card bg-indigo"><h6>R Total</h6><h2 id="statRTotal">0</h2></div></div>
-<div class="col-md-2"><div class="dashboard-card bg-cyan"><h6>Payoff</h6><h2 id="statPayoff">0R</h2></div></div>
-
-</div>
-
-<div class="mt-4">
-<button class="btn btn-light" onclick="exportarCSV()">Exportar CSV</button>
-<button class="btn btn-danger" onclick="limparHistorico()">Limpar Histórico</button>
+<button id="btnRegistrarC" style="display:none;" onclick="abrirModal('C')">📝 Registrar Trade</button>
 </div>
 
 </div>
 
-</div>
+<div class="stats" id="estatisticas"></div>
+<button onclick="exportarCSV()">📥 Exportar CSV</button>
+<button onclick="limparHistorico()">🗑️ Limpar Histórico</button>
 
-<!-- ================= MODAL ================= -->
-<div class="modal-bg" id="modal">
-<div class="modal-box">
-
+<div class="modal" id="modal">
+<div class="modal-content">
+<h3 style="margin-bottom: 20px; border-bottom: none;">Registrar Trade</h3>
 <label>Alvo</label>
-<select id="alvo" class="form-select mb-2">
+<select id="alvo">
 <option>1:1R</option>
 <option>1:2R</option>
 <option>1:3R</option>
@@ -283,49 +496,233 @@ body {
 </select>
 
 <label>Parcial?</label>
-<select id="parcial" class="form-select mb-3">
+<select id="parcial">
 <option>Sim</option>
 <option>Não</option>
 </select>
 
-<button class="btn btn-primary w-100" onclick="salvarTrade()">Salvar</button>
-
+<button onclick="salvarTrade()">Confirmar Registro</button>
 </div>
 </div>
 
 <script>
-
-/* ===== TRANSIÇÃO ===== */
-
-function mostrarDashboard(){
-    document.getElementById("paginaOperacional").classList.add("hidden");
-    document.getElementById("paginaDashboard").classList.remove("hidden");
-    atualizarEstatisticas();
-}
-
-function mostrarOperacional(){
-    document.getElementById("paginaDashboard").classList.add("hidden");
-    document.getElementById("paginaOperacional").classList.remove("hidden");
-}
-
-/* ===== AQUI ENTRA 100% DO SEU JS ORIGINAL ===== */
-/* (mantido integralmente, sem remover pontuação, regras ou variáveis) */
-
-/* COLE AQUI EXATAMENTE O BLOCO <script> ORIGINAL
-   começando em:
 
 let trades = JSON.parse(localStorage.getItem("tradesSMC")) || [];
 let ultimoResultado = {};
 let origemAtual = null;
 
 function avaliar(prefix){
-   ...
+
+origemAtual = prefix;
+
+let setupValue = document.getElementById("gatilho"+prefix).value;
+let macroValue = document.getElementById("macro"+prefix).value;
+let microValue = document.getElementById("micro"+prefix).value;
+let mm80Value = document.getElementById("mm80"+prefix).value;
+let vwapValue = document.getElementById("vwap"+prefix).value;
+let estocValue = document.getElementById("estoc"+prefix).value;
+let obpValue = document.getElementById("obp"+prefix).value;
+let obsValue = document.getElementById("obs"+prefix).value;
+
+if(setupValue===""){ alert("Selecione o setup."); return; }
+
+let pontos = 0;
+let resultado="";
+let classe="";
+let gatilhosPermitidos=[];
+let bolinha="●";
+
+/* TRAP */
+if(prefix==="A"){
+
+if(setupValue==="Trap na Máxima - VENDA"){
+if(macroValue==="Baixa")pontos+=4;
+if(macroValue==="Lateral")pontos+=2;
+if(macroValue==="Alta")pontos+=1;
+if(microValue==="Lateral")pontos+=2;
+if(microValue==="Baixa")pontos+=1;
+if(mm80Value==="Caindo")pontos+=3;
+if(mm80Value==="Subindo")pontos+=2;
 }
 
-e mantendo tudo até o final.
-*/
+if(setupValue==="Trap na Mínima - COMPRA"){
+if(macroValue==="Alta")pontos+=4;
+if(macroValue==="Lateral")pontos+=2;
+if(macroValue==="Baixa")pontos+=1;
+if(microValue==="Lateral")pontos+=2;
+if(microValue==="Alta")pontos+=1;
+if(mm80Value==="Subindo")pontos+=3;
+if(mm80Value==="Caindo")pontos+=2;
+}
+
+if(vwapValue==="Distante")pontos+=4;
+if(vwapValue==="Proximo")pontos+=1;
+if(estocValue==="Divergente")pontos+=2;
+if(obpValue==="Sim")pontos+=2;
+if(obsValue==="Sim")pontos+=1;
+
+if(pontos>=14){
+resultado="EXCELENTE";classe="excelente";
+gatilhosPermitidos=["Rossadinha vwap","FF-FD vwap","PFR 10m","Inside bar reversão","CHOCH","POI"];
+}
+else if(pontos>=12){
+resultado="BOM";classe="bom";
+gatilhosPermitidos=["Rossadinha vwap","Inside bar reversão","POI","FF-FD vwap"];
+}
+else if(pontos>=8){
+resultado="MÉDIO";classe="medio";
+gatilhosPermitidos=["Inside bar reversão","POI"];
+}
+else{
+resultado="FRACO";classe="fraco";
+gatilhosPermitidos=["POI"];
+}
+}
+
+/* SMC + C */
+if(prefix==="B"||prefix==="C"){
+
+if(setupValue==="Captura de liquidez em range") pontos+=3;
+if(setupValue==="Captura de liquidez de BOS relevante") pontos+=4;
+if(setupValue==="OB HTF") pontos+=4;
+if(setupValue==="OB interno") pontos+=2;
+if(setupValue==="VWAP") pontos+=2;
+if(setupValue==="Volume Profile POC") pontos+=2;
+
+if(macroValue==="Alta"||macroValue==="Baixa") pontos+=3;
+if(macroValue==="Lateral") pontos+=1;
+
+if(microValue==="Alta"||microValue==="Baixa") pontos+=2;
+
+if(mm80Value==="Sim") pontos+=4;
+
+if(vwapValue==="Distante") pontos+=3;
+if(vwapValue==="Proximo") pontos+=1;
+
+if(estocValue==="Sim") pontos+=3;
+
+let fvgValue=document.getElementById("fvg"+prefix).value;
+if(fvgValue==="Sim") pontos+=2;
+
+if(obpValue==="Sim") pontos+=2;
+if(obsValue==="Sim") pontos+=1;
+
+let temChoCh=(mm80Value==="Sim");
+
+if(pontos>=18 && temChoCh){
+resultado="EXCELENTE";classe="excelente";
+gatilhosPermitidos=["CHOCH","OB HTF","FVG","POI"];
+}
+else if(pontos>=14){
+resultado="BOM";classe="bom";
+gatilhosPermitidos=["CHOCH","OB HTF","POI"];
+}
+else if(pontos>=9){
+resultado="MÉDIO";classe="medio";
+gatilhosPermitidos=["POI"];
+}
+else{
+resultado="FRACO";classe="fraco";
+gatilhosPermitidos=["POI"];
+}
+}
+
+let resultadoDiv=document.getElementById("resultado"+prefix);
+resultadoDiv.className="resultado "+classe;
+resultadoDiv.innerHTML=`${bolinha} ${resultado}<br>Pontuação: ${pontos}`;
+
+let gatilhosDiv=document.getElementById("gatilhosPermitidos"+prefix);
+let html="<strong>Gatilhos Autorizados:</strong><br>";
+gatilhosPermitidos.forEach(g=>{
+html+=`<label><input type="radio" name="gatilhoExec${prefix}" value="${g}"> ${g}</label><br>`;
+});
+gatilhosDiv.innerHTML=html;
+document.getElementById("btnRegistrar"+prefix).style.display="block";
+
+let agora=new Date();
+ultimoResultado={
+data:agora.toLocaleDateString(),
+hora:agora.toLocaleTimeString(),
+origem:prefix,
+setup:setupValue,
+macro:macroValue,
+micro:microValue,
+mm80:mm80Value,
+vwap:vwapValue,
+estoc:estocValue,
+obp:obpValue,
+obs:obsValue,
+pontos,
+resultado
+};
+}
+
+function abrirModal(prefix){
+origemAtual=prefix;
+document.getElementById("modal").style.display="flex";
+}
+
+function salvarTrade(){
+let radioSelecionado=document.querySelector(`input[name="gatilhoExec${origemAtual}"]:checked`);
+if(!radioSelecionado){alert("Selecione o gatilho executado.");return;}
+
+let alvoValue=document.getElementById("alvo").value;
+let parcialValue=document.getElementById("parcial").value;
+let gatilhoExecutado=radioSelecionado.value;
+
+let r=0;
+if(alvoValue==="1:1R")r=1;
+if(alvoValue==="1:2R")r=2;
+if(alvoValue==="1:3R")r=3;
+if(alvoValue==="Stop")r=-1;
+
+let trade={...ultimoResultado,gatilhoExecutado,alvo:alvoValue,parcial:parcialValue,r};
+trades.push(trade);
+localStorage.setItem("tradesSMC",JSON.stringify(trades));
+
+document.getElementById("modal").style.display="none";
+atualizarEstatisticas();
+}
+
+function atualizarEstatisticas(){
+let total=trades.length;
+let wins=trades.filter(t=>t.r>0).length;
+let stops=trades.filter(t=>t.r<0).length;
+let rTotal=trades.reduce((acc,t)=>acc+t.r,0);
+let winrate= total?((wins/total)*100).toFixed(1):0;
+let payoff= total?(rTotal/total).toFixed(2):0;
+
+document.getElementById("estatisticas").innerHTML=
+`<span>📊 Total: ${total}</span>
+<span>✅ Wins: ${wins}</span>
+<span>❌ Stops: ${stops}</span>
+<span>📈 Winrate: ${winrate}%</span>
+<span>💰 R Total: ${rTotal}</span>
+<span>📉 Payoff Médio: ${payoff}R</span>`;
+}
+
+function exportarCSV(){
+let csv="Data,Hora,Origem,Setup,GatilhoExecutado,Macro,Micro,MM80,VWAP,Estoc,OBPrimario,OBSecundario,Pontos,Resultado,Alvo,Parcial,R\n";
+trades.forEach(t=>{
+csv+=`${t.data},${t.hora},${t.origem},${t.setup},${t.gatilhoExecutado},${t.macro},${t.micro},${t.mm80},${t.vwap},${t.estoc},${t.obp},${t.obs},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.r}\n`;
+});
+let blob=new Blob([csv],{type:"text/csv"});
+let link=document.createElement("a");
+link.href=URL.createObjectURL(blob);
+link.download="trades_smc.csv";
+link.click();
+}
+
+function limparHistorico(){
+if(confirm("Deseja apagar todo histórico?")){
+trades=[];
+localStorage.removeItem("tradesSMC");
+atualizarEstatisticas();
+}
+}
+
+atualizarEstatisticas();
 
 </script>
-
 </body>
 </html>
