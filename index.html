@@ -26,7 +26,7 @@ body {
     justify-content: center;
     max-width: 1600px;
     margin: 0 auto;
-    padding-top: 20px;  /* Reduzido para 20px de padding do body */
+    padding-top: 20px;
 }
 
 /* Coluna dos cards principais */
@@ -36,7 +36,7 @@ body {
     flex-wrap: wrap;
     flex: 3;
     justify-content: center;
-    align-items: flex-start;  /* Alinha os cards pelo topo */
+    align-items: flex-start;
 }
 
 /* Coluna da estatística */
@@ -44,7 +44,7 @@ body {
     flex: 1;
     min-width: 280px;
     max-width: 320px;
-    margin-top: 0;  /* Reset da margem */
+    margin-top: 0;
     display: flex;
     flex-direction: column;
     gap: 15px;
@@ -58,7 +58,7 @@ body {
     border-radius: 28px;
     box-shadow: 0 25px 45px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
-    margin-top: 0;  /* Garantindo que não tenha margem superior */
+    margin-top: 0;
 }
 
 .container:hover {
@@ -252,9 +252,6 @@ select:-moz-listbox {
     padding: 22px 20px;
     border-radius: 28px;
     box-shadow: 0 25px 45px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
-    position: sticky;
-    top: 100px;
-    transform: translateY(-60px); /* Move o card de estatísticas para cima para alinhar com os botões */
 }
 
 .stats-vertical h3 {
@@ -511,9 +508,27 @@ button:not(.stats-buttons button):hover {
     margin-bottom: 15px;
 }
 
-.modal-content button {
+.modal-buttons {
+    display: flex;
+    gap: 10px;
     margin-top: 20px;
+}
+
+.modal-buttons button {
+    flex: 1;
+    margin: 0;
+}
+
+.modal-buttons button:first-child {
     background: linear-gradient(135deg, #3b82f6 0%, #1e4b8f 100%);
+}
+
+.modal-buttons button:last-child {
+    background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+}
+
+.modal-buttons button:last-child:hover {
+    background: linear-gradient(135deg, #475569 0%, #334155 100%);
 }
 
 .modal-content h3 {
@@ -544,11 +559,6 @@ button:not(.stats-buttons button):hover {
     .stats-column {
         width: 100%;
         max-width: 380px;
-    }
-    
-    .stats-vertical {
-        position: static;
-        transform: translateY(0); /* Remove o deslocamento em telas menores */
     }
 }
 
@@ -862,7 +872,10 @@ button:not(.stats-buttons button):hover {
 <option>Não</option>
 </select>
 
-<button onclick="salvarTrade()">Confirmar Registro</button>
+<div class="modal-buttons">
+    <button onclick="salvarTrade()">Confirmar Registro</button>
+    <button onclick="fecharModal()">Voltar</button>
+</div>
 </div>
 </div>
 
@@ -1021,6 +1034,10 @@ resultado
 function abrirModal(prefix){
 origemAtual=prefix;
 document.getElementById("modal").style.display="flex";
+}
+
+function fecharModal(){
+document.getElementById("modal").style.display="none";
 }
 
 function salvarTrade(){
