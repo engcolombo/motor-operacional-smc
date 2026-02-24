@@ -21,47 +21,21 @@ body {
     box-shadow: 0 20px 40px rgba(0,0,0,0.15);
 }
 
-.card-header {
-    background: transparent;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-.card-title {
-    color:#0f172a;
-}
-
-.form-select {
-    border-radius: 14px !important;
-    padding: 10px;
-}
-
-/* força borda arredondada no dropdown */
-select {
+.form-select, .btn {
     border-radius: 14px !important;
 }
 
-.btn {
-    border-radius: 14px !important;
+.hidden {
+    display:none;
 }
 
-.resultado {
-    margin-top: 15px;
-    padding: 15px;
-    border-radius: 14px;
-    font-weight: 600;
-    text-align: center;
+.fade {
+    animation: fadeIn 0.3s ease-in-out;
 }
 
-.excelente { background:#dbeafe; color:#1e3a8a; }
-.bom { background:#dcfce7; color:#166534; }
-.medio { background:#fef9c3; color:#854d0e; }
-.fraco { background:#fee2e2; color:#991b1b; }
-
-.gatilhos-box {
-    background:#f1f5f9;
-    padding:12px;
-    border-radius:14px;
-    margin-top:15px;
+@keyframes fadeIn {
+    from {opacity:0; transform:translateY(10px);}
+    to {opacity:1; transform:translateY(0);}
 }
 
 .dashboard-card {
@@ -70,10 +44,6 @@ select {
     color:white;
     text-align:center;
     box-shadow:0 15px 35px rgba(0,0,0,0.2);
-}
-
-.stats-wrapper {
-    margin-top:40px;
 }
 
 .modal {
@@ -99,16 +69,31 @@ select {
 
 <body>
 
-<div class="page">
-<div class="container-xl">
+<div class="page container-xl">
 
-<div class="row g-4">
-<!-- (SEUS 3 CARDS ORIGINAIS AQUI — exatamente iguais ao que já estavam, não alterei lógica nem ids) -->
+<!-- ===== BOTÕES TOPO ===== -->
+<div class="d-flex justify-content-between mb-4">
+<h2 class="text-white">Motor Operacional SMC</h2>
+<div>
+<button class="btn btn-light" onclick="mostrarOperacional()">Operacional</button>
+<button class="btn btn-warning" onclick="mostrarDashboard()">Dashboard</button>
+</div>
 </div>
 
-<!-- ================= DASHBOARD STATS ================= -->
+<!-- ================= TELA OPERACIONAL ================= -->
+<div id="paginaOperacional" class="fade">
 
-<div class="row g-4 stats-wrapper" id="estatisticasCards">
+<div class="row g-4">
+<!-- COLE AQUI SEUS 3 CARDS ORIGINAIS (TRAP / SMC / OB) -->
+<!-- NÃO ALTERE NADA DOS IDs OU BOTÕES -->
+</div>
+
+</div>
+
+<!-- ================= TELA DASHBOARD ================= -->
+<div id="paginaDashboard" class="hidden fade">
+
+<div class="row g-4">
 
 <div class="col-md-2">
 <div class="dashboard-card bg-blue">
@@ -154,15 +139,16 @@ select {
 
 </div>
 
-<div class="d-flex gap-2 mt-4">
+<div class="mt-4">
 <button class="btn btn-success" onclick="exportarCSV()">Exportar CSV</button>
 <button class="btn btn-danger" onclick="limparHistorico()">Limpar Histórico</button>
 </div>
 
 </div>
+
 </div>
 
-<!-- Modal mantido igual -->
+<!-- Modal -->
 <div class="modal" id="modal">
 <div class="modal-content">
 
@@ -187,30 +173,21 @@ select {
 
 <script>
 
-/* SEU SCRIPT ORIGINAL 100% IGUAL,
-APENAS MODIFIQUEI A FUNÇÃO atualizarEstatisticas
-PARA ALIMENTAR OS CARDS (NÃO ALTERA LÓGICA) */
+/* ===== TRANSIÇÃO ENTRE TELAS ===== */
 
-let trades = JSON.parse(localStorage.getItem("tradesSMC")) || [];
-let ultimoResultado = {};
-let origemAtual = null;
-
-function atualizarEstatisticas(){
-
-let total=trades.length;
-let wins=trades.filter(t=>t.r>0).length;
-let stops=trades.filter(t=>t.r<0).length;
-let rTotal=trades.reduce((acc,t)=>acc+t.r,0);
-let winrate= total?((wins/total)*100).toFixed(1):0;
-let payoff= total?(rTotal/total).toFixed(2):0;
-
-document.getElementById("statTotal").innerText=total;
-document.getElementById("statWins").innerText=wins;
-document.getElementById("statStops").innerText=stops;
-document.getElementById("statWinrate").innerText=winrate+"%";
-document.getElementById("statRTotal").innerText=rTotal;
-document.getElementById("statPayoff").innerText=payoff+"R";
+function mostrarDashboard(){
+document.getElementById("paginaOperacional").classList.add("hidden");
+document.getElementById("paginaDashboard").classList.remove("hidden");
+atualizarEstatisticas();
 }
+
+function mostrarOperacional(){
+document.getElementById("paginaDashboard").classList.add("hidden");
+document.getElementById("paginaOperacional").classList.remove("hidden");
+}
+
+/* ===== SEU SCRIPT ORIGINAL AQUI COMPLETO (SEM ALTERAÇÃO) ===== */
+/* cole aqui exatamente seu JS anterior */
 
 </script>
 
