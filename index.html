@@ -70,10 +70,9 @@ body {
 
 <!-- ================= OPERACIONAL ================= -->
 <div id="paginaOperacional">
-
 <div class="row g-4">
 
-<!-- ================= TRAP ================= -->
+<!-- TRAP -->
 <div class="col-md-4">
 <div class="card p-3">
 <h4>TRAP máxima e mínima</h4>
@@ -115,7 +114,7 @@ body {
 </div>
 </div>
 
-<!-- ================= SMC ================= -->
+<!-- SMC -->
 <div class="col-md-4">
 <div class="card p-3">
 <h4>SMC</h4>
@@ -160,7 +159,7 @@ body {
 </div>
 </div>
 
-<!-- ================= OB ================= -->
+<!-- OB -->
 <div class="col-md-4">
 <div class="card p-3">
 <h4>OB / VWAP / POC</h4>
@@ -210,17 +209,15 @@ body {
 </div>
 </div>
 
-<!-- ================= DASHBOARD ================= -->
+<!-- DASHBOARD -->
 <div id="paginaDashboard" class="hidden mt-4">
 <div class="row g-4">
-
 <div class="col-md-2"><div class="dashboard-card bg-blue"><h6>Total</h6><h2 id="statTotal">0</h2></div></div>
 <div class="col-md-2"><div class="dashboard-card bg-green"><h6>Wins</h6><h2 id="statWins">0</h2></div></div>
 <div class="col-md-2"><div class="dashboard-card bg-red"><h6>Stops</h6><h2 id="statStops">0</h2></div></div>
 <div class="col-md-2"><div class="dashboard-card bg-yellow"><h6>Winrate</h6><h2 id="statWinrate">0%</h2></div></div>
 <div class="col-md-2"><div class="dashboard-card bg-indigo"><h6>R Total</h6><h2 id="statRTotal">0</h2></div></div>
 <div class="col-md-2"><div class="dashboard-card bg-cyan"><h6>Payoff</h6><h2 id="statPayoff">0R</h2></div></div>
-
 </div>
 
 <button class="btn btn-success mt-3" onclick="exportarCSV()">Exportar CSV</button>
@@ -231,22 +228,20 @@ body {
 
 <script>
 
-/* ===== TRANSIÇÃO ===== */
-
+/* TRANSIÇÃO */
 function mostrarDashboard(){
 document.getElementById("paginaOperacional").classList.add("hidden");
 document.getElementById("paginaDashboard").classList.remove("hidden");
 atualizarEstatisticas();
 }
-
 function mostrarOperacional(){
 document.getElementById("paginaDashboard").classList.add("hidden");
 document.getElementById("paginaOperacional").classList.remove("hidden");
 }
 
-/* ===== SUA LÓGICA ORIGINAL INTEGRAL ===== */
+/* ================= SUA LÓGICA ORIGINAL INTEGRAL ================= */
 
-/* COLE AQUI EXATAMENTE O BLOCO <script> QUE VOCÊ ENVIOU NA PRIMEIRA MENSAGEM */
+/* COLE AQUI EXATAMENTE O BLOCO <script> ORIGINAL QUE VOCÊ ENVIOU */
 /* NÃO MODIFIQUE NADA */
 
 </script>
