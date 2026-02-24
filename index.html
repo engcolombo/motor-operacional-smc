@@ -80,7 +80,7 @@ button:hover { background:#002244; }
 
 <div class="wrapper">
 
-<!-- TRAP -->
+<!-- ================= TRAP ================= -->
 <div class="container">
 <h3>TRAP máxima e mínima</h3>
 
@@ -119,7 +119,7 @@ button:hover { background:#002244; }
 <button id="btnRegistrarA" style="display:none;" onclick="abrirModal('A')">Registrar Trade</button>
 </div>
 
-<!-- SMC -->
+<!-- ================= SMC ================= -->
 <div class="container">
 <h3>SMC</h3>
 
@@ -161,7 +161,7 @@ button:hover { background:#002244; }
 <button id="btnRegistrarB" style="display:none;" onclick="abrirModal('B')">Registrar Trade</button>
 </div>
 
-<!-- OB/VWAP/POC -->
+<!-- ================= OB / VWAP / POC ================= -->
 <div class="container">
 <h3>OB / VWAP / POC</h3>
 
@@ -260,33 +260,97 @@ let bolinha="●";
 
 /* TRAP */
 if(prefix==="A"){
+
+if(setupValue==="Trap na Máxima - VENDA"){
+if(macroValue==="Baixa")pontos+=4;
+if(macroValue==="Lateral")pontos+=2;
+if(macroValue==="Alta")pontos+=1;
+if(microValue==="Lateral")pontos+=2;
+if(microValue==="Baixa")pontos+=1;
+if(mm80Value==="Caindo")pontos+=3;
+if(mm80Value==="Subindo")pontos+=2;
+}
+
+if(setupValue==="Trap na Mínima - COMPRA"){
+if(macroValue==="Alta")pontos+=4;
+if(macroValue==="Lateral")pontos+=2;
+if(macroValue==="Baixa")pontos+=1;
+if(microValue==="Lateral")pontos+=2;
+if(microValue==="Alta")pontos+=1;
+if(mm80Value==="Subindo")pontos+=3;
+if(mm80Value==="Caindo")pontos+=2;
+}
+
 if(vwapValue==="Distante")pontos+=4;
+if(vwapValue==="Proximo")pontos+=1;
 if(estocValue==="Divergente")pontos+=2;
 if(obpValue==="Sim")pontos+=2;
 if(obsValue==="Sim")pontos+=1;
 
-if(pontos>=7){resultado="EXCELENTE";classe="excelente";}
-else if(pontos>=5){resultado="BOM";classe="bom";}
-else if(pontos>=3){resultado="MÉDIO";classe="medio";}
-else{resultado="FRACO";classe="fraco";}
-
+if(pontos>=14){
+resultado="EXCELENTE";classe="excelente";
+gatilhosPermitidos=["Rossadinha vwap","FF-FD vwap","PFR 10m","Inside bar reversão","CHOCH","POI"];
+}
+else if(pontos>=12){
+resultado="BOM";classe="bom";
+gatilhosPermitidos=["Rossadinha vwap","Inside bar reversão","POI","FF-FD vwap"];
+}
+else if(pontos>=8){
+resultado="MÉDIO";classe="medio";
+gatilhosPermitidos=["Inside bar reversão","POI"];
+}
+else{
+resultado="FRACO";classe="fraco";
 gatilhosPermitidos=["POI"];
 }
+}
 
-/* SMC E C */
+/* SMC + C */
 if(prefix==="B"||prefix==="C"){
-if(mm80Value==="Sim")pontos+=4;
-if(vwapValue==="Distante")pontos+=3;
-if(estocValue==="Sim")pontos+=3;
-if(obpValue==="Sim")pontos+=2;
-if(obsValue==="Sim")pontos+=1;
 
-if(pontos>=10){resultado="EXCELENTE";classe="excelente";}
-else if(pontos>=7){resultado="BOM";classe="bom";}
-else if(pontos>=4){resultado="MÉDIO";classe="medio";}
-else{resultado="FRACO";classe="fraco";}
+if(setupValue==="Captura de liquidez em range") pontos+=3;
+if(setupValue==="Captura de liquidez de BOS relevante") pontos+=4;
+if(setupValue==="OB HTF") pontos+=4;
+if(setupValue==="OB interno") pontos+=2;
+if(setupValue==="VWAP") pontos+=2;
+if(setupValue==="Volume Profile POC") pontos+=2;
 
+if(macroValue==="Alta"||macroValue==="Baixa") pontos+=3;
+if(macroValue==="Lateral") pontos+=1;
+
+if(microValue==="Alta"||microValue==="Baixa") pontos+=2;
+
+if(mm80Value==="Sim") pontos+=4;
+
+if(vwapValue==="Distante") pontos+=3;
+if(vwapValue==="Proximo") pontos+=1;
+
+if(estocValue==="Sim") pontos+=3;
+
+let fvgValue=document.getElementById("fvg"+prefix).value;
+if(fvgValue==="Sim") pontos+=2;
+
+if(obpValue==="Sim") pontos+=2;
+if(obsValue==="Sim") pontos+=1;
+
+let temChoCh=(mm80Value==="Sim");
+
+if(pontos>=18 && temChoCh){
+resultado="EXCELENTE";classe="excelente";
+gatilhosPermitidos=["CHOCH","OB HTF","FVG","POI"];
+}
+else if(pontos>=14){
+resultado="BOM";classe="bom";
+gatilhosPermitidos=["CHOCH","OB HTF","POI"];
+}
+else if(pontos>=9){
+resultado="MÉDIO";classe="medio";
 gatilhosPermitidos=["POI"];
+}
+else{
+resultado="FRACO";classe="fraco";
+gatilhosPermitidos=["POI"];
+}
 }
 
 let resultadoDiv=document.getElementById("resultado"+prefix);
@@ -320,7 +384,7 @@ resultado
 }
 
 function abrirModal(prefix){
-origemAtual = prefix;
+origemAtual=prefix;
 document.getElementById("modal").style.display="flex";
 }
 
@@ -339,7 +403,6 @@ if(alvoValue==="1:3R")r=3;
 if(alvoValue==="Stop")r=-1;
 
 let trade={...ultimoResultado,gatilhoExecutado,alvo:alvoValue,parcial:parcialValue,r};
-
 trades.push(trade);
 localStorage.setItem("tradesSMC",JSON.stringify(trades));
 
