@@ -1008,6 +1008,11 @@ if(vwapValue==="Proximo") pontos+=1;
 
 /* CLASSIFICAÇÃO */
 
+/* ================= INICIO GATILHOS SMC PERSONALIZADOS ================= */
+
+let temOB = (obpValue==="Sim" || obsValue==="Sim");
+
+/* EXCELENTE */
 if(pontos>=22){
 
 resultado="EXCELENTE";
@@ -1015,13 +1020,19 @@ classe="excelente";
 
 gatilhosPermitidos=[
 "CHOCH",
-"Entrada OB primário",
-"FVG",
-"Rossadinha VWAP",
-"POI"
+"POI",
+"Entrada atrasada VWAP",
+"FVG"
 ];
 
+if(temOB){
+gatilhosPermitidos.push("No toque do OB");
+gatilhosPermitidos.push("Na saída do OB");
 }
+
+}
+
+/* BOM */
 else if(pontos>=18){
 
 resultado="BOM";
@@ -1029,34 +1040,47 @@ classe="bom";
 
 gatilhosPermitidos=[
 "CHOCH",
-"OB primário",
-"POI"
+"POI",
+"Entrada atrasada VWAP"
 ];
 
+if(temOB){
+gatilhosPermitidos.push("Na saída do OB");
 }
+
+}
+
+/* MÉDIO */
 else if(pontos>=14){
 
 resultado="MÉDIO";
 classe="medio";
 
 gatilhosPermitidos=[
+"CHOCH",
 "POI",
-"Rejeição"
+"Entrada atrasada VWAP"
 ];
 
 }
+
+/* FRACO */
 else{
 
 resultado="FRACO";
 classe="fraco";
 
 gatilhosPermitidos=[
-"POI"
+"POI",
+"Entrada atrasada VWAP"
 ];
 
 }
 
+/* ================= FIM GATILHOS SMC PERSONALIZADOS ================= */
+
 }
+
 /* ================= FIM LOGICA INSTITUCIONAL SMC ================= */
 
 //////////////////
