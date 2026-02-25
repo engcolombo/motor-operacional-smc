@@ -1019,16 +1019,17 @@ resultado="EXCELENTE";
 classe="excelente";
 
 gatilhosPermitidos=[
-"CHOCH",
-"POI",
-"Entrada atrasada VWAP",
-"FVG"
+"CHOCH"
 ];
 
 if(temOB){
 gatilhosPermitidos.push("No toque do OB");
 gatilhosPermitidos.push("Na saída do OB");
 }
+
+gatilhosPermitidos.push("POI");
+gatilhosPermitidos.push("Entrada atrasada VWAP");
+gatilhosPermitidos.push("FVG");
 
 }
 
