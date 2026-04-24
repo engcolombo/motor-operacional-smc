@@ -1,1286 +1,2162 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+<!doctype html>
+<html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Motor Operacional SMC</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diário de Trade SMC</title>
 <style>
+:root {
+    color-scheme: light;
+    --bg: #eef8ff;
+    --surface: #ffffff;
+    --surface-soft: #f5fbff;
+    --line: #d9eaf5;
+    --line-strong: #a7cbe2;
+    --text: #102033;
+    --muted: #64758a;
+    --primary: #2098d8;
+    --primary-dark: #0d6ea8;
+    --primary-soft: #dff3ff;
+    --green: #149b68;
+    --green-soft: #dff8ed;
+    --red: #d94343;
+    --red-soft: #ffe7e7;
+    --yellow: #b98113;
+    --yellow-soft: #fff4cf;
+    --violet: #6f5dd5;
+    --shadow: 0 18px 50px rgba(39, 105, 150, 0.16);
+    --radius: 8px;
+}
+
 * {
-    margin: 0;
-    padding: 0;
     box-sizing: border-box;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 body {
-    background: linear-gradient(135deg, #0a2647 0%, #1e3a6b 50%, #2a4f8e 100%);
-    padding: 20px;
+    margin: 0;
     min-height: 100vh;
-    position: relative;
+    color: var(--text);
+    background:
+        linear-gradient(180deg, rgba(32, 94, 132, 0.92), rgba(78, 147, 181, 0.84)),
+        radial-gradient(circle at top left, #7cc8ec 0, transparent 25rem),
+        radial-gradient(circle at bottom right, #1f658e 0, transparent 28rem),
+        #2f7fa9;
+    font-family: Inter, "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
 }
 
-/* Wrapper principal com três colunas */
-.main-wrapper {
-    display: flex;
-    gap: 30px;
-    justify-content: center;
-    max-width: 1600px;
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+button {
+    border: 0;
+}
+
+.app-shell {
+    width: min(1320px, calc(100% - 32px));
     margin: 0 auto;
-    padding-top: 20px;
+    padding: 16px 0 24px;
 }
 
-/* Coluna dos cards principais */
-.cards-column {
+.topbar {
     display: flex;
-    gap: 30px;
-    flex-wrap: wrap;
-    flex: 3;
-    justify-content: center;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 18px 0 20px;
 }
 
-/* Coluna da estatística */
-.stats-column {
-    flex: 1;
-    min-width: 280px;
-    max-width: 320px;
+.brand-block {
+    display: grid;
+    gap: 4px;
+    padding: 10px 13px;
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(176, 217, 241, 0.72);
+    box-shadow: 0 10px 24px rgba(13, 70, 104, 0.12);
+}
+
+.eyebrow {
+    margin: 0;
+    color: #06496f;
+    font-size: 0.74rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+h1,
+h2,
+h3,
+p {
     margin-top: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
 }
 
-.container {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    padding: 22px 25px;
-    width: 380px;
-    border-radius: 28px;
-    box-shadow: 0 25px 45px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    margin-top: 0;
+h1 {
+    margin-bottom: 0;
+    color: #0b2136;
+    font-size: clamp(1.7rem, 3vw, 2.55rem);
+    line-height: 1.02;
+    letter-spacing: 0;
 }
 
-.container:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 35px 55px rgba(0, 0, 0, 0.4);
+h2 {
+    margin-bottom: 0;
+    font-size: 1.1rem;
+    letter-spacing: 0;
 }
 
 h3 {
-    color: #0a2647;
-    font-size: 1.3rem;
-    font-weight: 600;
-    margin-bottom: 18px;
-    padding-bottom: 10px;
-    border-bottom: 3px solid #3b82f6;
-    letter-spacing: 0.5px;
+    margin-bottom: 0;
+    font-size: 1rem;
+    letter-spacing: 0;
 }
 
-label {
-    font-weight: 600;
-    font-size: 0.75rem;
-    margin-top: 8px;
-    margin-bottom: 3px;
-    display: block;
-    color: #1e293b;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-/* Container personalizado para o select */
-.select-wrapper {
-    position: relative;
-    width: 100%;
-    margin-bottom: 10px;
-}
-
-/* Estilização completa do select */
-select {
-    width: 100%;
-    padding: 10px 16px;
-    font-size: 0.9rem;
-    border: 2px solid #e2e8f0;
-    border-radius: 20px;
-    background-color: white;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    outline: none;
-    color: #1e293b;
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
-    background-repeat: no-repeat;
-    background-position: right 15px center;
-    background-size: 16px;
-}
-
-select:hover {
-    border-color: #3b82f6;
-    background-color: #f8fafc;
-}
-
-select:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
-}
-
-/* Estilização das opções do select - abordagem alternativa */
-select option {
-    background-color: white;
-    color: #1e293b;
-    padding: 12px 16px;
-    font-size: 0.9rem;
-    border-radius: 12px;
-}
-
-/* Para navegadores baseados em WebKit (Chrome, Safari, etc) */
-select::-webkit-listbox {
-    background-color: white;
-    border-radius: 20px;
-    padding: 8px;
-    border: 2px solid #e2e8f0;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-}
-
-select::-webkit-option {
-    background-color: white;
-    color: #1e293b;
-    padding: 12px 16px;
-    border-radius: 40px;
-    margin: 4px 0;
-    font-size: 0.9rem;
-}
-
-/* Para Firefox */
-select:-moz-listbox {
-    background-color: white;
-    border-radius: 20px;
-    padding: 8px;
-    border: 2px solid #e2e8f0;
-}
-
-/* Dropdown personalizado com JavaScript */
-.custom-select {
-    position: relative;
-    width: 100%;
-    margin-bottom: 10px;
-}
-
-.select-selected {
-    background-color: white;
-    border: 2px solid #e2e8f0;
-    border-radius: 20px;
-    padding: 10px 16px;
-    font-size: 0.9rem;
-    color: #1e293b;
-    cursor: pointer;
-    user-select: none;
-    position: relative;
-    transition: all 0.2s ease;
-}
-
-.select-selected:after {
-    content: '';
-    position: absolute;
-    right: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 0;
-    height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-top: 8px solid #3b82f6;
-    transition: transform 0.3s ease;
-}
-
-.select-selected.select-arrow-active:after {
-    transform: translateY(-50%) rotate(180deg);
-}
-
-.select-selected:hover {
-    border-color: #3b82f6;
-    background-color: #f8fafc;
-}
-
-.select-items {
-    position: absolute;
-    background-color: white;
-    top: 110%;
-    left: 0;
-    right: 0;
-    border-radius: 20px;
-    border: 2px solid #e2e8f0;
-    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
-    z-index: 99;
-    max-height: 300px;
-    overflow-y: auto;
-    padding: 8px;
-}
-
-.select-items div {
-    color: #1e293b;
-    padding: 12px 16px;
-    cursor: pointer;
-    user-select: none;
-    border-radius: 40px;
-    transition: all 0.2s ease;
-    margin: 2px 0;
-    font-size: 0.9rem;
-}
-
-.select-items div:hover {
-    background-color: #3b82f6;
-    color: white;
-    transform: translateX(5px);
-}
-
-.select-items div.selected {
-    background-color: #3b82f6;
-    color: white;
-    font-weight: 600;
-}
-
-.select-hide {
-    display: none;
-}
-
-/* Estatísticas na vertical */
-.stats-vertical {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    padding: 22px 20px;
-    border-radius: 28px;
-    box-shadow: 0 25px 45px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
-}
-
-.stats-vertical h3 {
-    margin-bottom: 20px;
-    text-align: center;
-}
-
-.stats-list {
+.top-actions,
+.toolbar,
+.form-actions,
+.history-actions,
+.modal-actions {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.stat-item {
-    background: #f1f5f9;
-    padding: 15px;
-    border-radius: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 5px;
-    border: 2px solid #e2e8f0;
-    transition: transform 0.2s ease;
-}
-
-.stat-item:hover {
-    transform: translateX(5px);
-    border-color: #3b82f6;
-}
-
-.stat-label {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    color: #64748b;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-}
-
-.stat-value {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: #0a2647;
-}
-
-.stat-value.wins {
-    color: #059669;
-}
-
-.stat-value.stops {
-    color: #dc2626;
-}
-
-.stat-value.winrate {
-    color: #3b82f6;
-}
-
-.stat-value.rtotal {
-    color: #8b5cf6;
-}
-
-/* Botões abaixo do card de estatísticas */
-.stats-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 5px;
-    width: 100%;
-}
-
-.stats-buttons button {
-    width: 100%;
-    padding: 12px 20px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    border: none;
-    border-radius: 40px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    background: rgba(255, 255, 255, 0.95);
-    color: #0a2647;
-    border: 2px solid white;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-}
-
-.stats-buttons button:hover {
-    background: white;
-    transform: translateY(-3px);
-    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.3);
-}
-
-.stats-buttons button:first-child {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    border: none;
-}
-
-.stats-buttons button:first-child:hover {
-    background: linear-gradient(135deg, #059669 0%, #047857 100%);
-}
-
-/* Ajustes existentes */
-button {
-    width: 100%;
-    padding: 12px 20px;
-    margin: 8px 0;
-    font-size: 0.95rem;
-    font-weight: 600;
-    border: none;
-    border-radius: 40px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-button:not(.stats-buttons button) {
-    background: linear-gradient(135deg, #3b82f6 0%, #1e4b8f 100%);
-    color: white;
-    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
-}
-
-button:not(.stats-buttons button):hover {
-    background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);
-    transform: scale(1.02);
-    box-shadow: 0 12px 25px rgba(59, 130, 246, 0.4);
-}
-
-.resultado {
-    margin-top: 12px;
-    padding: 15px;
-    border-radius: 22px;
-    font-weight: 700;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    font-size: 1.1rem;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-}
-
-.excelente {
-    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-    color: #1e40af;
-    border: 2px solid #3b82f6;
-}
-
-.bom {
-    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
-    color: #166534;
-    border: 2px solid #22c55e;
-}
-
-.medio {
-    background: linear-gradient(135deg, #fef9c3 0%, #fde047 100%);
-    color: #854d0e;
-    border: 2px solid #eab308;
-}
-
-.fraco {
-    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-    color: #991b1b;
-    border: 2px solid #ef4444;
-}
-
-.gatilhos-box {
-    background: #f8fafc;
-    padding: 15px 18px;
-    border-radius: 22px;
-    margin-top: 12px;
-    font-size: 0.9rem;
-    border: 2px solid #e2e8f0;
-}
-
-.gatilhos-box strong {
-    display: block;
-    margin-bottom: 10px;
-    color: #0f172a;
-    font-size: 0.95rem;
-}
-
-.gatilhos-box label {
-    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
-    padding: 8px 14px;
-    margin: 5px 0;
-    background: white;
-    border-radius: 40px;
-    border: 2px solid #e2e8f0;
+}
+
+.cloud-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 18px;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(176, 217, 241, 0.78);
+    box-shadow: 0 10px 28px rgba(39, 105, 150, 0.1);
+}
+
+.cloud-copy {
+    display: grid;
+    gap: 4px;
+}
+
+.cloud-copy strong {
+    font-size: 0.95rem;
+}
+
+.cloud-status {
+    color: var(--muted);
+    font-size: 0.86rem;
+    line-height: 1.35;
+}
+
+.cloud-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.auth-input {
+    width: min(210px, 38vw);
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    color: var(--text);
+    background: #ffffff;
+    outline: none;
+}
+
+.auth-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(32, 152, 216, 0.14);
+}
+
+.remember-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 38px;
+    padding: 0 10px;
+    border-radius: var(--radius);
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.62);
+    border: 1px solid var(--line);
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.remember-option input {
+    accent-color: var(--primary);
+}
+
+.btn {
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: var(--radius);
     cursor: pointer;
-    transition: all 0.2s ease;
-    font-weight: 500;
-    text-transform: none;
-    font-size: 0.9rem;
+    font-weight: 800;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: 0 8px 18px rgba(39, 105, 150, 0.08);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
 }
 
-.gatilhos-box label:hover {
-    background: #e2e8f0;
-    border-color: #3b82f6;
-    transform: translateX(3px);
+.btn:hover {
+    transform: translateY(-1px);
+    border-color: var(--line-strong);
+    box-shadow: 0 12px 26px rgba(39, 105, 150, 0.14);
 }
 
-.gatilhos-box input[type="radio"] {
-    width: 18px;
-    height: 18px;
-    accent-color: #3b82f6;
+.btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-primary {
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    border-color: transparent;
+}
+
+.btn-success {
+    color: #ffffff;
+    background: linear-gradient(135deg, #20b77b, #0d8e5c);
+    border-color: transparent;
+}
+
+.btn-danger {
+    color: var(--red);
+    background: var(--red-soft);
+    border-color: #ffcaca;
+}
+
+.btn-soft {
+    color: var(--primary-dark);
+    background: var(--primary-soft);
+    border-color: #bfe7fb;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.metric {
+    min-height: 76px;
+    padding: 13px;
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(176, 217, 241, 0.78);
+    box-shadow: 0 10px 28px rgba(39, 105, 150, 0.1);
+}
+
+.metric span {
+    display: block;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.metric strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 1.35rem;
+    line-height: 1;
+}
+
+.workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(350px, 0.82fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.panel {
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(176, 217, 241, 0.84);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 18px 18px 0;
+}
+
+.panel-subtitle {
+    margin: 5px 0 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+.strategy-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 18px;
+    border-bottom: 1px solid var(--line);
+}
+
+.strategy-tab {
+    min-height: 58px;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    color: var(--muted);
+    background: var(--surface-soft);
+    border: 1px solid var(--line);
+    text-align: left;
+    transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.strategy-tab strong,
+.strategy-tab span {
+    display: block;
+}
+
+.strategy-tab strong {
+    color: inherit;
+    font-size: 0.95rem;
+}
+
+.strategy-tab span {
+    margin-top: 3px;
+    font-size: 0.75rem;
+}
+
+.strategy-tab.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, #39ace7, #1077b3);
+    border-color: transparent;
+    box-shadow: 0 12px 28px rgba(32, 152, 216, 0.28);
+}
+
+.fields-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    padding: 18px;
+}
+
+.field {
+    display: grid;
+    gap: 7px;
+}
+
+.field.full {
+    grid-column: 1 / -1;
+}
+
+.field label {
+    color: #24394f;
+    font-size: 0.78rem;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.field select,
+.field input,
+.field textarea {
+    width: 100%;
+    min-height: 40px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    color: var(--text);
+    background: #ffffff;
+    outline: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.field select,
+.field input {
+    padding: 0 12px;
+}
+
+.field textarea {
+    min-height: 88px;
+    resize: vertical;
+    padding: 11px 12px;
+}
+
+.field select:focus,
+.field input:focus,
+.field textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(32, 152, 216, 0.14);
+}
+
+.form-actions {
+    justify-content: flex-end;
+    padding: 0 18px 18px;
+}
+
+.result-panel {
+    position: sticky;
+    top: 16px;
+}
+
+.score-card {
+    display: grid;
+    gap: 10px;
+    margin: 18px;
+    padding: 18px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: var(--surface-soft);
+}
+
+.score-card.empty {
+    color: var(--muted);
+    background: #f8fcff;
+}
+
+.score-card.excelente {
+    border-color: #9fd4f5;
+    background: linear-gradient(135deg, #e5f7ff, #cceeff);
+}
+
+.score-card.bom {
+    border-color: #a8e4c9;
+    background: var(--green-soft);
+}
+
+.score-card.medio {
+    border-color: #f1d487;
+    background: var(--yellow-soft);
+}
+
+.score-card.fraco {
+    border-color: #ffbcbc;
+    background: var(--red-soft);
+}
+
+.score-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.score-title {
+    font-size: 1.35rem;
+    font-weight: 900;
+}
+
+.score-points {
+    min-width: 86px;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    color: var(--primary-dark);
+    background: #ffffff;
+    border: 1px solid var(--line);
+    text-align: center;
+    font-weight: 900;
+}
+
+.score-meta {
     margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.trigger-area {
+    display: grid;
+    gap: 10px;
+    padding: 0 18px 18px;
+}
+
+.trigger-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.trigger-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    background: #ffffff;
+    border: 1px solid var(--line);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.trigger-option input {
+    accent-color: var(--primary);
+}
+
+.trade-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 18px;
+    border-top: 1px solid var(--line);
+}
+
+.trade-form .form-actions {
+    grid-column: 1 / -1;
+    padding: 0;
+}
+
+.history-panel {
+    margin-top: 16px;
+}
+
+.history-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px;
+    border-bottom: 1px solid var(--line);
+}
+
+.history-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+th {
+    color: var(--muted);
+    font-size: 0.73rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: #f7fcff;
+}
+
+td {
+    font-size: 0.92rem;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 900;
+    background: var(--primary-soft);
+    color: var(--primary-dark);
+}
+
+.pill.win {
+    color: var(--green);
+    background: var(--green-soft);
+}
+
+.pill.stop {
+    color: var(--red);
+    background: var(--red-soft);
+}
+
+.empty-state {
+    padding: 24px 18px;
+    color: var(--muted);
 }
 
 .modal {
-    display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(10, 38, 71, 0.8);
-    backdrop-filter: blur(5px);
-    justify-content: center;
+    inset: 0;
+    display: none;
     align-items: center;
-    z-index: 1000;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(8, 27, 44, 0.52);
+    backdrop-filter: blur(8px);
+    z-index: 50;
+}
+
+.modal.open {
+    display: flex;
 }
 
 .modal-content {
-    background: white;
-    padding: 30px 35px;
-    width: 350px;
-    border-radius: 32px;
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
-    animation: modalSlide 0.3s ease;
+    width: min(1180px, 100%);
+    max-height: min(92vh, 940px);
+    overflow: auto;
+    border-radius: var(--radius);
+    background: #ffffff;
+    border: 1px solid rgba(176, 217, 241, 0.9);
+    box-shadow: 0 28px 80px rgba(4, 31, 54, 0.32);
 }
 
-@keyframes modalSlide {
-    from {
-        transform: translateY(-30px);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-.modal-content label {
-    font-size: 0.85rem;
-    margin-top: 15px;
-}
-
-.modal-content select {
-    margin-bottom: 15px;
-}
-
-.modal-buttons {
+.modal-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
     display: flex;
-    gap: 10px;
-    margin-top: 20px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px;
+    background: rgba(255, 255, 255, 0.96);
+    border-bottom: 1px solid var(--line);
 }
 
-.modal-buttons button {
-    flex: 1;
-    margin: 0;
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    padding: 18px;
 }
 
-.modal-buttons button:first-child {
-    background: linear-gradient(135deg, #3b82f6 0%, #1e4b8f 100%);
+.chart-grid {
+    display: grid;
+    grid-template-columns: 1.35fr 0.85fr;
+    gap: 14px;
+    padding: 0 18px 18px;
 }
 
-.modal-buttons button:last-child {
-    background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+.chart-card {
+    min-height: 280px;
+    padding: 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: #fbfdff;
 }
 
-.modal-buttons button:last-child:hover {
-    background: linear-gradient(135deg, #475569 0%, #334155 100%);
+.chart-card canvas {
+    display: block;
+    width: 100%;
+    height: 230px;
+    margin-top: 12px;
 }
 
-.modal-content h3 {
-    margin-bottom: 20px;
-    border-bottom: none;
-    font-size: 1.4rem;
+.chart-card.small canvas {
+    height: 220px;
 }
 
-#btnRegistrarA, #btnRegistrarB, #btnRegistrarC {
-    margin-top: 15px;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
-    font-size: 0.9rem;
-    padding: 10px 16px;
+.toast {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    max-width: min(420px, calc(100% - 40px));
+    padding: 13px 15px;
+    border-radius: var(--radius);
+    color: #ffffff;
+    background: #163047;
+    box-shadow: 0 18px 42px rgba(4, 31, 54, 0.26);
+    opacity: 0;
+    transform: translateY(12px);
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 80;
 }
 
-#btnRegistrarA:hover, #btnRegistrarB:hover, #btnRegistrarC:hover {
-    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
 }
 
-/* Responsividade */
-@media (max-width: 1200px) {
-    .main-wrapper {
+.site-footer {
+    margin-top: 14px;
+    padding: 12px 4px 0;
+    color: #416174;
+    font-size: 0.82rem;
+    text-align: center;
+}
+
+@media (max-width: 1160px) {
+    .summary-grid,
+    .stats-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .workspace,
+    .chart-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .result-panel {
+        position: static;
+    }
+}
+
+@media (max-width: 760px) {
+    .app-shell {
+        width: min(100% - 20px, 1480px);
+        padding-top: 12px;
+    }
+
+    .topbar,
+    .cloud-panel,
+    .history-head,
+    .modal-head {
+        align-items: flex-start;
         flex-direction: column;
-        align-items: center;
     }
-    
-    .stats-column {
-        width: 100%;
-        max-width: 380px;
-    }
-}
 
-@media (max-width: 768px) {
-    body {
-        padding: 15px;
-    }
-    
-    .container {
+    .top-actions,
+    .cloud-form,
+    .history-actions,
+    .modal-actions,
+    .form-actions {
         width: 100%;
-        max-width: 380px;
     }
-    
-    .cards-column {
-        gap: 20px;
-    }
-}
 
-.container > *:last-child {
-    margin-bottom: 0;
+    .auth-input {
+        width: 100%;
+        flex: 1 1 180px;
+    }
+
+    .btn {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .summary-grid,
+    .stats-grid,
+    .fields-grid,
+    .trade-form,
+    .trigger-grid,
+    .strategy-tabs {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 </head>
-
 <body>
-
-<div class="main-wrapper">
-    <!-- Coluna dos cards principais -->
-    <div class="cards-column">
-        <!-- ================= TRAP ================= -->
-        <div class="container">
-        <h3>⚡ TRAP máxima e mínima</h3>
-
-        <label>Setup</label>
-        <select id="gatilhoA">
-        <option value="" disabled selected>— Selecione uma opção —</option>
-        <option>Trap na Máxima - VENDA</option>
-        <option>Trap na Mínima - COMPRA</option>
-        </select>
-
-        <label>Tendência Macro</label>
-        <select id="macroA">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Alta</option>
-        <option>Baixa</option>
-        <option>Lateral</option>
-        </select>
-
-        <label>Tendência Micro</label>
-        <select id="microA">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Alta</option>
-        <option>Baixa</option>
-        <option>Lateral</option>
-        </select>
-
-        <label>MM80</label>
-        <select id="mm80A">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Subindo</option>
-        <option>Caindo</option>
-        </select>
-
-        <label>VWAP</label>
-        <select id="vwapA">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Distante</option>
-        <option>Proximo</option>
-        <option>Toque</option>
-        </select>
-
-        <label>Estocástico</label>
-        <select id="estocA">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Divergente</option>
-        <option>Nao divergente</option>
-        </select>
-
-        <label>OB Primário</label>
-        <select id="obpA">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Sim</option>
-        <option>Nao</option>
-        </select>
-
-        <label>OB Secundário</label>
-        <select id="obsA">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Sim</option>
-        <option>Nao</option>
-        </select>
-
-        <button onclick="avaliar('A')">Avaliar Setup</button>
-
-        <div id="resultadoA" class="resultado"></div>
-        <div id="gatilhosPermitidosA" class="gatilhos-box"></div>
-        <button id="btnRegistrarA" style="display:none;" onclick="abrirModal('A')">📝 Registrar Trade</button>
+<div class="app-shell">
+    <header class="topbar">
+        <div class="brand-block">
+            <p class="eyebrow">Motor operacional SMC</p>
+            <h1>Diário de trade</h1>
         </div>
-
-        <!-- ================= SMC ================= -->
-        <div class="container">
-        <h3>📈 SMC</h3>
-
-        <label>Setup</label>
-        <select id="gatilhoB">
-        <option value="" disabled selected>— Selecione uma opção —</option>
-        <option>Captura de liquidez em range</option>
-        <option>Captura de liquidez de BOS relevante</option>
-        </select>
-
-        <label>COMPRA / VENDA</label>
-        <select id="direcaoB">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Compra</option>
-        <option>Venda</option>
-        </select>
-
-        <label>Tendência Macro</label>
-        <select id="macroB">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Alta</option>
-        <option>Baixa</option>
-        <option>Lateral</option>
-        </select>
-
-        <label>Tendência Micro</label>
-        <select id="microB">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Alta</option>
-        <option>Baixa</option>
-        <option>Lateral</option>
-        </select>
-
-        <label>VWAP oposta</label>
-        <select id="vwapB">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Distante</option>
-        <option>Proximo</option>
-        </select>
-
-        <label>TOCOU VWAP ?</label>
-        <select id="tocouVwapB">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Sim</option>
-        <option>Não</option>
-        </select>
-
-        <label>OB Primário</label>
-        <select id="obpB">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Sim</option>
-        <option>Nao</option>
-        </select>
-
-        <label>OB Secundário</label>
-        <select id="obsB">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Sim</option>
-        <option>Nao</option>
-        </select>
-
-        <button onclick="avaliar('B')">Avaliar Setup</button>
-
-        <div id="resultadoB" class="resultado"></div>
-        <div id="gatilhosPermitidosB" class="gatilhos-box"></div>
-        <button id="btnRegistrarB" style="display:none;" onclick="abrirModal('B')">📝 Registrar Trade</button>
+        <div class="top-actions">
+            <button class="btn btn-primary" id="btnOpenStats" type="button">Estatísticas</button>
+            <button class="btn" id="btnExportCsvTop" type="button">Exportar CSV</button>
+            <button class="btn" id="btnExportJsonTop" type="button">Exportar JSON</button>
         </div>
+    </header>
 
-        <!-- ================= OB / VWAP / POC ================= -->
-        <div class="container">
-        <h3>🎯 OB / VWAP / POC</h3>
-
-        <label>Setup</label>
-        <select id="gatilhoC">
-        <option value="" disabled selected>— Selecione uma opção —</option>
-        <option>OB HTF</option>
-        <option>OB interno</option>
-        <option>VWAP</option>
-        <option>Volume Profile POC</option>
-        </select>
-
-        <label>Tendência Macro</label>
-        <select id="macroC">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Alta</option>
-        <option>Baixa</option>
-        <option>Lateral</option>
-        </select>
-
-        <label>Tendência Micro</label>
-        <select id="microC">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Alta</option>
-        <option>Baixa</option>
-        <option>Lateral</option>
-        </select>
-
-        <label>CHOCH</label>
-        <select id="mm80C">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Sim</option>
-        <option>Não</option>
-        </select>
-
-        <label>VWAP oposta</label>
-        <select id="vwapC">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Distante</option>
-        <option>Proximo</option>
-        <option>Toque</option>
-        </select>
-
-        <label>Capturou liquidez?</label>
-        <select id="estocC">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Sim</option>
-        <option>Não</option>
-        </select>
-
-        <label>FVG</label>
-        <select id="fvgC">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Sim</option>
-        <option>Não</option>
-        </select>
-
-        <label>OB Primário</label>
-        <select id="obpC">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Sim</option>
-        <option>Nao</option>
-        </select>
-
-        <label>OB Secundário</label>
-        <select id="obsC">
-        <option value="" disabled selected>— Selecione —</option>
-        <option>Sim</option>
-        <option>Nao</option>
-        </select>
-
-        <button onclick="avaliar('C')">Avaliar Setup</button>
-
-        <div id="resultadoC" class="resultado"></div>
-        <div id="gatilhosPermitidosC" class="gatilhos-box"></div>
-        <button id="btnRegistrarC" style="display:none;" onclick="abrirModal('C')">📝 Registrar Trade</button>
+    <section class="cloud-panel">
+        <div class="cloud-copy">
+            <strong>Nuvem Supabase</strong>
+            <span class="cloud-status" id="cloudStatus">Conectando ao Supabase.</span>
         </div>
-    </div>
+        <div class="cloud-form">
+            <input class="auth-input" id="cloudEmail" type="email" autocomplete="email" placeholder="Email">
+            <input class="auth-input" id="cloudPassword" type="password" autocomplete="current-password" placeholder="Senha">
+            <label class="remember-option" for="rememberSession">
+                <input id="rememberSession" type="checkbox" checked>
+                <span>Lembrar</span>
+            </label>
+            <button class="btn btn-primary" id="btnCloudLogin" type="button">Entrar</button>
+            <button class="btn" id="btnCloudSignup" type="button">Criar acesso</button>
+            <button class="btn" id="btnCloudLogout" type="button">Sair</button>
+        </div>
+    </section>
 
-    <!-- Coluna da estatística -->
-    <div class="stats-column">
-        <div class="stats-vertical" id="estatisticas">
-            <h3>📊 Estatísticas</h3>
-            <div class="stats-list">
-                <div class="stat-item">
-                    <span class="stat-label">Total de Trades</span>
-                    <span class="stat-value" id="stat-total">0</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Wins</span>
-                    <span class="stat-value wins" id="stat-wins">0</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Stops</span>
-                    <span class="stat-value stops" id="stat-stops">0</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Winrate</span>
-                    <span class="stat-value winrate" id="stat-winrate">0%</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">R Total</span>
-                    <span class="stat-value rtotal" id="stat-rtotal">0</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Payoff Médio</span>
-                    <span class="stat-value" id="stat-payoff">0R</span>
+    <section class="summary-grid" id="summaryGrid"></section>
+
+    <main class="workspace">
+        <section class="panel">
+            <div class="strategy-tabs" id="strategyTabs"></div>
+            <div class="panel-header">
+                <div>
+                    <h2 id="activeTitle">Setup</h2>
+                    <p class="panel-subtitle" id="activeSubtitle"></p>
                 </div>
             </div>
+            <form class="fields-grid" id="evaluationForm"></form>
+            <div class="form-actions">
+                <button class="btn" id="btnClearForm" type="button">Limpar seleção</button>
+                <button class="btn btn-primary" id="btnEvaluate" type="button">Avaliar setup</button>
+            </div>
+        </section>
+
+        <aside class="panel result-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Registro do trade</h2>
+                    <p class="panel-subtitle">Resultado, gatilho executado e diário.</p>
+                </div>
+            </div>
+            <div class="score-card empty" id="scoreCard">
+                <div class="score-line">
+                    <span class="score-title">Aguardando avaliação</span>
+                    <span class="score-points">0 pts</span>
+                </div>
+                <p class="score-meta">Selecione um setup e avalie para liberar o registro.</p>
+            </div>
+            <div class="trigger-area">
+                <h3>Gatilhos autorizados</h3>
+                <div class="trigger-grid" id="triggerGrid"></div>
+            </div>
+            <form class="trade-form" id="tradeForm">
+                <div class="field">
+                    <label for="tradeDateTime">Data e hora</label>
+                    <input id="tradeDateTime" type="datetime-local">
+                </div>
+                <div class="field">
+                    <label for="asset">Ativo</label>
+                    <input id="asset" type="text" placeholder="Ex: WIN, WDO, PETR4">
+                </div>
+                <div class="field">
+                    <label for="alvo">Alvo</label>
+                    <select id="alvo">
+                        <option>1:1R</option>
+                        <option>1:2R</option>
+                        <option>1:3R</option>
+                        <option>1:5R</option>
+                        <option>Stop</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="parcial">Parcial?</label>
+                    <select id="parcial">
+                        <option>Sim</option>
+                        <option>Não</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="valorFinanceiro">Valor financeiro (R$)</label>
+                    <input id="valorFinanceiro" type="number" step="0.01" placeholder="Ex: 500">
+                </div>
+                <div class="field">
+                    <label for="estadoMental">Estado mental</label>
+                    <select id="estadoMental">
+                        <option value="">Selecione</option>
+                        <option>Calmo</option>
+                        <option>Confiante</option>
+                        <option>Ansioso</option>
+                        <option>Impulsivo</option>
+                        <option>Cansado</option>
+                    </select>
+                </div>
+                <div class="field full">
+                    <label for="observacoes">Observações</label>
+                    <textarea id="observacoes" placeholder="Contexto, execução, erro, acerto, print ou ideia principal"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-success" id="btnSaveTrade" type="button" disabled>Salvar trade</button>
+                </div>
+            </form>
+        </aside>
+    </main>
+
+    <section class="panel history-panel">
+        <div class="history-head">
+            <div>
+                <h2>Histórico</h2>
+                <p class="panel-subtitle">Trades salvos no Supabase.</p>
+            </div>
+            <div class="history-actions">
+                <button class="btn btn-danger" id="btnClearHistory" type="button">Limpar histórico</button>
+            </div>
         </div>
-        
-        <!-- Botões abaixo do card de estatísticas -->
-        <div class="stats-buttons">
-            <button onclick="exportarCSV()">📥 Exportar CSV</button>
-            <button onclick="limparHistorico()">🗑️ Limpar Histórico</button>
+        <div class="history-table-wrap" id="historyWrap"></div>
+    </section>
+
+    <footer class="site-footer">
+        Dados salvos com segurança no Supabase.
+    </footer>
+</div>
+
+<div class="modal" id="statsModal" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-head">
+            <div>
+                <h2>Estatísticas</h2>
+                <p class="panel-subtitle">Leitura geral do diário salvo.</p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" id="btnExportCsvModal" type="button">Exportar CSV</button>
+                <button class="btn btn-primary" id="btnCloseStats" type="button">Fechar</button>
+            </div>
         </div>
+        <section class="stats-grid" id="statsGrid"></section>
+        <section class="chart-grid">
+            <div class="chart-card">
+                <h3>Curva em R</h3>
+                <canvas id="equityChart"></canvas>
+            </div>
+            <div class="chart-card small">
+                <h3>Wins x stops</h3>
+                <canvas id="winLossChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Resultado por estratégia</h3>
+                <canvas id="strategyChart"></canvas>
+            </div>
+            <div class="chart-card small">
+                <h3>Distribuição dos alvos</h3>
+                <canvas id="targetChart"></canvas>
+            </div>
+        </section>
     </div>
 </div>
 
-<div class="modal" id="modal">
-<div class="modal-content">
-<h3 style="margin-bottom: 20px; border-bottom: none;">Registrar Trade</h3>
-<label>Alvo</label>
-<select id="alvo">
-<option>1:1R</option>
-<option>1:2R</option>
-<option>1:3R</option>
-<option>1:5R</option>
-<option>Stop</option>
-</select>
+<div class="toast" id="toast"></div>
 
-<label>Parcial?</label>
-<select id="parcial">
-<option>Sim</option>
-<option>Não</option>
-</select>
-
-    <label>Valor financeiro (R$)</label>
-<input type="number" id="valorFinanceiro" placeholder="Ex: 500" style="
-width:100%;
-padding:10px 16px;
-border-radius:20px;
-border:2px solid #e2e8f0;
-font-size:0.9rem;
-margin-top:5px;
-margin-bottom:10px;
-">
-
-<div class="modal-buttons">
-    <button onclick="salvarTrade()">Confirmar Registro</button>
-    <button onclick="fecharModal()">Voltar</button>
-</div>
-</div>
-</div>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-
-let trades = JSON.parse(localStorage.getItem("tradesSMC")) || [];
-let ultimoResultado = {};
-let origemAtual = null;
-
-function avaliar(prefix){
-
-origemAtual = prefix;
-
-let setupValue = document.getElementById("gatilho"+prefix).value;
-let macroValue = document.getElementById("macro"+prefix).value;
-let microValue = document.getElementById("micro"+prefix).value;
-/* ================= FIX CAMPOS OPCIONAIS ================= */
-let mm80Element = document.getElementById("mm80"+prefix);
-let vwapElement = document.getElementById("vwap"+prefix);
-let estocElement = document.getElementById("estoc"+prefix);
-let obpElement = document.getElementById("obp"+prefix);
-let obsElement = document.getElementById("obs"+prefix);
-
-let mm80Value = mm80Element ? mm80Element.value : "";
-let vwapValue = vwapElement ? vwapElement.value : "";
-let estocValue = estocElement ? estocElement.value : "";
-let obpValue = obpElement ? obpElement.value : "";
-let obsValue = obsElement ? obsElement.value : "";
-/* ================= FIM FIX ================= */
-
-if(setupValue===""){ alert("Selecione o setup."); return; }
-
-let pontos = 0;
-let resultado="";
-let classe="";
-let gatilhosPermitidos=[];
-let bolinha="●";
-
-/* TRAP */
-if(prefix==="A"){
-
-if(setupValue==="Trap na Máxima - VENDA"){
-if(macroValue==="Baixa")pontos+=4;
-if(macroValue==="Lateral")pontos+=2;
-if(macroValue==="Alta")pontos+=1;
-if(microValue==="Lateral")pontos+=2;
-if(microValue==="Baixa")pontos+=1;
-if(mm80Value==="Caindo")pontos+=3;
-if(mm80Value==="Subindo")pontos+=2;
-}
-
-if(setupValue==="Trap na Mínima - COMPRA"){
-if(macroValue==="Alta")pontos+=4;
-if(macroValue==="Lateral")pontos+=2;
-if(macroValue==="Baixa")pontos+=1;
-if(microValue==="Lateral")pontos+=2;
-if(microValue==="Alta")pontos+=1;
-if(mm80Value==="Subindo")pontos+=3;
-if(mm80Value==="Caindo")pontos+=2;
-}
-
-if(vwapValue==="Distante")pontos+=4;
-if(vwapValue==="Proximo")pontos+=1;
-if(estocValue==="Divergente")pontos+=2;
-if(obpValue==="Sim")pontos+=2;
-if(obsValue==="Sim")pontos+=1;
-
-if(pontos>=14){
-resultado="EXCELENTE";classe="excelente";
-gatilhosPermitidos=["Rossadinha vwap","FF-FD vwap","PFR 10m","Inside bar reversão- 1,2,3","CHOCH","POI"];
-}
-else if(pontos>=12){
-resultado="BOM";classe="bom";
-gatilhosPermitidos=["Rossadinha vwap","Inside bar reversão - 1,2,3","POI","FF-FD vwap"];
-}
-else if(pontos>=8){
-resultado="MÉDIO";classe="medio";
-gatilhosPermitidos=["Inside bar reversão - 1,2,3","POI"];
-}
-else{
-resultado="FRACO";classe="fraco";
-gatilhosPermitidos=["POI"];
-}
-}
-
-/* ================= SMC ================= */
-/* ================= INICIO LOGICA INSTITUCIONAL SMC ================= */
-if(prefix==="B"){
-    
-let direcaoValue = document.getElementById("direcaoB").value;
-let tocouVwapValue = document.getElementById("tocouVwapB").value;
-
-/* ✅ VALIDAÇÃO DEVE VIR DEPOIS DA DECLARAÇÃO */
-if(!direcaoValue){
-alert("Selecione COMPRA ou VENDA");
-return;
-}
-/* 1 HTF BIAS (MACRO) */
-if(direcaoValue==="Compra"){
-    if(macroValue==="Alta") pontos+=5;
-    if(macroValue==="Lateral") pontos+=2;
-}
-if(direcaoValue==="Venda"){
-    if(macroValue==="Baixa") pontos+=5;
-    if(macroValue==="Lateral") pontos+=2;
-}
-
-/* 2 LIQUIDITY SWEEP */
-if(setupValue==="Captura de liquidez em range") pontos+=5;
-if(setupValue==="Captura de liquidez de BOS relevante") pontos+=4;
-
-/* 3 DISCOUNT ENTRY */
-if(tocouVwapValue==="Sim") pontos+=4;
-
-/* ================= PESO INSTITUCIONAL ORDER BLOCK ================= */
-
-/* OB primário = peso dominante */
-if(obpValue==="Sim"){
-    pontos+=6;
-}
-
-/* OB secundário ainda relevante */
-else if(obsValue==="Sim"){
-    pontos+=3;
-}
-
-/* ================= FIM ================= */
-
-/* 5 MICRO */
-if(direcaoValue==="Compra"){
-    if(microValue==="Alta") pontos+=3;
-    if(microValue==="Lateral") pontos+=2;
-}
-
-if(direcaoValue==="Venda"){
-    if(microValue==="Baixa") pontos+=3;
-    if(microValue==="Lateral") pontos+=2;
-}
-
-/* 6 ESPAÇO */
-if(vwapValue==="Distante") pontos+=2;
-if(vwapValue==="Proximo") pontos+=1;
-
-
-/* CLASSIFICAÇÃO */
-
-/* ================= INICIO GATILHOS SMC PERSONALIZADOS ================= */
-
-let temOB = (obpValue==="Sim" || obsValue==="Sim");
-
-/* EXCELENTE */
-if(pontos>=22){
-
-resultado="EXCELENTE";
-classe="excelente";
-
-gatilhosPermitidos=[
-"CHOCH"
-];
-
-if(temOB){
-gatilhosPermitidos.push("No toque do OB");
-gatilhosPermitidos.push("Na saída do OB");
-}
-
-gatilhosPermitidos.push("POI");
-gatilhosPermitidos.push("Entrada atrasada VWAP");
-gatilhosPermitidos.push("FVG");
-
-}
-
-/* BOM */
-else if(pontos>=18){
-
-resultado="BOM";
-classe="bom";
-
-gatilhosPermitidos=[
-"CHOCH",
-"POI",
-"Entrada atrasada VWAP"
-];
-
-if(temOB){
-gatilhosPermitidos.push("Na saída do OB");
-}
-
-}
-
-/* MÉDIO */
-else if(pontos>=14){
-
-resultado="MÉDIO";
-classe="medio";
-
-gatilhosPermitidos=[
-"CHOCH",
-"POI",
-"Entrada atrasada VWAP"
-];
-
-}
-
-/* FRACO */
-else{
-
-resultado="FRACO";
-classe="fraco";
-
-gatilhosPermitidos=[
-"POI",
-"Entrada atrasada VWAP"
-];
-
-}
-
-/* ================= FIM GATILHOS SMC PERSONALIZADOS ================= */
-
-}
-
-/* ================= FIM LOGICA INSTITUCIONAL SMC ================= */
-
-//////////////////
-
-/* ================= CARD C ================= */
-if(prefix==="C"){
-
-if(setupValue==="OB HTF") pontos+=4;
-if(setupValue==="OB interno") pontos+=2;
-if(setupValue==="VWAP") pontos+=2;
-if(setupValue==="Volume Profile POC") pontos+=2;
-
-if(macroValue==="Alta"||macroValue==="Baixa") pontos+=3;
-if(macroValue==="Lateral") pontos+=1;
-
-if(microValue==="Alta"||microValue==="Baixa") pontos+=2;
-
-if(mm80Value==="Sim") pontos+=4;
-
-if(vwapValue==="Distante") pontos+=3;
-if(vwapValue==="Proximo") pontos+=1;
-
-if(estocValue==="Sim") pontos+=3;
-
-let fvgValue=document.getElementById("fvgC").value;
-
-if(fvgValue==="Sim") pontos+=2;
-
-if(obpValue==="Sim") pontos+=2;
-if(obsValue==="Sim") pontos+=1;
-
-let temChoCh=(mm80Value==="Sim");
-
-if(pontos>=18 && temChoCh){
-
-resultado="EXCELENTE";
-classe="excelente";
-gatilhosPermitidos=["CHOCH","OB HTF","FVG","POI"];
-
-}
-else if(pontos>=14){
-
-resultado="BOM";
-classe="bom";
-gatilhosPermitidos=["CHOCH","OB HTF","POI"];
-
-}
-else if(pontos>=9){
-
-resultado="MÉDIO";
-classe="medio";
-gatilhosPermitidos=["POI"];
-
-}
-else{
-
-resultado="FRACO";
-classe="fraco";
-gatilhosPermitidos=["POI"];
-
-}
-
-}    
-
-let resultadoDiv=document.getElementById("resultado"+prefix);
-resultadoDiv.className="resultado "+classe;
-resultadoDiv.innerHTML=`${bolinha} ${resultado}<br>Pontuação: ${pontos}`;
-
-let gatilhosDiv=document.getElementById("gatilhosPermitidos"+prefix);
-let html="<strong>Gatilhos Autorizados:</strong><br>";
-gatilhosPermitidos.forEach(g=>{
-html+=`<label><input type="radio" name="gatilhoExec${prefix}" value="${g}"> ${g}</label><br>`;
-});
-gatilhosDiv.innerHTML=html;
-document.getElementById("btnRegistrar"+prefix).style.display="block";
-
-let agora=new Date();
-ultimoResultado={
-data:agora.toLocaleDateString(),
-hora:agora.toLocaleTimeString(),
-origem:prefix,
-setup:setupValue,
-macro:macroValue,
-micro:microValue,
-mm80:mm80Value,
-vwap:vwapValue,
-estoc:estocValue,
-obp:obpValue,
-obs:obsValue,
-pontos,
-resultado
+const SUPABASE_URL = "https://cqjmxywdhlxlsltkrrxm.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_FdXdp5ogCGD65omUzmLjyw_kd3mGOqB";
+const SUPABASE_TABLE = "trades";
+const SUPABASE_PROJECT_ID = "cqjmxywdhlxlsltkrrxm";
+const REMEMBER_SESSION_KEY = "smcRememberSession";
+
+let supabaseClient = null;
+let currentUser = null;
+let currentSession = null;
+let cloudBusy = false;
+
+const strategies = {
+    A: {
+        label: "TRAP máxima e mínima",
+        short: "TRAP",
+        subtitle: "Trap na máxima ou mínima",
+        fields: [
+            { key: "gatilho", label: "Setup", full: true, options: ["Trap na Máxima - VENDA", "Trap na Mínima - COMPRA"] },
+            { key: "macro", label: "Tendência Macro", options: ["Alta", "Baixa", "Lateral"] },
+            { key: "micro", label: "Tendência Micro", options: ["Alta", "Baixa", "Lateral"] },
+            { key: "mm80", label: "MM80", options: ["Subindo", "Caindo"] },
+            { key: "vwap", label: "VWAP", options: ["Distante", "Proximo", "Toque"] },
+            { key: "estoc", label: "Estocástico", options: ["Divergente", "Nao divergente"] },
+            { key: "obp", label: "OB Primário", options: ["Sim", "Nao"] },
+            { key: "obs", label: "OB Secundário", options: ["Sim", "Nao"] }
+        ]
+    },
+    B: {
+        label: "SMC",
+        short: "SMC",
+        subtitle: "Captura de liquidez",
+        fields: [
+            { key: "gatilho", label: "Setup", full: true, options: ["Captura de liquidez em range", "Captura de liquidez de BOS relevante"] },
+            { key: "direcao", label: "Compra / Venda", options: ["Compra", "Venda"] },
+            { key: "macro", label: "Tendência Macro", options: ["Alta", "Baixa", "Lateral"] },
+            { key: "micro", label: "Tendência Micro", options: ["Alta", "Baixa", "Lateral"] },
+            { key: "vwap", label: "VWAP oposta", options: ["Distante", "Proximo"] },
+            { key: "tocouVwap", label: "Tocou VWAP?", options: ["Sim", "Não"] },
+            { key: "obp", label: "OB Primário", options: ["Sim", "Nao"] },
+            { key: "obs", label: "OB Secundário", options: ["Sim", "Nao"] }
+        ]
+    },
+    C: {
+        label: "OB / VWAP / POC",
+        short: "OB/VWAP",
+        subtitle: "Order block, VWAP e volume profile",
+        fields: [
+            { key: "gatilho", label: "Setup", full: true, options: ["OB HTF", "OB interno", "VWAP", "Volume Profile POC"] },
+            { key: "macro", label: "Tendência Macro", options: ["Alta", "Baixa", "Lateral"] },
+            { key: "micro", label: "Tendência Micro", options: ["Alta", "Baixa", "Lateral"] },
+            { key: "mm80", label: "CHOCH", options: ["Sim", "Não"] },
+            { key: "vwap", label: "VWAP oposta", options: ["Distante", "Proximo", "Toque"] },
+            { key: "estoc", label: "Capturou liquidez?", options: ["Sim", "Não"] },
+            { key: "fvg", label: "FVG", options: ["Sim", "Não"] },
+            { key: "obp", label: "OB Primário", options: ["Sim", "Nao"] },
+            { key: "obs", label: "OB Secundário", options: ["Sim", "Nao"] }
+        ]
+    }
 };
 
-// Adicionar campos específicos do SMC se for o caso
-if(prefix==="B"){
-let direcaoValue = document.getElementById("direcao"+prefix).value;
-let tocouVwapValue = document.getElementById("tocouVwap"+prefix).value;
-ultimoResultado.direcao = direcaoValue;
-ultimoResultado.tocouVwap = tocouVwapValue;
-}
-}
+let activeStrategy = "A";
+let formState = { A: {}, B: {}, C: {} };
+let activeEvaluation = null;
+let trades = [];
 
-function abrirModal(prefix){
-origemAtual=prefix;
-document.getElementById("modal").style.display="flex";
-}
-
-function fecharModal(){
-document.getElementById("modal").style.display="none";
-}
-
-function salvarTrade(){
-let radioSelecionado=document.querySelector(`input[name="gatilhoExec${origemAtual}"]:checked`);
-if(!radioSelecionado){alert("Selecione o gatilho executado.");return;}
-
-let alvoValue=document.getElementById("alvo").value;
-let parcialValue=document.getElementById("parcial").value;
-    let valorFinanceiro = document.getElementById("valorFinanceiro").value || 0;
-let gatilhoExecutado=radioSelecionado.value;
-
-let r=0;
-
-if(alvoValue==="1:1R") r=1;
-if(alvoValue==="1:2R") r=2;
-if(alvoValue==="1:3R") r=3;
-if(alvoValue==="1:5R") r=5;
-if(alvoValue==="Stop") r=-1;
-
-let trade={
-...ultimoResultado,
-gatilhoExecutado,
-alvo:alvoValue,
-parcial:parcialValue,
-valorFinanceiro,
-r
+const els = {
+    summaryGrid: document.getElementById("summaryGrid"),
+    strategyTabs: document.getElementById("strategyTabs"),
+    activeTitle: document.getElementById("activeTitle"),
+    activeSubtitle: document.getElementById("activeSubtitle"),
+    evaluationForm: document.getElementById("evaluationForm"),
+    scoreCard: document.getElementById("scoreCard"),
+    triggerGrid: document.getElementById("triggerGrid"),
+    btnEvaluate: document.getElementById("btnEvaluate"),
+    btnClearForm: document.getElementById("btnClearForm"),
+    btnSaveTrade: document.getElementById("btnSaveTrade"),
+    historyWrap: document.getElementById("historyWrap"),
+    statsGrid: document.getElementById("statsGrid"),
+    statsModal: document.getElementById("statsModal"),
+    toast: document.getElementById("toast"),
+    cloudStatus: document.getElementById("cloudStatus"),
+    cloudEmail: document.getElementById("cloudEmail"),
+    cloudPassword: document.getElementById("cloudPassword"),
+    rememberSession: document.getElementById("rememberSession"),
+    btnCloudLogin: document.getElementById("btnCloudLogin"),
+    btnCloudSignup: document.getElementById("btnCloudSignup"),
+    btnCloudLogout: document.getElementById("btnCloudLogout")
 };
-trades.push(trade);
-localStorage.setItem("tradesSMC",JSON.stringify(trades));
 
-document.getElementById("modal").style.display="none";
-atualizarEstatisticas();
+function init() {
+    renderTabs();
+    renderForm();
+    setDefaultTradeDate();
+    renderAll();
+    bindEvents();
+    initCloud();
 }
 
-function atualizarEstatisticas(){
-let total=trades.length;
-let wins=trades.filter(t=>t.r>0).length;
-let stops=trades.filter(t=>t.r<0).length;
-let rTotal=trades.reduce((acc,t)=>acc+t.r,0);
-let winrate= total?((wins/total)*100).toFixed(1):0;
-let payoff= total?(rTotal/total).toFixed(2):0;
-
-document.getElementById("stat-total").innerText = total;
-document.getElementById("stat-wins").innerText = wins;
-document.getElementById("stat-stops").innerText = stops;
-document.getElementById("stat-winrate").innerText = winrate + '%';
-document.getElementById("stat-rtotal").innerText = rTotal;
-document.getElementById("stat-payoff").innerText = payoff + 'R';
+function bindEvents() {
+    els.btnEvaluate.addEventListener("click", () => evaluateActiveStrategy());
+    els.btnClearForm.addEventListener("click", clearActiveForm);
+    els.btnSaveTrade.addEventListener("click", saveTrade);
+    document.getElementById("btnOpenStats").addEventListener("click", openStats);
+    document.getElementById("btnCloseStats").addEventListener("click", closeStats);
+    document.getElementById("btnExportCsvTop").addEventListener("click", exportCSV);
+    document.getElementById("btnExportCsvModal").addEventListener("click", exportCSV);
+    document.getElementById("btnExportJsonTop").addEventListener("click", exportJSON);
+    document.getElementById("btnClearHistory").addEventListener("click", clearHistory);
+    els.btnCloudLogin.addEventListener("click", signInCloud);
+    els.btnCloudSignup.addEventListener("click", signUpCloud);
+    els.btnCloudLogout.addEventListener("click", signOutCloud);
+    els.rememberSession.addEventListener("change", handleRememberChange);
+    els.statsModal.addEventListener("click", (event) => {
+        if (event.target === els.statsModal) closeStats();
+    });
+    window.addEventListener("resize", () => {
+        if (els.statsModal.classList.contains("open")) drawCharts();
+    });
 }
 
-function exportarCSV(){
-let csv="Data,Hora,Origem,Setup,GatilhoExecutado,Macro,Micro,MM80,VWAP,Estoc,OBPrimario,OBSecundario,Pontos,Resultado,Alvo,Parcial,ValorFinanceiro,R\n";
-trades.forEach(t=>{
-csv+=`${t.data},${t.hora},${t.origem},${t.setup},${t.gatilhoExecutado},${t.macro},${t.micro},${t.mm80},${t.vwap},${t.estoc},${t.obp},${t.obs},${t.pontos},${t.resultado},${t.alvo},${t.parcial},${t.valorFinanceiro},${t.r}\n`;
-});
-let blob=new Blob([csv],{type:"text/csv"});
-let link=document.createElement("a");
-link.href=URL.createObjectURL(blob);
-link.download="trades_smc.csv";
-link.click();
+function isSupabaseConfigured() {
+    return Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 }
 
-function limparHistorico(){
-if(confirm("Deseja apagar todo histórico?")){
-trades=[];
-localStorage.removeItem("tradesSMC");
-atualizarEstatisticas();
-}
+function canUseCloud() {
+    return Boolean(supabaseClient && currentUser && currentSession);
 }
 
-atualizarEstatisticas();
+function shouldRememberSession() {
+    return localStorage.getItem(REMEMBER_SESSION_KEY) !== "false";
+}
 
+async function initCloud() {
+    updateCloudUi();
+    if (!isSupabaseConfigured()) {
+        setCloudStatus("Supabase não configurado.");
+        return;
+    }
+    if (!window.supabase || !window.supabase.createClient) {
+        setCloudStatus("Supabase configurado, mas a biblioteca não carregou. Verifique a conexão com a internet.");
+        return;
+    }
+
+    els.rememberSession.checked = shouldRememberSession();
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+        auth: {
+            persistSession: shouldRememberSession(),
+            autoRefreshToken: true,
+            detectSessionInUrl: true
+        }
+    });
+    const { data } = await supabaseClient.auth.getSession();
+    currentSession = data.session || null;
+    currentUser = currentSession?.user || null;
+
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+        currentSession = session || null;
+        currentUser = currentSession?.user || null;
+        updateCloudUi();
+        if (currentUser) {
+            loadCloudTrades();
+        } else {
+            trades = [];
+            renderAll();
+        }
+    });
+
+    updateCloudUi();
+    if (currentUser) {
+        await loadCloudTrades();
+    } else {
+        setCloudStatus("Supabase pronto. Entre uma vez para carregar seus trades.");
+    }
+}
+
+async function signInCloud() {
+    if (!ensureCloudReady()) return;
+    const credentials = getCloudCredentials();
+    if (!credentials) return;
+    setCloudBusy(true, "Entrando...");
+    const { data, error } = await supabaseClient.auth.signInWithPassword(credentials);
+    setCloudBusy(false);
+    if (error) {
+        alert(`Não foi possível entrar: ${error.message}`);
+        updateCloudUi();
+        return;
+    }
+    currentSession = data.session || null;
+    currentUser = currentSession?.user || null;
+    if (!currentSession) {
+        alert("Login aceito, mas a sessão não foi criada. Confirme seu email no Supabase e tente entrar novamente.");
+        updateCloudUi();
+        return;
+    }
+    await loadCloudTrades();
+}
+
+async function signUpCloud() {
+    if (!ensureCloudReady()) return;
+    const credentials = getCloudCredentials();
+    if (!credentials) return;
+    setCloudBusy(true, "Criando acesso...");
+    const { data, error } = await supabaseClient.auth.signUp(credentials);
+    setCloudBusy(false);
+    if (error) {
+        alert(`Não foi possível criar o acesso: ${error.message}`);
+        updateCloudUi();
+        return;
+    }
+    currentSession = data.session || null;
+    currentUser = currentSession?.user || null;
+    if (data.session) {
+        await loadCloudTrades();
+    } else {
+        setCloudStatus("Acesso criado. Se a confirmação de email estiver ativa no Supabase, confirme o email antes de entrar.");
+    }
+    updateCloudUi();
+}
+
+async function signOutCloud() {
+    if (!supabaseClient) return;
+    setCloudBusy(true, "Saindo...");
+    await supabaseClient.auth.signOut();
+    currentUser = null;
+    currentSession = null;
+    trades = [];
+    setCloudBusy(false);
+    renderAll();
+    updateCloudUi();
+}
+
+async function handleRememberChange() {
+    localStorage.setItem(REMEMBER_SESSION_KEY, els.rememberSession.checked ? "true" : "false");
+    if (!els.rememberSession.checked && supabaseClient) {
+        await supabaseClient.auth.signOut();
+        currentUser = null;
+        currentSession = null;
+        trades = [];
+        renderAll();
+        setCloudStatus("Sessão esquecida neste navegador. Entre novamente para salvar no Supabase.");
+    } else if (els.rememberSession.checked) {
+        setCloudStatus("Lembrar ativado. No próximo login, a sessão fica salva neste navegador.");
+    }
+    updateCloudUi();
+}
+
+async function refreshCloudSession() {
+    if (!supabaseClient) return false;
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) {
+        currentSession = null;
+        currentUser = null;
+        updateCloudUi();
+        return false;
+    }
+    currentSession = data.session || null;
+    currentUser = currentSession?.user || null;
+    updateCloudUi();
+    return canUseCloud();
+}
+
+function ensureCloudReady() {
+    if (!isSupabaseConfigured()) {
+        alert("Supabase ainda não está configurado no código.");
+        return false;
+    }
+    if (!supabaseClient) {
+        alert("Supabase ainda não iniciou. Recarregue a página e tente novamente.");
+        return false;
+    }
+    return true;
+}
+
+function getCloudCredentials() {
+    const email = els.cloudEmail.value.trim();
+    const password = els.cloudPassword.value;
+    if (!email || !password) {
+        alert("Informe email e senha.");
+        return null;
+    }
+    if (password.length < 6) {
+        alert("Use uma senha com pelo menos 6 caracteres.");
+        return null;
+    }
+    return { email, password };
+}
+
+function setCloudStatus(message) {
+    els.cloudStatus.textContent = message;
+}
+
+function setCloudBusy(isBusy, message = "") {
+    cloudBusy = isBusy;
+    updateCloudUi();
+    if (message) setCloudStatus(message);
+}
+
+function updateCloudUi() {
+    const configured = isSupabaseConfigured();
+    const ready = Boolean(supabaseClient);
+    const logged = canUseCloud();
+    els.cloudEmail.disabled = !configured || !ready || logged || cloudBusy;
+    els.cloudPassword.disabled = !configured || !ready || logged || cloudBusy;
+    els.rememberSession.disabled = !configured || cloudBusy;
+    els.btnCloudLogin.disabled = !configured || !ready || logged || cloudBusy;
+    els.btnCloudSignup.disabled = !configured || !ready || logged || cloudBusy;
+    els.btnCloudLogout.disabled = !logged || cloudBusy;
+    updateSaveState();
+
+    if (!configured) {
+        setCloudStatus("Supabase não configurado.");
+        return;
+    }
+    if (!supabaseClient) {
+        setCloudStatus("Inicializando Supabase...");
+        return;
+    }
+    if (logged) {
+        const remembered = els.rememberSession.checked ? "Sessão lembrada neste navegador." : "Sessão só até fechar/sair.";
+        setCloudStatus(`Conectado como ${currentUser.email}. ${remembered}`);
+        return;
+    }
+    setCloudStatus("Supabase pronto. Entre para salvar e excluir trades.");
+}
+
+async function loadCloudTrades() {
+    if (!await refreshCloudSession()) return;
+    setCloudBusy(true, "Carregando trades da nuvem...");
+    const { data, error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .select("id,payload,trade_timestamp,created_at")
+        .order("trade_timestamp", { ascending: true });
+    setCloudBusy(false);
+
+    if (error) {
+        alert(`Não foi possível carregar a nuvem: ${error.message}`);
+        updateCloudUi();
+        return;
+    }
+
+    const cloudTrades = (data || []).map((row) => normalizeTrade({
+        ...(row.payload || {}),
+        id: row.payload?.id || row.id,
+        cloudId: row.id,
+        syncStatus: "synced"
+    }));
+
+    trades = cloudTrades.sort(sortTradesByTime);
+    renderAll();
+    updateCloudUi();
+}
+
+async function saveTradeToCloud(trade) {
+    if (!await refreshCloudSession()) return { ok: false, message: "Sessão não autenticada. Entre novamente antes de salvar." };
+    const cloudTrade = {
+        ...trade,
+        syncStatus: "synced",
+        syncedAt: new Date().toISOString()
+    };
+    const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .insert({
+            id: trade.id,
+            user_id: currentUser.id,
+            payload: cloudTrade,
+            trade_timestamp: trade.timestamp || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        });
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, trade: cloudTrade };
+}
+
+async function deleteTradeFromCloud(id) {
+    if (!await refreshCloudSession()) return { ok: false, message: "Sessão não autenticada. Entre novamente antes de excluir." };
+    const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .delete()
+        .eq("id", id);
+    if (error) return { ok: false, message: error.message };
+    return { ok: true };
+}
+
+function sortTradesByTime(a, b) {
+    return new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime();
+}
+
+function renderAll() {
+    renderSummary();
+    renderHistory();
+    renderStatsGrid();
+    if (els.statsModal.classList.contains("open")) drawCharts();
+}
+
+function renderTabs() {
+    els.strategyTabs.innerHTML = Object.entries(strategies).map(([key, strategy]) => `
+        <button class="strategy-tab ${key === activeStrategy ? "active" : ""}" type="button" data-strategy="${key}">
+            <strong>${strategy.short}</strong>
+            <span>${strategy.subtitle}</span>
+        </button>
+    `).join("");
+
+    els.strategyTabs.querySelectorAll("[data-strategy]").forEach((button) => {
+        button.addEventListener("click", () => {
+            activeStrategy = button.dataset.strategy;
+            activeEvaluation = null;
+            renderTabs();
+            renderForm();
+            renderScoreEmpty();
+            updateSaveState();
+        });
+    });
+}
+
+function renderForm() {
+    const strategy = strategies[activeStrategy];
+    els.activeTitle.textContent = strategy.label;
+    els.activeSubtitle.textContent = strategy.subtitle;
+    els.evaluationForm.innerHTML = strategy.fields.map((field) => {
+        const value = formState[activeStrategy][field.key] || "";
+        return `
+            <div class="field ${field.full ? "full" : ""}">
+                <label for="${field.key}-${activeStrategy}">${field.label}</label>
+                <select id="${field.key}-${activeStrategy}" data-key="${field.key}">
+                    <option value="">Selecione</option>
+                    ${field.options.map((option) => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}
+                </select>
+            </div>
+        `;
+    }).join("");
+
+    els.evaluationForm.querySelectorAll("select").forEach((select) => {
+        select.addEventListener("change", () => {
+            formState[activeStrategy][select.dataset.key] = select.value;
+            activeEvaluation = null;
+            renderScoreEmpty();
+            updateSaveState();
+        });
+    });
+}
+
+function clearActiveForm() {
+    formState[activeStrategy] = {};
+    activeEvaluation = null;
+    renderForm();
+    renderScoreEmpty();
+    updateSaveState();
+}
+
+function evaluateActiveStrategy() {
+    const values = getStrategyValues(activeStrategy);
+    if (!values.gatilho) {
+        alert("Selecione o setup.");
+        return;
+    }
+    if (activeStrategy === "B" && !values.direcao) {
+        alert("Selecione COMPRA ou VENDA.");
+        return;
+    }
+
+    const evaluation = calculateEvaluation(activeStrategy, values);
+    const now = new Date();
+    activeEvaluation = {
+        id: createId(),
+        origem: activeStrategy,
+        origemLabel: strategies[activeStrategy].label,
+        data: now.toLocaleDateString("pt-BR"),
+        hora: now.toLocaleTimeString("pt-BR"),
+        setup: values.gatilho || "",
+        macro: values.macro || "",
+        micro: values.micro || "",
+        mm80: values.mm80 || "",
+        vwap: values.vwap || "",
+        estoc: values.estoc || "",
+        obp: values.obp || "",
+        obs: values.obs || "",
+        fvg: values.fvg || "",
+        direcao: values.direcao || "",
+        tocouVwap: values.tocouVwap || "",
+        pontos: evaluation.pontos,
+        resultado: evaluation.resultado,
+        classe: evaluation.classe,
+        gatilhosPermitidos: evaluation.gatilhosPermitidos
+    };
+
+    renderScore(activeEvaluation);
+    updateSaveState();
+}
+
+function getStrategyValues(prefix) {
+    const values = {};
+    strategies[prefix].fields.forEach((field) => {
+        values[field.key] = formState[prefix][field.key] || "";
+    });
+    return values;
+}
+
+function calculateEvaluation(prefix, values) {
+    let pontos = 0;
+    let resultado = "";
+    let classe = "";
+    let gatilhosPermitidos = [];
+
+    if (prefix === "A") {
+        if (values.gatilho === "Trap na Máxima - VENDA") {
+            if (values.macro === "Baixa") pontos += 4;
+            if (values.macro === "Lateral") pontos += 2;
+            if (values.macro === "Alta") pontos += 1;
+            if (values.micro === "Lateral") pontos += 2;
+            if (values.micro === "Baixa") pontos += 1;
+            if (values.mm80 === "Caindo") pontos += 3;
+            if (values.mm80 === "Subindo") pontos += 2;
+        }
+
+        if (values.gatilho === "Trap na Mínima - COMPRA") {
+            if (values.macro === "Alta") pontos += 4;
+            if (values.macro === "Lateral") pontos += 2;
+            if (values.macro === "Baixa") pontos += 1;
+            if (values.micro === "Lateral") pontos += 2;
+            if (values.micro === "Alta") pontos += 1;
+            if (values.mm80 === "Subindo") pontos += 3;
+            if (values.mm80 === "Caindo") pontos += 2;
+        }
+
+        if (values.vwap === "Distante") pontos += 4;
+        if (values.vwap === "Proximo") pontos += 1;
+        if (values.estoc === "Divergente") pontos += 2;
+        if (values.obp === "Sim") pontos += 2;
+        if (values.obs === "Sim") pontos += 1;
+
+        if (pontos >= 14) {
+            resultado = "EXCELENTE";
+            classe = "excelente";
+            gatilhosPermitidos = ["Rossadinha vwap", "FF-FD vwap", "PFR 10m", "Inside bar reversão- 1,2,3", "CHOCH", "POI"];
+        } else if (pontos >= 12) {
+            resultado = "BOM";
+            classe = "bom";
+            gatilhosPermitidos = ["Rossadinha vwap", "Inside bar reversão - 1,2,3", "POI", "FF-FD vwap"];
+        } else if (pontos >= 8) {
+            resultado = "MÉDIO";
+            classe = "medio";
+            gatilhosPermitidos = ["Inside bar reversão - 1,2,3", "POI"];
+        } else {
+            resultado = "FRACO";
+            classe = "fraco";
+            gatilhosPermitidos = ["POI"];
+        }
+    }
+
+    if (prefix === "B") {
+        if (values.direcao === "Compra") {
+            if (values.macro === "Alta") pontos += 5;
+            if (values.macro === "Lateral") pontos += 2;
+        }
+        if (values.direcao === "Venda") {
+            if (values.macro === "Baixa") pontos += 5;
+            if (values.macro === "Lateral") pontos += 2;
+        }
+
+        if (values.gatilho === "Captura de liquidez em range") pontos += 5;
+        if (values.gatilho === "Captura de liquidez de BOS relevante") pontos += 4;
+        if (values.tocouVwap === "Sim") pontos += 4;
+
+        if (values.obp === "Sim") {
+            pontos += 6;
+        } else if (values.obs === "Sim") {
+            pontos += 3;
+        }
+
+        if (values.direcao === "Compra") {
+            if (values.micro === "Alta") pontos += 3;
+            if (values.micro === "Lateral") pontos += 2;
+        }
+
+        if (values.direcao === "Venda") {
+            if (values.micro === "Baixa") pontos += 3;
+            if (values.micro === "Lateral") pontos += 2;
+        }
+
+        if (values.vwap === "Distante") pontos += 2;
+        if (values.vwap === "Proximo") pontos += 1;
+
+        const temOB = values.obp === "Sim" || values.obs === "Sim";
+
+        if (pontos >= 22) {
+            resultado = "EXCELENTE";
+            classe = "excelente";
+            gatilhosPermitidos = ["CHOCH"];
+            if (temOB) {
+                gatilhosPermitidos.push("No toque do OB");
+                gatilhosPermitidos.push("Na saída do OB");
+            }
+            gatilhosPermitidos.push("POI", "Entrada atrasada VWAP", "FVG");
+        } else if (pontos >= 18) {
+            resultado = "BOM";
+            classe = "bom";
+            gatilhosPermitidos = ["CHOCH", "POI", "Entrada atrasada VWAP"];
+            if (temOB) gatilhosPermitidos.push("Na saída do OB");
+        } else if (pontos >= 14) {
+            resultado = "MÉDIO";
+            classe = "medio";
+            gatilhosPermitidos = ["CHOCH", "POI", "Entrada atrasada VWAP"];
+        } else {
+            resultado = "FRACO";
+            classe = "fraco";
+            gatilhosPermitidos = ["POI", "Entrada atrasada VWAP"];
+        }
+    }
+
+    if (prefix === "C") {
+        if (values.gatilho === "OB HTF") pontos += 4;
+        if (values.gatilho === "OB interno") pontos += 2;
+        if (values.gatilho === "VWAP") pontos += 2;
+        if (values.gatilho === "Volume Profile POC") pontos += 2;
+
+        if (values.macro === "Alta" || values.macro === "Baixa") pontos += 3;
+        if (values.macro === "Lateral") pontos += 1;
+        if (values.micro === "Alta" || values.micro === "Baixa") pontos += 2;
+        if (values.mm80 === "Sim") pontos += 4;
+        if (values.vwap === "Distante") pontos += 3;
+        if (values.vwap === "Proximo") pontos += 1;
+        if (values.estoc === "Sim") pontos += 3;
+        if (values.fvg === "Sim") pontos += 2;
+        if (values.obp === "Sim") pontos += 2;
+        if (values.obs === "Sim") pontos += 1;
+
+        const temChoCh = values.mm80 === "Sim";
+
+        if (pontos >= 18 && temChoCh) {
+            resultado = "EXCELENTE";
+            classe = "excelente";
+            gatilhosPermitidos = ["CHOCH", "OB HTF", "FVG", "POI"];
+        } else if (pontos >= 14) {
+            resultado = "BOM";
+            classe = "bom";
+            gatilhosPermitidos = ["CHOCH", "OB HTF", "POI"];
+        } else if (pontos >= 9) {
+            resultado = "MÉDIO";
+            classe = "medio";
+            gatilhosPermitidos = ["POI"];
+        } else {
+            resultado = "FRACO";
+            classe = "fraco";
+            gatilhosPermitidos = ["POI"];
+        }
+    }
+
+    return { pontos, resultado, classe, gatilhosPermitidos };
+}
+
+function renderScoreEmpty() {
+    els.scoreCard.className = "score-card empty";
+    els.scoreCard.innerHTML = `
+        <div class="score-line">
+            <span class="score-title">Aguardando avaliação</span>
+            <span class="score-points">0 pts</span>
+        </div>
+        <p class="score-meta">Selecione um setup e avalie para liberar o registro.</p>
+    `;
+    els.triggerGrid.innerHTML = `<div class="empty-state">Nenhum gatilho disponível.</div>`;
+}
+
+function renderScore(evaluation) {
+    els.scoreCard.className = `score-card ${evaluation.classe}`;
+    els.scoreCard.innerHTML = `
+        <div class="score-line">
+            <span class="score-title">${escapeHtml(evaluation.resultado)}</span>
+            <span class="score-points">${evaluation.pontos} pts</span>
+        </div>
+        <p class="score-meta">${escapeHtml(evaluation.origemLabel)} · ${escapeHtml(evaluation.setup)}</p>
+    `;
+    els.triggerGrid.innerHTML = evaluation.gatilhosPermitidos.map((gatilho, index) => `
+        <label class="trigger-option">
+            <input type="radio" name="gatilhoExecutado" value="${escapeHtml(gatilho)}" ${index === 0 ? "checked" : ""}>
+            <span>${escapeHtml(gatilho)}</span>
+        </label>
+    `).join("");
+    els.triggerGrid.querySelectorAll("input").forEach((input) => input.addEventListener("change", updateSaveState));
+}
+
+function updateSaveState() {
+    const selectedTrigger = document.querySelector('input[name="gatilhoExecutado"]:checked');
+    els.btnSaveTrade.disabled = !activeEvaluation || !selectedTrigger || !canUseCloud() || cloudBusy;
+}
+
+function setDefaultTradeDate() {
+    document.getElementById("tradeDateTime").value = toDateTimeLocal(new Date());
+}
+
+async function saveTrade() {
+    if (!activeEvaluation) {
+        alert("Avalie o setup antes de salvar.");
+        return;
+    }
+    if (!canUseCloud()) {
+        alert("Entre no Supabase antes de salvar o trade.");
+        return;
+    }
+    const trigger = document.querySelector('input[name="gatilhoExecutado"]:checked');
+    if (!trigger) {
+        alert("Selecione o gatilho executado.");
+        return;
+    }
+
+    const alvo = document.getElementById("alvo").value;
+    const r = targetToR(alvo);
+    const dateTimeInput = document.getElementById("tradeDateTime").value;
+    const tradeDate = dateTimeInput ? new Date(dateTimeInput) : new Date();
+    const trade = {
+        ...activeEvaluation,
+        id: createId(),
+        data: tradeDate.toLocaleDateString("pt-BR"),
+        hora: tradeDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+        timestamp: tradeDate.toISOString(),
+        gatilhoExecutado: trigger.value,
+        alvo,
+        parcial: document.getElementById("parcial").value,
+        valorFinanceiro: Number(document.getElementById("valorFinanceiro").value || 0),
+        estadoMental: document.getElementById("estadoMental").value,
+        observacoes: document.getElementById("observacoes").value.trim(),
+        ativo: document.getElementById("asset").value.trim(),
+        r
+    };
+
+    els.btnSaveTrade.disabled = true;
+    setCloudBusy(true, "Salvando trade no Supabase...");
+    const result = await saveTradeToCloud(trade);
+    setCloudBusy(false);
+    if (!result.ok) {
+        alert(`Não foi possível salvar no Supabase: ${result.message}`);
+        updateSaveState();
+        return;
+    }
+
+    trades.push(result.trade);
+    resetTradeInputs();
+    renderAll();
+    updateSaveState();
+    showToast("Trade salvo no Supabase.");
+}
+
+function resetTradeInputs() {
+    setDefaultTradeDate();
+    document.getElementById("valorFinanceiro").value = "";
+    document.getElementById("observacoes").value = "";
+    document.getElementById("estadoMental").value = "";
+}
+
+function targetToR(alvo) {
+    if (alvo === "1:1R") return 1;
+    if (alvo === "1:2R") return 2;
+    if (alvo === "1:3R") return 3;
+    if (alvo === "1:5R") return 5;
+    if (alvo === "Stop") return -1;
+    return 0;
+}
+
+function normalizeTrade(trade) {
+    const normalized = { ...trade };
+    normalized.id = normalized.id || createId();
+    normalized.origemLabel = normalized.origemLabel || (strategies[normalized.origem]?.label || normalized.origem || "");
+    normalized.valorFinanceiro = Number(normalized.valorFinanceiro || 0);
+    normalized.r = Number(normalized.r || 0);
+    normalized.timestamp = normalized.timestamp || legacyDateToIso(normalized.data, normalized.hora);
+    return normalized;
+}
+
+function legacyDateToIso(data, hora) {
+    if (!data) return new Date().toISOString();
+    const parts = String(data).split("/");
+    if (parts.length !== 3) return new Date().toISOString();
+    const [day, month, year] = parts.map(Number);
+    const time = String(hora || "00:00").split(":").map(Number);
+    return new Date(year, month - 1, day, time[0] || 0, time[1] || 0, time[2] || 0).toISOString();
+}
+
+function computeStats() {
+    const total = trades.length;
+    const wins = trades.filter((trade) => Number(trade.r) > 0).length;
+    const stops = trades.filter((trade) => Number(trade.r) < 0).length;
+    const rTotal = trades.reduce((acc, trade) => acc + Number(trade.r || 0), 0);
+    const winrate = total ? (wins / total) * 100 : 0;
+    const payoff = total ? rTotal / total : 0;
+    const financeiro = trades.reduce((acc, trade) => acc + Number(trade.valorFinanceiro || 0), 0);
+    const grossWin = trades.filter((trade) => trade.r > 0).reduce((acc, trade) => acc + trade.r, 0);
+    const grossLoss = Math.abs(trades.filter((trade) => trade.r < 0).reduce((acc, trade) => acc + trade.r, 0));
+    const profitFactor = grossLoss ? grossWin / grossLoss : grossWin ? Infinity : 0;
+    const maxDrawdown = calculateMaxDrawdown(trades);
+    return { total, wins, stops, rTotal, winrate, payoff, financeiro, profitFactor, maxDrawdown };
+}
+
+function calculateMaxDrawdown(items) {
+    let equity = 0;
+    let peak = 0;
+    let maxDrawdown = 0;
+    items.forEach((trade) => {
+        equity += Number(trade.r || 0);
+        peak = Math.max(peak, equity);
+        maxDrawdown = Math.max(maxDrawdown, peak - equity);
+    });
+    return maxDrawdown;
+}
+
+function renderSummary() {
+    const stats = computeStats();
+    const metrics = [
+        ["Trades", stats.total],
+        ["Wins", stats.wins],
+        ["Stops", stats.stops],
+        ["Winrate", `${formatNumber(stats.winrate, 1)}%`],
+        ["R Total", formatR(stats.rTotal)],
+        ["Payoff", formatR(stats.payoff)]
+    ];
+    els.summaryGrid.innerHTML = metrics.map(([label, value]) => `
+        <div class="metric">
+            <span>${label}</span>
+            <strong>${value}</strong>
+        </div>
+    `).join("");
+}
+
+function renderStatsGrid() {
+    const stats = computeStats();
+    const metrics = [
+        ["Total de trades", stats.total],
+        ["Winrate", `${formatNumber(stats.winrate, 1)}%`],
+        ["R total", formatR(stats.rTotal)],
+        ["Payoff médio", formatR(stats.payoff)],
+        ["Resultado financeiro", formatCurrency(stats.financeiro)],
+        ["Profit factor", stats.profitFactor === Infinity ? "∞" : formatNumber(stats.profitFactor, 2)],
+        ["Drawdown máximo", formatR(stats.maxDrawdown)],
+        ["Stops", stats.stops]
+    ];
+    els.statsGrid.innerHTML = metrics.map(([label, value]) => `
+        <div class="metric">
+            <span>${label}</span>
+            <strong>${value}</strong>
+        </div>
+    `).join("");
+}
+
+function renderHistory() {
+    if (!trades.length) {
+        els.historyWrap.innerHTML = `<div class="empty-state">Nenhum trade salvo ainda.</div>`;
+        return;
+    }
+
+    const rows = [...trades].reverse().slice(0, 25).map((trade) => `
+        <tr>
+            <td>${escapeHtml(trade.data || "")}<br><span class="muted">${escapeHtml(trade.hora || "")}</span></td>
+            <td>${escapeHtml(trade.ativo || "-")}</td>
+            <td><span class="pill">${escapeHtml(trade.origemLabel || trade.origem || "")}</span></td>
+            <td>${escapeHtml(trade.setup || "")}</td>
+            <td>${escapeHtml(trade.gatilhoExecutado || "")}</td>
+            <td>${escapeHtml(trade.resultado || "")}<br><span class="muted">${Number(trade.pontos || 0)} pts</span></td>
+            <td><span class="pill ${trade.r > 0 ? "win" : "stop"}">${formatR(trade.r)}</span></td>
+            <td>${formatCurrency(trade.valorFinanceiro || 0)}</td>
+            <td>${renderSyncPill(trade)}</td>
+            <td><button class="btn btn-danger" type="button" data-delete="${trade.id}">Excluir</button></td>
+        </tr>
+    `).join("");
+
+    els.historyWrap.innerHTML = `
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Ativo</th>
+                    <th>Estratégia</th>
+                    <th>Setup</th>
+                    <th>Gatilho</th>
+                    <th>Nota</th>
+                    <th>R</th>
+                    <th>R$</th>
+                    <th>Nuvem</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+    `;
+
+    els.historyWrap.querySelectorAll("[data-delete]").forEach((button) => {
+        button.addEventListener("click", () => deleteTrade(button.dataset.delete));
+    });
+}
+
+function renderSyncPill(trade) {
+    return trade.syncStatus === "synced"
+        ? `<span class="pill win">Supabase</span>`
+        : `<span class="pill">Nuvem</span>`;
+}
+
+async function deleteTrade(id) {
+    if (!confirm("Excluir este trade do histórico?")) return;
+    if (!canUseCloud()) {
+        alert("Entre no Supabase antes de excluir.");
+        return;
+    }
+    setCloudBusy(true, "Excluindo trade do Supabase...");
+    const result = await deleteTradeFromCloud(id);
+    setCloudBusy(false);
+    if (!result.ok) {
+        alert(`Não foi possível excluir do Supabase: ${result.message}`);
+        return;
+    }
+    trades = trades.filter((trade) => trade.id !== id);
+    renderAll();
+    showToast("Trade excluído do Supabase.");
+}
+
+async function clearHistory() {
+    if (!trades.length) return;
+    if (!confirm("Deseja apagar todo o histórico?")) return;
+    if (!canUseCloud()) {
+        alert("Entre no Supabase antes de limpar o histórico.");
+        return;
+    }
+    if (!await refreshCloudSession()) {
+        alert("Sessão não autenticada. Entre novamente antes de limpar o histórico.");
+        return;
+    }
+    setCloudBusy(true, "Excluindo histórico do Supabase...");
+    const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .delete()
+        .eq("user_id", currentUser.id);
+    setCloudBusy(false);
+    if (error) {
+        alert(`Não foi possível limpar o Supabase: ${error.message}`);
+        return;
+    }
+    trades = [];
+    renderAll();
+    showToast("Histórico apagado do Supabase.");
+}
+
+function openStats() {
+    els.statsModal.classList.add("open");
+    els.statsModal.setAttribute("aria-hidden", "false");
+    renderStatsGrid();
+    requestAnimationFrame(drawCharts);
+}
+
+function closeStats() {
+    els.statsModal.classList.remove("open");
+    els.statsModal.setAttribute("aria-hidden", "true");
+}
+
+function drawCharts() {
+    drawEquityChart();
+    drawWinLossChart();
+    drawStrategyChart();
+    drawTargetChart();
+}
+
+function setupCanvas(id) {
+    const canvas = document.getElementById(id);
+    const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+    canvas.height = Math.max(1, Math.floor(rect.height * ratio));
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    return { canvas, ctx, width: rect.width, height: rect.height };
+}
+
+function drawNoData(ctx, width, height) {
+    ctx.fillStyle = "#64758a";
+    ctx.font = "700 14px Segoe UI, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Sem dados", width / 2, height / 2);
+}
+
+function drawEquityChart() {
+    const { ctx, width, height } = setupCanvas("equityChart");
+    if (!trades.length) {
+        drawNoData(ctx, width, height);
+        return;
+    }
+    const padding = { top: 18, right: 18, bottom: 28, left: 42 };
+    const points = [0];
+    trades.forEach((trade) => points.push(points[points.length - 1] + Number(trade.r || 0)));
+    const min = Math.min(...points, 0);
+    const max = Math.max(...points, 1);
+    const range = max - min || 1;
+
+    drawGrid(ctx, width, height, padding);
+
+    ctx.beginPath();
+    points.forEach((value, index) => {
+        const x = padding.left + (index / Math.max(points.length - 1, 1)) * (width - padding.left - padding.right);
+        const y = padding.top + ((max - value) / range) * (height - padding.top - padding.bottom);
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = "#2098d8";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.fillStyle = "#102033";
+    ctx.font = "700 12px Segoe UI, Arial";
+    ctx.textAlign = "right";
+    ctx.fillText(formatR(max), padding.left - 8, padding.top + 6);
+    ctx.fillText(formatR(min), padding.left - 8, height - padding.bottom + 4);
+}
+
+function drawWinLossChart() {
+    const { ctx, width, height } = setupCanvas("winLossChart");
+    const stats = computeStats();
+    if (!stats.total) {
+        drawNoData(ctx, width, height);
+        return;
+    }
+    drawDoughnut(ctx, width, height, [
+        { label: "Wins", value: stats.wins, color: "#149b68" },
+        { label: "Stops", value: stats.stops, color: "#d94343" }
+    ]);
+}
+
+function drawStrategyChart() {
+    const { ctx, width, height } = setupCanvas("strategyChart");
+    if (!trades.length) {
+        drawNoData(ctx, width, height);
+        return;
+    }
+    const data = Object.keys(strategies).map((key) => {
+        const total = trades.filter((trade) => trade.origem === key).reduce((acc, trade) => acc + Number(trade.r || 0), 0);
+        return { label: strategies[key].short, value: total };
+    });
+    drawBars(ctx, width, height, data);
+}
+
+function drawTargetChart() {
+    const { ctx, width, height } = setupCanvas("targetChart");
+    if (!trades.length) {
+        drawNoData(ctx, width, height);
+        return;
+    }
+    const targets = ["1:1R", "1:2R", "1:3R", "1:5R", "Stop"];
+    const data = targets.map((target) => ({
+        label: target,
+        value: trades.filter((trade) => trade.alvo === target).length
+    })).filter((item) => item.value > 0);
+    drawDoughnut(ctx, width, height, data.map((item, index) => ({
+        ...item,
+        color: ["#2098d8", "#149b68", "#6f5dd5", "#b98113", "#d94343"][index % 5]
+    })));
+}
+
+function drawGrid(ctx, width, height, padding) {
+    ctx.strokeStyle = "#e4f0f7";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i += 1) {
+        const y = padding.top + (i / 4) * (height - padding.top - padding.bottom);
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(width - padding.right, y);
+        ctx.stroke();
+    }
+}
+
+function drawBars(ctx, width, height, data) {
+    const padding = { top: 20, right: 18, bottom: 38, left: 42 };
+    drawGrid(ctx, width, height, padding);
+    const maxAbs = Math.max(...data.map((item) => Math.abs(item.value)), 1);
+    const zeroY = padding.top + (height - padding.top - padding.bottom) / 2;
+    const barWidth = (width - padding.left - padding.right) / data.length * 0.55;
+
+    ctx.strokeStyle = "#9ecde8";
+    ctx.beginPath();
+    ctx.moveTo(padding.left, zeroY);
+    ctx.lineTo(width - padding.right, zeroY);
+    ctx.stroke();
+
+    data.forEach((item, index) => {
+        const slot = (width - padding.left - padding.right) / data.length;
+        const x = padding.left + index * slot + (slot - barWidth) / 2;
+        const barHeight = Math.abs(item.value) / maxAbs * ((height - padding.top - padding.bottom) / 2 - 12);
+        const y = item.value >= 0 ? zeroY - barHeight : zeroY;
+        ctx.fillStyle = item.value >= 0 ? "#149b68" : "#d94343";
+        ctx.fillRect(x, y, barWidth, Math.max(2, barHeight));
+
+        ctx.fillStyle = "#102033";
+        ctx.font = "800 12px Segoe UI, Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(item.label, x + barWidth / 2, height - 12);
+        ctx.fillText(formatR(item.value), x + barWidth / 2, item.value >= 0 ? y - 7 : y + barHeight + 16);
+    });
+}
+
+function drawDoughnut(ctx, width, height, data) {
+    const total = data.reduce((acc, item) => acc + item.value, 0);
+    if (!total) {
+        drawNoData(ctx, width, height);
+        return;
+    }
+    const cx = width / 2;
+    const cy = height / 2 - 10;
+    const radius = Math.min(width, height) * 0.28;
+    let start = -Math.PI / 2;
+
+    data.forEach((item) => {
+        const angle = (item.value / total) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, start, start + angle);
+        ctx.lineWidth = radius * 0.42;
+        ctx.strokeStyle = item.color;
+        ctx.stroke();
+        start += angle;
+    });
+
+    ctx.fillStyle = "#102033";
+    ctx.font = "900 22px Segoe UI, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(String(total), cx, cy + 7);
+
+    const legendY = height - 38;
+    const startX = Math.max(12, width / 2 - data.length * 52);
+    data.forEach((item, index) => {
+        const x = startX + index * 104;
+        ctx.fillStyle = item.color;
+        ctx.fillRect(x, legendY, 10, 10);
+        ctx.fillStyle = "#64758a";
+        ctx.font = "800 11px Segoe UI, Arial";
+        ctx.textAlign = "left";
+        ctx.fillText(`${item.label}: ${item.value}`, x + 15, legendY + 10);
+    });
+}
+
+function exportCSV() {
+    if (!trades.length) {
+        showToast("Nenhum trade para exportar.");
+        return;
+    }
+    const headers = [
+        "Data", "Hora", "Ativo", "Origem", "Setup", "Direcao", "GatilhoExecutado", "Macro", "Micro",
+        "MM80_CHOCH", "VWAP", "Estoc_Captura", "FVG", "OBPrimario", "OBSecundario", "TocouVWAP",
+        "Pontos", "Resultado", "Alvo", "Parcial", "ValorFinanceiro", "EstadoMental", "Observacoes", "R"
+    ];
+    const rows = trades.map((trade) => [
+        trade.data, trade.hora, trade.ativo, trade.origemLabel || trade.origem, trade.setup, trade.direcao,
+        trade.gatilhoExecutado, trade.macro, trade.micro, trade.mm80, trade.vwap, trade.estoc, trade.fvg,
+        trade.obp, trade.obs, trade.tocouVwap, trade.pontos, trade.resultado, trade.alvo, trade.parcial,
+        trade.valorFinanceiro, trade.estadoMental, trade.observacoes, trade.r
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+    downloadFile(`trades_smc_${dateStamp()}.csv`, csv, "text/csv;charset=utf-8");
+}
+
+function exportJSON() {
+    const payload = JSON.stringify(trades, null, 2);
+    downloadFile(`trades_smc_${dateStamp()}.json`, payload, "application/json;charset=utf-8");
+}
+
+function downloadFile(filename, content, type) {
+    const blob = new Blob([content], { type });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+}
+
+function csvCell(value) {
+    const text = String(value ?? "");
+    return `"${text.replace(/"/g, '""')}"`;
+}
+
+function dateStamp() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function createId() {
+    if (globalThis.crypto && globalThis.crypto.randomUUID) return globalThis.crypto.randomUUID();
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function formatNumber(value, digits = 0) {
+    return Number(value || 0).toLocaleString("pt-BR", {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+    });
+}
+
+function formatR(value) {
+    const number = Number(value || 0);
+    const sign = number > 0 ? "+" : "";
+    return `${sign}${formatNumber(number, Number.isInteger(number) ? 0 : 2)}R`;
+}
+
+function formatCurrency(value) {
+    return Number(value || 0).toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+    });
+}
+
+function toDateTimeLocal(date) {
+    const offset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function showToast(message) {
+    els.toast.textContent = message;
+    els.toast.classList.add("show");
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(() => els.toast.classList.remove("show"), 2600);
+}
+
+renderScoreEmpty();
+init();
 </script>
 </body>
 </html>
