@@ -2,6 +2,10 @@
 
 Diario pessoal de trade com avaliacao operacional SMC e salvamento no Supabase.
 
+## Site
+
+https://engcolombo.github.io/motor-operacional-smc/
+
 ## Supabase
 
 Projeto conectado:
