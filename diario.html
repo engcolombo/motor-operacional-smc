@@ -133,6 +133,65 @@ a { color: inherit; text-decoration: none; }
 
 .nav-back:hover { background: var(--bg-elev-2); color: var(--text); }
 
+.cloud-box {
+    margin: 4px 4px 14px;
+    padding: 12px;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+}
+
+.cloud-status-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.cloud-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted-soft);
+    transition: background 0.2s;
+}
+
+.cloud-dot.on { background: var(--green); box-shadow: 0 0 0 3px rgba(45, 219, 138, 0.18); }
+.cloud-dot.off { background: var(--red); }
+.cloud-dot.busy { background: var(--yellow); }
+
+.cloud-hint {
+    margin: 6px 0 8px;
+    color: var(--muted);
+    font-size: 0.7rem;
+    line-height: 1.35;
+}
+
+.cloud-hint code {
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--accent-2);
+    font-size: 0.95em;
+}
+
+.cloud-form { display: flex; flex-direction: column; gap: 6px; }
+
+.cloud-inp {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 7px 9px;
+    color: var(--text);
+    font-size: 16px;
+    width: 100%;
+}
+
+.cloud-inp:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 2px rgba(123,92,255,0.2); }
+.cloud-btn { width: 100%; justify-content: center; padding: 8px 10px; font-size: 0.82rem; }
+.cloud-form[hidden] { display: none; }
+
 .main {
     padding: 22px 30px 40px;
     min-width: 0;
@@ -626,6 +685,21 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
         <button class="nav-item" data-view="stats" type="button">📈 Estatísticas</button>
         <button class="nav-item" data-view="journal" type="button">📝 Diário</button>
         <div class="nav-divider"></div>
+
+        <div class="cloud-box" id="cloudBox">
+            <div class="cloud-status-line">
+                <span class="cloud-dot" id="cloudDot"></span>
+                <span class="cloud-label" id="cloudLabel">Conectando...</span>
+            </div>
+            <p class="cloud-hint" id="cloudHint">Login compartilhado com Motor SMC. Dados salvos em <code>trades_pro</code>.</p>
+            <div class="cloud-form" id="cloudFormBox">
+                <input class="cloud-inp" id="cloudEmail" type="email" placeholder="Email" autocomplete="email">
+                <input class="cloud-inp" id="cloudPassword" type="password" placeholder="Senha" autocomplete="current-password">
+                <button class="btn btn-primary cloud-btn" id="btnCloudLogin" type="button">Entrar</button>
+            </div>
+            <button class="btn btn-ghost cloud-btn" id="btnCloudLogout" type="button" hidden>Sair</button>
+        </div>
+
         <a class="nav-back" href="index.html">← Voltar ao Motor SMC</a>
     </aside>
 
@@ -827,9 +901,17 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 <input type="file" id="importFile" accept="application/json" hidden>
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+const SUPABASE_URL = "https://cqjmxywdhlxlsltkrrxm.supabase.co";
+const SUPABASE_KEY = "sb_publishable_FdXdp5ogCGD65omUzmLjyw_kd3mGOqB";
+const SUPABASE_TABLE = "trades_pro";
 const STORAGE_KEY = "diarioProTrades_v1";
-const RR_RISK_DEFAULT = 1;
+
+let supabaseClient = null;
+let currentUser = null;
+let currentSession = null;
+let cloudBusy = false;
 
 const state = {
     trades: loadTrades(),
@@ -923,7 +1005,7 @@ function closeModal() {
     state.editingId = null;
 }
 
-function saveFromForm() {
+async function saveFromForm() {
     const r = Number($("fR").value || 0);
     const entry = Number($("fEntry").value || 0);
     const exit = Number($("fExit").value || 0);
@@ -935,6 +1017,7 @@ function saveFromForm() {
         pnl = (exit - entry) * qty * dir - fees;
     }
 
+    const isEdit = Boolean(state.editingId);
     const trade = {
         id: state.editingId || uid(),
         date: new Date($("fDate").value || new Date()).toISOString(),
@@ -950,7 +1033,7 @@ function saveFromForm() {
         tags: $("fTags").value.split(",").map((t) => t.trim()).filter(Boolean),
         mistakes: $("fMistakes").value.split(",").map((t) => t.trim()).filter(Boolean),
         notes: $("fNotes").value.trim(),
-        createdAt: state.editingId ? state.trades.find((t) => t.id === state.editingId)?.createdAt : new Date().toISOString()
+        createdAt: isEdit ? state.trades.find((t) => t.id === state.editingId)?.createdAt : new Date().toISOString()
     };
 
     if (!trade.symbol) {
@@ -958,13 +1041,24 @@ function saveFromForm() {
         return;
     }
 
-    if (state.editingId) {
+    $("btnSave").disabled = true;
+    if (canUseCloud()) {
+        const result = await upsertTradeCloud(trade);
+        $("btnSave").disabled = false;
+        if (!result.ok) {
+            alert(`Falha ao salvar na nuvem: ${result.message}`);
+            return;
+        }
+    }
+    $("btnSave").disabled = false;
+
+    if (isEdit) {
         const idx = state.trades.findIndex((t) => t.id === state.editingId);
         if (idx >= 0) state.trades[idx] = trade;
-        toast("Trade atualizado");
+        toast(canUseCloud() ? "Trade atualizado · sincronizado" : "Trade atualizado (local)");
     } else {
         state.trades.push(trade);
-        toast("Trade salvo");
+        toast(canUseCloud() ? "Trade salvo · sincronizado" : "Trade salvo (local)");
     }
 
     saveTrades();
@@ -972,11 +1066,18 @@ function saveFromForm() {
     renderAll();
 }
 
-function deleteTrade(id) {
+async function deleteTrade(id) {
     if (!confirm("Excluir este trade?")) return;
+    if (canUseCloud()) {
+        const result = await deleteTradeCloud(id);
+        if (!result.ok) {
+            alert(`Falha ao excluir na nuvem: ${result.message}`);
+            return;
+        }
+    }
     state.trades = state.trades.filter((t) => t.id !== id);
     saveTrades();
-    toast("Trade excluído");
+    toast(canUseCloud() ? "Trade excluído · sincronizado" : "Trade excluído (local)");
     renderAll();
 }
 
@@ -1500,9 +1601,185 @@ function bindEvents() {
     window.addEventListener("resize", () => requestAnimationFrame(renderAll));
 }
 
+function canUseCloud() {
+    return Boolean(supabaseClient && currentUser && currentSession);
+}
+
+function setCloudUi(stateName, label) {
+    const dot = $("cloudDot");
+    const lbl = $("cloudLabel");
+    dot.classList.remove("on", "off", "busy");
+    if (stateName) dot.classList.add(stateName);
+    lbl.textContent = label;
+}
+
+function updateCloudUi() {
+    const logged = canUseCloud();
+    $("cloudFormBox").hidden = logged;
+    $("btnCloudLogout").hidden = !logged;
+    if (cloudBusy) {
+        setCloudUi("busy", "Sincronizando...");
+        $("cloudHint").textContent = "Aguarde, falando com Supabase.";
+    } else if (logged) {
+        setCloudUi("on", currentUser.email);
+        $("cloudHint").innerHTML = `Login ativo, dados em <code>trades_pro</code>. Compartilhado com Motor SMC.`;
+    } else if (!supabaseClient) {
+        setCloudUi("off", "Supabase offline");
+        $("cloudHint").innerHTML = `Sem conexão. Dados salvos só neste navegador.`;
+    } else {
+        setCloudUi("off", "Não logado");
+        $("cloudHint").innerHTML = `Faça login para sincronizar. Mesmo email/senha do <strong>Motor SMC</strong>.`;
+    }
+}
+
+async function initCloud() {
+    if (!window.supabase || !window.supabase.createClient) {
+        setCloudUi("off", "Lib Supabase não carregou");
+        return;
+    }
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+    try {
+        const { data } = await supabaseClient.auth.getSession();
+        currentSession = data.session || null;
+        currentUser = currentSession?.user || null;
+    } catch (err) {
+        console.warn("getSession falhou:", err);
+    }
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (event === "INITIAL_SESSION") return;
+        currentSession = session || null;
+        currentUser = currentSession?.user || null;
+        updateCloudUi();
+        if (currentUser) loadCloudTrades();
+    });
+    updateCloudUi();
+    if (canUseCloud()) await loadCloudTrades();
+}
+
+async function signInCloud() {
+    if (!supabaseClient) return;
+    const email = $("cloudEmail").value.trim();
+    const password = $("cloudPassword").value;
+    if (!email || !password) { alert("Email e senha obrigatórios."); return; }
+    cloudBusy = true;
+    updateCloudUi();
+    let error = null;
+    let data = null;
+    try {
+        const result = await supabaseClient.auth.signInWithPassword({ email, password });
+        data = result.data;
+        error = result.error;
+    } catch (err) {
+        error = err;
+    } finally {
+        cloudBusy = false;
+    }
+    if (error) {
+        updateCloudUi();
+        $("cloudPassword").value = "";
+        alert(`Não foi possível entrar: ${error.message || error}`);
+        return;
+    }
+    currentSession = data?.session || null;
+    currentUser = currentSession?.user || null;
+    updateCloudUi();
+    if (canUseCloud()) await loadCloudTrades();
+}
+
+async function signOutCloud() {
+    if (!supabaseClient) return;
+    cloudBusy = true;
+    updateCloudUi();
+    try {
+        await supabaseClient.auth.signOut();
+    } catch (err) {
+        console.warn("signOut falhou:", err);
+    } finally {
+        cloudBusy = false;
+    }
+    currentUser = null;
+    currentSession = null;
+    updateCloudUi();
+    toast("Sessão encerrada");
+}
+
+async function loadCloudTrades() {
+    if (!canUseCloud()) return;
+    cloudBusy = true;
+    updateCloudUi();
+    let data = null;
+    let error = null;
+    try {
+        const result = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .select("id,payload,trade_timestamp")
+            .order("trade_timestamp", { ascending: true });
+        data = result.data;
+        error = result.error;
+    } catch (err) {
+        error = err;
+    } finally {
+        cloudBusy = false;
+    }
+    if (error) {
+        updateCloudUi();
+        alert(`Falha ao carregar nuvem: ${error.message || error}`);
+        return;
+    }
+    state.trades = (data || []).map((row) => ({ ...(row.payload || {}), id: row.id }));
+    saveTrades();
+    updateCloudUi();
+    renderAll();
+    toast(`${state.trades.length} trades sincronizados`);
+}
+
+async function upsertTradeCloud(trade) {
+    if (!canUseCloud()) return { ok: false, message: "Sem sessão" };
+    try {
+        const { error } = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .upsert({
+                id: trade.id,
+                user_id: currentUser.id,
+                payload: trade,
+                trade_timestamp: trade.date,
+                updated_at: new Date().toISOString()
+            });
+        if (error) return { ok: false, message: error.message };
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, message: err.message || String(err) };
+    }
+}
+
+async function deleteTradeCloud(id) {
+    if (!canUseCloud()) return { ok: false, message: "Sem sessão" };
+    try {
+        const { error } = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .delete()
+            .eq("id", id);
+        if (error) return { ok: false, message: error.message };
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, message: err.message || String(err) };
+    }
+}
+
+function bindCloudEvents() {
+    $("btnCloudLogin").addEventListener("click", signInCloud);
+    $("btnCloudLogout").addEventListener("click", signOutCloud);
+    $("cloudPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") signInCloud(); });
+    $("cloudEmail").addEventListener("keydown", (e) => { if (e.key === "Enter") signInCloud(); });
+}
+
 bindNav();
 bindEvents();
+bindCloudEvents();
 renderAll();
+initCloud();
 </script>
 </body>
 </html>
