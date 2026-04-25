@@ -377,6 +377,7 @@ h3 {
 .field input,
 .field textarea {
     width: 100%;
+    min-width: 0;
     min-height: 40px;
     border-radius: var(--radius);
     border: 1px solid var(--line);
@@ -388,7 +389,8 @@ h3 {
 
 .field select,
 .field input {
-    padding: 0 12px;
+    padding: 0 8px;
+    font-size: 0.95rem;
 }
 
 .field textarea {
@@ -509,8 +511,8 @@ h3 {
 
 .trade-form {
     display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 12px;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 10px;
     padding: 18px;
     border-top: 1px solid var(--line);
 }
