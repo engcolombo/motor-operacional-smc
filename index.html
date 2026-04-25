@@ -780,14 +780,14 @@ td {
     </header>
 
     <section class="cloud-panel">
-        <div class="cloud-copy">
+        <div class="cloud-copy" id="cloudCopy">
             <strong>Nuvem Supabase</strong>
             <span class="cloud-status" id="cloudStatus">Conectando ao Supabase.</span>
         </div>
         <div class="cloud-form">
             <input class="auth-input" id="cloudEmail" type="email" autocomplete="email" placeholder="Email">
             <input class="auth-input" id="cloudPassword" type="password" autocomplete="current-password" placeholder="Senha">
-            <label class="remember-option" for="rememberSession">
+            <label class="remember-option" id="rememberOption" for="rememberSession">
                 <input id="rememberSession" type="checkbox" checked>
                 <span>Lembrar</span>
             </label>
@@ -1027,7 +1027,9 @@ const els = {
     rememberSession: document.getElementById("rememberSession"),
     btnCloudLogin: document.getElementById("btnCloudLogin"),
     btnCloudSignup: document.getElementById("btnCloudSignup"),
-    btnCloudLogout: document.getElementById("btnCloudLogout")
+    btnCloudLogout: document.getElementById("btnCloudLogout"),
+    cloudCopy: document.getElementById("cloudCopy"),
+    rememberOption: document.getElementById("rememberOption")
 };
 
 function init() {
@@ -1248,6 +1250,12 @@ function updateCloudUi() {
     els.btnCloudLogin.disabled = !configured || !ready || logged || cloudBusy;
     els.btnCloudSignup.disabled = !configured || !ready || logged || cloudBusy;
     els.btnCloudLogout.disabled = !logged || cloudBusy;
+    els.cloudEmail.hidden = logged;
+    els.cloudPassword.hidden = logged;
+    els.rememberOption.hidden = logged;
+    els.btnCloudLogin.hidden = logged;
+    els.btnCloudSignup.hidden = logged;
+    els.cloudCopy.hidden = logged;
     updateSaveState();
 
     if (!configured) {
