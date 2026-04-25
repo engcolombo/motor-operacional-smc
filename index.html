@@ -247,6 +247,20 @@ h3 {
     border-color: #bfe7fb;
 }
 
+.btn-pro {
+    color: #ffffff;
+    background: linear-gradient(135deg, #1a1f2e, #3a2d5c);
+    border-color: transparent;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    box-shadow: 0 8px 22px rgba(58, 45, 92, 0.4);
+}
+
+.btn-pro:hover {
+    background: linear-gradient(135deg, #242b40, #4a3a72);
+}
+
 .summary-grid {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -807,6 +821,7 @@ td {
             <h1>Diário de trade</h1>
         </div>
         <div class="top-actions">
+            <a class="btn btn-pro" href="diario.html">Diário Pro →</a>
             <button class="btn btn-primary" id="btnOpenStats" type="button">Estatísticas</button>
             <button class="btn" id="btnExportCsvTop" type="button">Exportar CSV</button>
             <button class="btn" id="btnExportJsonTop" type="button">Exportar JSON</button>
