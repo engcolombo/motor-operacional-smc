@@ -390,7 +390,15 @@ h3 {
 .field select,
 .field input {
     padding: 0 8px;
-    font-size: 0.95rem;
+    font-size: 16px;
+}
+
+.field textarea {
+    font-size: 16px;
+}
+
+.auth-input {
+    font-size: 16px;
 }
 
 .field textarea {
@@ -540,6 +548,27 @@ h3 {
     overflow-x: auto;
 }
 
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--line);
+    flex-wrap: wrap;
+}
+
+.pager-info {
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.pager .btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
@@ -591,6 +620,11 @@ td {
 .pill.stop {
     color: var(--red);
     background: var(--red-soft);
+}
+
+.pill.empate {
+    color: var(--yellow);
+    background: var(--yellow-soft);
 }
 
 .empty-state {
@@ -849,6 +883,7 @@ td {
                         <option>1:2R</option>
                         <option>1:3R</option>
                         <option>1:5R</option>
+                        <option>Empate</option>
                         <option>Stop</option>
                     </select>
                 </div>
@@ -1005,6 +1040,8 @@ let activeStrategy = "A";
 let formState = { A: {}, B: {}, C: {} };
 let activeEvaluation = null;
 let trades = [];
+const HISTORY_PAGE_SIZE = 25;
+let historyPage = 1;
 
 const els = {
     summaryGrid: document.getElementById("summaryGrid"),
@@ -1098,7 +1135,8 @@ async function initCloud() {
     currentSession = data.session || null;
     currentUser = currentSession?.user || null;
 
-    supabaseClient.auth.onAuthStateChange((_event, session) => {
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (event === "INITIAL_SESSION") return;
         currentSession = session || null;
         currentUser = currentSession?.user || null;
         updateCloudUi();
@@ -1123,14 +1161,25 @@ async function signInCloud() {
     const credentials = getCloudCredentials();
     if (!credentials) return;
     setCloudBusy(true, "Entrando...");
-    const { data, error } = await supabaseClient.auth.signInWithPassword(credentials);
-    setCloudBusy(false);
+    let data = null;
+    let error = null;
+    try {
+        const result = await supabaseClient.auth.signInWithPassword(credentials);
+        data = result.data;
+        error = result.error;
+    } catch (err) {
+        error = err;
+    } finally {
+        setCloudBusy(false);
+    }
     if (error) {
-        alert(`Não foi possível entrar: ${error.message}`);
+        alert(`Não foi possível entrar: ${error.message || error}`);
+        els.cloudPassword.value = "";
         updateCloudUi();
+        els.cloudPassword.focus();
         return;
     }
-    currentSession = data.session || null;
+    currentSession = data?.session || null;
     currentUser = currentSession?.user || null;
     if (!currentSession) {
         alert("Login aceito, mas a sessão não foi criada. Confirme seu email no Supabase e tente entrar novamente.");
@@ -1145,16 +1194,25 @@ async function signUpCloud() {
     const credentials = getCloudCredentials();
     if (!credentials) return;
     setCloudBusy(true, "Criando acesso...");
-    const { data, error } = await supabaseClient.auth.signUp(credentials);
-    setCloudBusy(false);
+    let data = null;
+    let error = null;
+    try {
+        const result = await supabaseClient.auth.signUp(credentials);
+        data = result.data;
+        error = result.error;
+    } catch (err) {
+        error = err;
+    } finally {
+        setCloudBusy(false);
+    }
     if (error) {
-        alert(`Não foi possível criar o acesso: ${error.message}`);
+        alert(`Não foi possível criar o acesso: ${error.message || error}`);
         updateCloudUi();
         return;
     }
-    currentSession = data.session || null;
+    currentSession = data?.session || null;
     currentUser = currentSession?.user || null;
-    if (data.session) {
+    if (data?.session) {
         await loadCloudTrades();
     } else {
         setCloudStatus("Acesso criado. Se a confirmação de email estiver ativa no Supabase, confirme o email antes de entrar.");
@@ -1165,11 +1223,16 @@ async function signUpCloud() {
 async function signOutCloud() {
     if (!supabaseClient) return;
     setCloudBusy(true, "Saindo...");
-    await supabaseClient.auth.signOut();
+    try {
+        await supabaseClient.auth.signOut();
+    } catch (err) {
+        console.warn("signOut falhou:", err);
+    } finally {
+        setCloudBusy(false);
+    }
     currentUser = null;
     currentSession = null;
     trades = [];
-    setCloudBusy(false);
     renderAll();
     updateCloudUi();
 }
@@ -1177,16 +1240,14 @@ async function signOutCloud() {
 async function handleRememberChange() {
     localStorage.setItem(REMEMBER_SESSION_KEY, els.rememberSession.checked ? "true" : "false");
     if (!els.rememberSession.checked && supabaseClient) {
-        await supabaseClient.auth.signOut();
-        currentUser = null;
-        currentSession = null;
-        trades = [];
-        renderAll();
-        setCloudStatus("Sessão esquecida neste navegador. Entre novamente para salvar no Supabase.");
-    } else if (els.rememberSession.checked) {
-        setCloudStatus("Lembrar ativado. No próximo login, a sessão fica salva neste navegador.");
+        try {
+            await supabaseClient.auth.signOut();
+        } catch (err) {
+            console.warn("signOut falhou:", err);
+        }
     }
-    updateCloudUi();
+    setCloudStatus("Aplicando preferência de sessão. Recarregando...");
+    setTimeout(() => location.reload(), 250);
 }
 
 async function refreshCloudSession() {
@@ -1277,14 +1338,23 @@ function updateCloudUi() {
 async function loadCloudTrades() {
     if (!await refreshCloudSession()) return;
     setCloudBusy(true, "Carregando trades da nuvem...");
-    const { data, error } = await supabaseClient
-        .from(SUPABASE_TABLE)
-        .select("id,payload,trade_timestamp,created_at")
-        .order("trade_timestamp", { ascending: true });
-    setCloudBusy(false);
+    let data = null;
+    let error = null;
+    try {
+        const result = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .select("id,payload,trade_timestamp,created_at")
+            .order("trade_timestamp", { ascending: true });
+        data = result.data;
+        error = result.error;
+    } catch (err) {
+        error = err;
+    } finally {
+        setCloudBusy(false);
+    }
 
     if (error) {
-        alert(`Não foi possível carregar a nuvem: ${error.message}`);
+        alert(`Não foi possível carregar a nuvem: ${error.message || error}`);
         updateCloudUi();
         return;
     }
@@ -1308,28 +1378,35 @@ async function saveTradeToCloud(trade) {
         syncStatus: "synced",
         syncedAt: new Date().toISOString()
     };
-    const { error } = await supabaseClient
-        .from(SUPABASE_TABLE)
-        .insert({
-            id: trade.id,
-            user_id: currentUser.id,
-            payload: cloudTrade,
-            trade_timestamp: trade.timestamp || new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        });
-
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, trade: cloudTrade };
+    try {
+        const { error } = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .insert({
+                id: trade.id,
+                user_id: currentUser.id,
+                payload: cloudTrade,
+                trade_timestamp: trade.timestamp || new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            });
+        if (error) return { ok: false, message: error.message };
+        return { ok: true, trade: cloudTrade };
+    } catch (err) {
+        return { ok: false, message: err.message || String(err) };
+    }
 }
 
 async function deleteTradeFromCloud(id) {
     if (!await refreshCloudSession()) return { ok: false, message: "Sessão não autenticada. Entre novamente antes de excluir." };
-    const { error } = await supabaseClient
-        .from(SUPABASE_TABLE)
-        .delete()
-        .eq("id", id);
-    if (error) return { ok: false, message: error.message };
-    return { ok: true };
+    try {
+        const { error } = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .delete()
+            .eq("id", id);
+        if (error) return { ok: false, message: error.message };
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, message: err.message || String(err) };
+    }
 }
 
 function sortTradesByTime(a, b) {
@@ -1675,8 +1752,14 @@ async function saveTrade() {
 
     els.btnSaveTrade.disabled = true;
     setCloudBusy(true, "Salvando trade no Supabase...");
-    const result = await saveTradeToCloud(trade);
-    setCloudBusy(false);
+    let result;
+    try {
+        result = await saveTradeToCloud(trade);
+    } catch (err) {
+        result = { ok: false, message: err.message || String(err) };
+    } finally {
+        setCloudBusy(false);
+    }
     if (!result.ok) {
         alert(`Não foi possível salvar no Supabase: ${result.message}`);
         updateSaveState();
@@ -1703,6 +1786,7 @@ function targetToR(alvo) {
     if (alvo === "1:3R") return 3;
     if (alvo === "1:5R") return 5;
     if (alvo === "Stop") return -1;
+    if (alvo === "Empate") return 0;
     return 0;
 }
 
@@ -1729,15 +1813,17 @@ function computeStats() {
     const total = trades.length;
     const wins = trades.filter((trade) => Number(trade.r) > 0).length;
     const stops = trades.filter((trade) => Number(trade.r) < 0).length;
+    const empates = trades.filter((trade) => Number(trade.r) === 0).length;
     const rTotal = trades.reduce((acc, trade) => acc + Number(trade.r || 0), 0);
-    const winrate = total ? (wins / total) * 100 : 0;
+    const decisivos = wins + stops;
+    const winrate = decisivos ? (wins / decisivos) * 100 : 0;
     const payoff = total ? rTotal / total : 0;
     const financeiro = trades.reduce((acc, trade) => acc + Number(trade.valorFinanceiro || 0), 0);
     const grossWin = trades.filter((trade) => trade.r > 0).reduce((acc, trade) => acc + trade.r, 0);
     const grossLoss = Math.abs(trades.filter((trade) => trade.r < 0).reduce((acc, trade) => acc + trade.r, 0));
     const profitFactor = grossLoss ? grossWin / grossLoss : grossWin ? Infinity : 0;
     const maxDrawdown = calculateMaxDrawdown(trades);
-    return { total, wins, stops, rTotal, winrate, payoff, financeiro, profitFactor, maxDrawdown };
+    return { total, wins, stops, empates, rTotal, winrate, payoff, financeiro, profitFactor, maxDrawdown };
 }
 
 function calculateMaxDrawdown(items) {
@@ -1758,6 +1844,7 @@ function renderSummary() {
         ["Trades", stats.total],
         ["Wins", stats.wins],
         ["Stops", stats.stops],
+        ["Empates", stats.empates],
         ["Winrate", `${formatNumber(stats.winrate, 1)}%`],
         ["R Total", formatR(stats.rTotal)],
         ["Payoff", formatR(stats.payoff)]
@@ -1780,7 +1867,9 @@ function renderStatsGrid() {
         ["Resultado financeiro", formatCurrency(stats.financeiro)],
         ["Profit factor", stats.profitFactor === Infinity ? "∞" : formatNumber(stats.profitFactor, 2)],
         ["Drawdown máximo", formatR(stats.maxDrawdown)],
-        ["Stops", stats.stops]
+        ["Wins", stats.wins],
+        ["Stops", stats.stops],
+        ["Empates", stats.empates]
     ];
     els.statsGrid.innerHTML = metrics.map(([label, value]) => `
         <div class="metric">
@@ -1796,7 +1885,13 @@ function renderHistory() {
         return;
     }
 
-    const rows = [...trades].reverse().slice(0, 25).map((trade) => `
+    const ordered = [...trades].reverse();
+    const totalPages = Math.max(1, Math.ceil(ordered.length / HISTORY_PAGE_SIZE));
+    if (historyPage > totalPages) historyPage = totalPages;
+    if (historyPage < 1) historyPage = 1;
+    const start = (historyPage - 1) * HISTORY_PAGE_SIZE;
+    const end = start + HISTORY_PAGE_SIZE;
+    const rows = ordered.slice(start, end).map((trade) => `
         <tr>
             <td>${escapeHtml(trade.data || "")}<br><span class="muted">${escapeHtml(trade.hora || "")}</span></td>
             <td>${escapeHtml(trade.ativo || "-")}</td>
@@ -1804,13 +1899,15 @@ function renderHistory() {
             <td>${escapeHtml(trade.setup || "")}</td>
             <td>${escapeHtml(trade.gatilhoExecutado || "")}</td>
             <td>${escapeHtml(trade.resultado || "")}<br><span class="muted">${Number(trade.pontos || 0)} pts</span></td>
-            <td><span class="pill ${trade.r > 0 ? "win" : "stop"}">${formatR(trade.r)}</span></td>
+            <td><span class="pill ${Number(trade.r) > 0 ? "win" : Number(trade.r) < 0 ? "stop" : "empate"}">${formatR(trade.r)}</span></td>
             <td>${formatCurrency(trade.valorFinanceiro || 0)}</td>
             <td>${renderSyncPill(trade)}</td>
             <td><button class="btn btn-danger" type="button" data-delete="${trade.id}">Excluir</button></td>
         </tr>
     `).join("");
 
+    const fromIdx = start + 1;
+    const toIdx = Math.min(end, ordered.length);
     els.historyWrap.innerHTML = `
         <table>
             <thead>
@@ -1829,10 +1926,21 @@ function renderHistory() {
             </thead>
             <tbody>${rows}</tbody>
         </table>
+        <div class="pager">
+            <button class="btn" type="button" data-page="prev" ${historyPage <= 1 ? "disabled" : ""}>« Anterior</button>
+            <span class="pager-info">${fromIdx}–${toIdx} de ${ordered.length} · página ${historyPage}/${totalPages}</span>
+            <button class="btn" type="button" data-page="next" ${historyPage >= totalPages ? "disabled" : ""}>Próxima »</button>
+        </div>
     `;
 
     els.historyWrap.querySelectorAll("[data-delete]").forEach((button) => {
         button.addEventListener("click", () => deleteTrade(button.dataset.delete));
+    });
+    els.historyWrap.querySelectorAll("[data-page]").forEach((button) => {
+        button.addEventListener("click", () => {
+            historyPage += button.dataset.page === "next" ? 1 : -1;
+            renderHistory();
+        });
     });
 }
 
@@ -1849,8 +1957,14 @@ async function deleteTrade(id) {
         return;
     }
     setCloudBusy(true, "Excluindo trade do Supabase...");
-    const result = await deleteTradeFromCloud(id);
-    setCloudBusy(false);
+    let result;
+    try {
+        result = await deleteTradeFromCloud(id);
+    } catch (err) {
+        result = { ok: false, message: err.message || String(err) };
+    } finally {
+        setCloudBusy(false);
+    }
     if (!result.ok) {
         alert(`Não foi possível excluir do Supabase: ${result.message}`);
         return;
@@ -1872,13 +1986,20 @@ async function clearHistory() {
         return;
     }
     setCloudBusy(true, "Excluindo histórico do Supabase...");
-    const { error } = await supabaseClient
-        .from(SUPABASE_TABLE)
-        .delete()
-        .eq("user_id", currentUser.id);
-    setCloudBusy(false);
+    let error = null;
+    try {
+        const result = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .delete()
+            .eq("user_id", currentUser.id);
+        error = result.error;
+    } catch (err) {
+        error = err;
+    } finally {
+        setCloudBusy(false);
+    }
     if (error) {
-        alert(`Não foi possível limpar o Supabase: ${error.message}`);
+        alert(`Não foi possível limpar o Supabase: ${error.message || error}`);
         return;
     }
     trades = [];
@@ -1966,8 +2087,9 @@ function drawWinLossChart() {
     }
     drawDoughnut(ctx, width, height, [
         { label: "Wins", value: stats.wins, color: "#149b68" },
-        { label: "Stops", value: stats.stops, color: "#d94343" }
-    ]);
+        { label: "Stops", value: stats.stops, color: "#d94343" },
+        { label: "Empates", value: stats.empates, color: "#b98113" }
+    ].filter((item) => item.value > 0));
 }
 
 function drawStrategyChart() {
@@ -1989,7 +2111,7 @@ function drawTargetChart() {
         drawNoData(ctx, width, height);
         return;
     }
-    const targets = ["1:1R", "1:2R", "1:3R", "1:5R", "Stop"];
+    const targets = ["1:1R", "1:2R", "1:3R", "1:5R", "Empate", "Stop"];
     const data = targets.map((target) => ({
         label: target,
         value: trades.filter((trade) => trade.alvo === target).length
