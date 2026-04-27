@@ -1378,10 +1378,7 @@ function renderKPIs() {
         { label: "Net P&L", value: fmtCurrency(s.pnlTotal), cls: s.pnlTotal > 0 ? "win" : s.pnlTotal < 0 ? "loss" : "neutral" },
         { label: "R Total", value: fmtR(s.rTotal), cls: s.rTotal > 0 ? "win" : s.rTotal < 0 ? "loss" : "neutral" },
         { label: "Winrate", value: fmtPct(s.winrate), meta: `${s.wins}W / ${s.losses}L / ${s.bes}BE`, cls: "neutral" },
-        { label: "Profit Factor", value: s.pf === Infinity ? "∞" : s.pf.toFixed(2), cls: s.pf >= 1.5 ? "win" : s.pf >= 1 ? "neutral" : "loss" },
         { label: "Expectancy", value: fmtR(s.expectancy), meta: "média por trade", cls: s.expectancy > 0 ? "win" : "loss" },
-        { label: "Avg Win", value: fmtR(s.avgWin), cls: "win" },
-        { label: "Avg Loss", value: fmtR(s.avgLoss), cls: "loss" },
         { label: "Max Drawdown", value: fmtR(-s.maxDD), cls: "loss" },
         { label: "Trades", value: s.total, meta: s.currentStreakDir ? `Streak ${s.currentStreakDir > 0 ? "🟢" : "🔴"} ${s.currentStreak}` : "", cls: "neutral" }
     ];
