@@ -551,6 +551,104 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 
 .form-grid .full { grid-column: 1 / -1; }
 
+.section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--accent-2);
+    font-size: 0.74rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 10px 0 4px;
+    border-bottom: 1px solid var(--line);
+    margin-top: 4px;
+}
+
+.btn-mini {
+    padding: 4px 10px;
+    font-size: 0.74rem;
+}
+
+.partial-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 8px;
+    align-items: end;
+    margin-bottom: 8px;
+    padding: 10px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+}
+
+.partial-row .field { margin: 0; }
+
+.partial-row label {
+    font-size: 0.62rem;
+    color: var(--muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 3px;
+    display: block;
+}
+
+.partial-row input {
+    width: 100%;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 6px 8px;
+    color: var(--text);
+    font-size: 14px;
+}
+
+.partial-del {
+    background: var(--red-soft);
+    color: var(--red);
+    border: 1px solid rgba(255,93,108,0.3);
+    border-radius: var(--radius-sm);
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    font-size: 1.1rem;
+}
+
+.partial-del:hover { background: rgba(255,93,108,0.25); }
+
+.partials-empty {
+    padding: 14px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.78rem;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+}
+
+.partial-summary {
+    margin-top: 6px;
+    padding: 10px 12px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(123,92,255,0.32);
+    border-radius: var(--radius-sm);
+    font-size: 0.84rem;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.partial-summary strong { color: var(--accent-2); }
+
+.field input[readonly] {
+    background: var(--bg-elev-2);
+    color: var(--muted);
+    cursor: default;
+}
+
 .field label {
     display: block;
     color: var(--muted);
@@ -840,7 +938,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                 </div>
                 <div class="field">
                     <label>Ativo</label>
-                    <input type="text" id="fSymbol" placeholder="WIN, WDO, AAPL...">
+                    <input type="text" id="fSymbol" placeholder="BTC, WIN, AAPL...">
                 </div>
                 <div class="field">
                     <label>Direção</label>
@@ -850,33 +948,57 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                     </select>
                 </div>
                 <div class="field">
-                    <label>Resultado em R</label>
-                    <input type="number" step="0.01" id="fR" placeholder="Ex: 1.5 ou -1">
-                </div>
-                <div class="field">
-                    <label>Entrada</label>
-                    <input type="number" step="0.01" id="fEntry" placeholder="Preço">
-                </div>
-                <div class="field">
-                    <label>Saída</label>
-                    <input type="number" step="0.01" id="fExit" placeholder="Preço">
-                </div>
-                <div class="field">
-                    <label>Quantidade</label>
-                    <input type="number" step="1" id="fQty" placeholder="Ex: 1">
-                </div>
-                <div class="field">
-                    <label>Custos / fees (R$)</label>
-                    <input type="number" step="0.01" id="fFees" placeholder="0">
-                </div>
-                <div class="field">
-                    <label>P&L (R$)</label>
-                    <input type="number" step="0.01" id="fPnl" placeholder="Calc automático se vazio">
-                </div>
-                <div class="field">
                     <label>Setup</label>
                     <input type="text" id="fSetup" placeholder="OB, FVG, Trap...">
                 </div>
+
+                <div class="full section-title">Risco</div>
+                <div class="field">
+                    <label>Entrada</label>
+                    <input type="number" step="any" id="fEntry" placeholder="Preço">
+                </div>
+                <div class="field">
+                    <label>Stop loss</label>
+                    <input type="number" step="any" id="fStop" placeholder="Preço">
+                </div>
+                <div class="field">
+                    <label>Qtd inicial</label>
+                    <input type="number" step="any" id="fInitQty" placeholder="Ex: 1 ou 0.05">
+                </div>
+                <div class="field">
+                    <label>Risco por unidade</label>
+                    <input type="text" id="fRiskUnit" readonly placeholder="auto">
+                </div>
+                <div class="field full">
+                    <label>Risco total (R$ = 1R)</label>
+                    <input type="number" step="any" id="fRiskMoney" placeholder="Calc auto = |entrada-stop| × qtd. Pode sobrescrever (R$).">
+                </div>
+
+                <div class="full section-title">
+                    Saídas / Parciais
+                    <button class="btn btn-ghost btn-mini" id="btnAddPartial" type="button">+ Parcial</button>
+                </div>
+                <div class="full" id="partialsBox"></div>
+
+                <div class="full section-title">Resultado</div>
+                <div class="field">
+                    <label>P&L total (R$) — auto</label>
+                    <input type="number" step="any" id="fPnl" placeholder="Calc auto pelas parciais. Pode editar.">
+                </div>
+                <div class="field">
+                    <label>Resultado em R — auto</label>
+                    <input type="number" step="any" id="fR" placeholder="Calc auto = P&L / risco. Pode editar.">
+                </div>
+                <div class="field">
+                    <label>Custos extras (R$)</label>
+                    <input type="number" step="any" id="fFees" placeholder="Funding, slippage geral...">
+                </div>
+                <div class="field">
+                    <label>Saída média</label>
+                    <input type="text" id="fAvgExit" readonly placeholder="auto">
+                </div>
+
+                <div class="full section-title">Anotações</div>
                 <div class="field full">
                     <label>Tags (separadas por vírgula)</label>
                     <input type="text" id="fTags" placeholder="A+, breakout, fakebreak, premium...">
@@ -987,35 +1109,149 @@ function openModal(trade) {
     $("fDate").value = trade ? trade.date.slice(0, 16) : new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     $("fSymbol").value = trade?.symbol || "";
     $("fSide").value = trade?.side || "long";
-    $("fR").value = trade?.r ?? "";
+    $("fSetup").value = trade?.setup || "";
     $("fEntry").value = trade?.entry ?? "";
-    $("fExit").value = trade?.exit ?? "";
-    $("fQty").value = trade?.qty ?? "";
+    $("fStop").value = trade?.stop ?? "";
+    $("fInitQty").value = trade?.initQty ?? trade?.qty ?? "";
+    $("fRiskMoney").value = trade?.riskMoney ?? "";
     $("fFees").value = trade?.fees ?? "";
     $("fPnl").value = trade?.pnl ?? "";
-    $("fSetup").value = trade?.setup || "";
+    $("fR").value = trade?.r ?? "";
     $("fTags").value = (trade?.tags || []).join(", ");
     $("fMistakes").value = (trade?.mistakes || []).join(", ");
     $("fNotes").value = trade?.notes || "";
+
+    let partials = trade?.partials ? [...trade.partials] : [];
+    if (!partials.length && trade?.exit && trade?.qty) {
+        partials = [{ price: trade.exit, qty: trade.qty, fees: 0 }];
+    }
+    if (!partials.length) partials = [{ price: "", qty: "", fees: "" }];
+    state.editPartials = partials;
+    userTouchedPnl = false;
+    userTouchedR = false;
+    renderPartials();
     $("modalBackdrop").classList.add("open");
 }
+
+function renderPartials() {
+    const box = $("partialsBox");
+    if (!state.editPartials.length) {
+        box.innerHTML = `<div class="partials-empty">Nenhuma saída. Clique <strong>+ Parcial</strong>.</div><div class="partial-summary" id="partialSummary"></div>`;
+        recomputeFromInputs();
+        return;
+    }
+    box.innerHTML = state.editPartials.map((p, i) => `
+        <div class="partial-row">
+            <div class="field">
+                <label>Preço saída ${i + 1}</label>
+                <input type="number" step="any" data-pi="${i}" data-pk="price" value="${p.price ?? ""}">
+            </div>
+            <div class="field">
+                <label>Qtd</label>
+                <input type="number" step="any" data-pi="${i}" data-pk="qty" value="${p.qty ?? ""}">
+            </div>
+            <div class="field">
+                <label>Taxas (R$)</label>
+                <input type="number" step="any" data-pi="${i}" data-pk="fees" value="${p.fees ?? ""}">
+            </div>
+            <button class="partial-del" type="button" data-pdel="${i}" title="Remover">×</button>
+        </div>
+    `).join("") + `<div class="partial-summary" id="partialSummary"></div>`;
+
+    box.querySelectorAll("[data-pi]").forEach((inp) => {
+        inp.addEventListener("input", () => {
+            const i = Number(inp.dataset.pi);
+            state.editPartials[i][inp.dataset.pk] = inp.value === "" ? "" : Number(inp.value);
+            recomputeFromInputs();
+        });
+    });
+    box.querySelectorAll("[data-pdel]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            state.editPartials.splice(Number(btn.dataset.pdel), 1);
+            renderPartials();
+        });
+    });
+    recomputeFromInputs();
+}
+
+function computeTradeMath() {
+    const entry = Number($("fEntry").value || 0);
+    const stop = Number($("fStop").value || 0);
+    const initQty = Number($("fInitQty").value || 0);
+    const side = $("fSide").value;
+    const dir = side === "long" ? 1 : -1;
+    const fees = Number($("fFees").value || 0);
+    const overrideRisk = $("fRiskMoney").value;
+
+    const riskUnit = entry && stop ? Math.abs(entry - stop) : 0;
+    let riskMoney = overrideRisk !== "" ? Number(overrideRisk) : riskUnit * initQty;
+
+    const partials = (state.editPartials || []).filter((p) => Number(p.price) > 0 && Number(p.qty) > 0);
+    let pnl = 0;
+    let totalQty = 0;
+    let weighted = 0;
+    let partialFees = 0;
+    partials.forEach((p) => {
+        const price = Number(p.price);
+        const qty = Number(p.qty);
+        const f = Number(p.fees || 0);
+        pnl += (price - entry) * qty * dir - f;
+        totalQty += qty;
+        weighted += price * qty;
+        partialFees += f;
+    });
+    pnl -= fees;
+    const avgExit = totalQty > 0 ? weighted / totalQty : 0;
+    const r = riskMoney > 0 ? pnl / riskMoney : 0;
+
+    return { riskUnit, riskMoney, pnl, r, avgExit, totalQty, partialFees };
+}
+
+function recomputeFromInputs() {
+    const m = computeTradeMath();
+    $("fRiskUnit").value = m.riskUnit ? m.riskUnit.toFixed(4).replace(/\.?0+$/, "") : "";
+    if ($("fRiskMoney").value === "") $("fRiskMoney").placeholder = m.riskMoney ? `auto ≈ ${m.riskMoney.toFixed(2)}` : "Calc auto = |entrada-stop| × qtd. Pode sobrescrever (R$).";
+    $("fAvgExit").value = m.avgExit ? m.avgExit.toFixed(4).replace(/\.?0+$/, "") : "";
+    if (!userTouchedPnl) $("fPnl").value = m.pnl ? m.pnl.toFixed(2) : "";
+    if (!userTouchedR) $("fR").value = m.r ? m.r.toFixed(2) : "";
+
+    const sum = $("partialSummary");
+    if (sum) {
+        if (m.totalQty > 0) {
+            sum.innerHTML = `
+                <span>Qtd vendida: <strong>${m.totalQty}</strong></span>
+                <span>Saída média: <strong>${m.avgExit.toFixed(4).replace(/\.?0+$/, "")}</strong></span>
+                <span>P&L: <strong style="color:${m.pnl > 0 ? "var(--green)" : m.pnl < 0 ? "var(--red)" : "var(--accent-2)"}">${fmtCurrency(m.pnl)}</strong></span>
+                <span>R: <strong style="color:${m.r > 0 ? "var(--green)" : m.r < 0 ? "var(--red)" : "var(--accent-2)"}">${m.r >= 0 ? "+" : ""}${m.r.toFixed(2)}R</strong></span>
+            `;
+        } else {
+            sum.innerHTML = `<span class="muted">Preencha entrada, stop, qtd e parciais pra ver o R automático.</span>`;
+        }
+    }
+}
+
+let userTouchedPnl = false;
+let userTouchedR = false;
 
 function closeModal() {
     $("modalBackdrop").classList.remove("open");
     state.editingId = null;
+    userTouchedPnl = false;
+    userTouchedR = false;
 }
 
 async function saveFromForm() {
-    const r = Number($("fR").value || 0);
+    const m = computeTradeMath();
     const entry = Number($("fEntry").value || 0);
-    const exit = Number($("fExit").value || 0);
-    const qty = Number($("fQty").value || 0);
+    const stop = Number($("fStop").value || 0);
+    const initQty = Number($("fInitQty").value || 0);
     const fees = Number($("fFees").value || 0);
-    let pnl = $("fPnl").value === "" ? null : Number($("fPnl").value);
-    if (pnl === null && entry && exit && qty) {
-        const dir = $("fSide").value === "long" ? 1 : -1;
-        pnl = (exit - entry) * qty * dir - fees;
-    }
+    const pnl = $("fPnl").value === "" ? m.pnl : Number($("fPnl").value);
+    const r = $("fR").value === "" ? m.r : Number($("fR").value);
+    const partials = (state.editPartials || []).filter((p) => Number(p.price) > 0 && Number(p.qty) > 0)
+        .map((p) => ({ price: Number(p.price), qty: Number(p.qty), fees: Number(p.fees || 0) }));
+    const totalQty = partials.reduce((a, p) => a + p.qty, 0);
+    const avgExit = totalQty > 0 ? partials.reduce((a, p) => a + p.price * p.qty, 0) / totalQty : 0;
 
     const isEdit = Boolean(state.editingId);
     const trade = {
@@ -1025,8 +1261,12 @@ async function saveFromForm() {
         side: $("fSide").value,
         r,
         entry,
-        exit,
-        qty,
+        stop,
+        exit: avgExit,
+        qty: totalQty || initQty,
+        initQty,
+        partials,
+        riskMoney: m.riskMoney,
         fees,
         pnl: pnl ?? 0,
         setup: $("fSetup").value.trim(),
@@ -1572,6 +1812,19 @@ function bindEvents() {
     $("modalBackdrop").addEventListener("click", (e) => {
         if (e.target === $("modalBackdrop")) closeModal();
     });
+
+    $("btnAddPartial").addEventListener("click", () => {
+        if (!state.editPartials) state.editPartials = [];
+        state.editPartials.push({ price: "", qty: "", fees: "" });
+        renderPartials();
+    });
+
+    ["fEntry", "fStop", "fInitQty", "fSide", "fFees", "fRiskMoney"].forEach((id) => {
+        $(id).addEventListener("input", recomputeFromInputs);
+    });
+    $("fSide").addEventListener("change", recomputeFromInputs);
+    $("fPnl").addEventListener("input", () => { userTouchedPnl = true; });
+    $("fR").addEventListener("input", () => { userTouchedR = true; });
 
     $("btnExport").addEventListener("click", exportJSON);
     $("btnImport").addEventListener("click", () => $("importFile").click());
