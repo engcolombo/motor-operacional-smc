@@ -333,6 +333,8 @@ a { color: inherit; text-decoration: none; }
     gap: 16px;
 }
 
+.grid-2 > .panel + .panel { margin-top: 0; }
+
 @media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } }
 
 canvas { width: 100%; display: block; }
@@ -643,6 +645,13 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 
 .partial-summary strong { color: var(--accent-2); }
 
+.field-hint {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 0.74rem;
+    line-height: 1.35;
+}
+
 .field input[readonly] {
     background: var(--bg-elev-2);
     color: var(--muted);
@@ -820,8 +829,8 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                 <div class="panel">
                     <div class="panel-head">
                         <div>
-                            <h2>Curva de capital (R)</h2>
-                            <p>Evolução acumulada em múltiplos de risco</p>
+                            <h2>Curva de capital (R$ liquido)</h2>
+                            <p>Evolucao acumulada em reais ja descontando fees</p>
                         </div>
                     </div>
                     <div class="panel-body">
@@ -990,8 +999,9 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                     <input type="number" step="any" id="fR" placeholder="Calc auto = P&L / risco. Pode editar.">
                 </div>
                 <div class="field">
-                    <label>Custos extras (R$)</label>
-                    <input type="number" step="any" id="fFees" placeholder="Funding, slippage geral...">
+                    <label>Custos / fees (R$)</label>
+                    <input type="number" step="any" id="fFees" placeholder="Auto para WIN/WDO. Pode editar.">
+                    <div class="field-hint" id="feesHint">WIN: R$ 0,50/contrato. WDO: R$ 1,25/contrato.</div>
                 </div>
                 <div class="field">
                     <label>Saída média</label>
@@ -1020,7 +1030,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     </div>
 </div>
 
-<input type="file" id="importFile" accept="application/json" hidden>
+<input type="file" id="importFile" accept=".json,.csv,application/json,text/csv" hidden>
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1066,8 +1076,49 @@ function fmtR(v) {
     return `${sign}${n.toFixed(Number.isInteger(n) ? 0 : 2)}R`;
 }
 
+function isRPending(trade) {
+    if (trade?.rCompleted) return false;
+    if (trade?.source === "broker_csv" && Number(trade?.r || 0) === 0 && !Number(trade?.riskMoney || 0) && (trade?.stop === "" || trade?.stop === null || trade?.stop === undefined)) return true;
+    return Boolean(trade?.rPending) || trade?.r === null || trade?.r === "";
+}
+
+function tradeRValue(trade) {
+    return isRPending(trade) ? null : Number(trade?.r || 0);
+}
+
+function renderRBadge(trade) {
+    if (isRPending(trade)) return `<span class="pill be" title="Preencha stop/risco para calcular o R">R pendente</span>`;
+    const r = tradeRValue(trade);
+    return `<span class="pill ${r > 0 ? "win" : r < 0 ? "loss" : "be"}">${fmtR(r)}</span>`;
+}
+
 function fmtCurrency(v) {
     return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+const FEE_RULES = [
+    { prefix: "WIN", rate: 0.5, label: "WIN R$ 0,50/contrato" },
+    { prefix: "WDO", rate: 1.25, label: "WDO R$ 1,25/contrato" }
+];
+
+function feeRuleForSymbol(symbol) {
+    const normalized = String(symbol || "").trim().toUpperCase();
+    return FEE_RULES.find((rule) => normalized.startsWith(rule.prefix)) || null;
+}
+
+function calcAutoFees(symbol, qty) {
+    const rule = feeRuleForSymbol(symbol);
+    const contracts = Math.abs(Number(qty || 0));
+    return rule ? contracts * rule.rate : 0;
+}
+
+function fmtFeesRule() {
+    return FEE_RULES.map((rule) => rule.label).join(" | ");
+}
+
+function tradeFees(trade) {
+    const partialFees = (trade?.partials || []).reduce((sum, partial) => sum + Number(partial.fees || 0), 0);
+    return Number(trade?.fees || 0) + partialFees;
 }
 
 function fmtPct(v) {
@@ -1116,7 +1167,7 @@ function openModal(trade) {
     $("fRiskMoney").value = trade?.riskMoney ?? "";
     $("fFees").value = trade?.fees ?? "";
     $("fPnl").value = trade?.pnl ?? "";
-    $("fR").value = trade?.r ?? "";
+    $("fR").value = isRPending(trade) ? "" : trade?.r ?? "";
     $("fTags").value = (trade?.tags || []).join(", ");
     $("fMistakes").value = (trade?.mistakes || []).join(", ");
     $("fNotes").value = trade?.notes || "";
@@ -1127,8 +1178,9 @@ function openModal(trade) {
     }
     if (!partials.length) partials = [{ price: "", qty: "", fees: "" }];
     state.editPartials = partials;
-    userTouchedPnl = false;
+    userTouchedPnl = Boolean(trade?.pnlLocked);
     userTouchedR = false;
+    userTouchedFees = Boolean(trade && Number(trade.fees || 0) !== 0 && !trade.feesAuto);
     renderPartials();
     $("modalBackdrop").classList.add("open");
 }
@@ -1180,7 +1232,6 @@ function computeTradeMath() {
     const initQty = Number($("fInitQty").value || 0);
     const side = $("fSide").value;
     const dir = side === "long" ? 1 : -1;
-    const fees = Number($("fFees").value || 0);
     const overrideRisk = $("fRiskMoney").value;
 
     const riskUnit = entry && stop ? Math.abs(entry - stop) : 0;
@@ -1200,20 +1251,31 @@ function computeTradeMath() {
         weighted += price * qty;
         partialFees += f;
     });
+    const feeQty = totalQty || initQty;
+    const autoFees = calcAutoFees($("fSymbol").value, feeQty);
+    if (!userTouchedFees) $("fFees").value = autoFees ? autoFees.toFixed(2) : "";
+    const fees = Number($("fFees").value || 0);
     pnl -= fees;
     const avgExit = totalQty > 0 ? weighted / totalQty : 0;
     const r = riskMoney > 0 ? pnl / riskMoney : 0;
 
-    return { riskUnit, riskMoney, pnl, r, avgExit, totalQty, partialFees };
+    return { riskUnit, riskMoney, pnl, r, avgExit, totalQty, partialFees, fees, autoFees, feeQty };
 }
 
 function recomputeFromInputs() {
     const m = computeTradeMath();
+    const pnlInput = $("fPnl").value;
+    const displayPnl = userTouchedPnl && pnlInput !== "" ? Number(pnlInput) : m.pnl;
+    const displayR = m.riskMoney > 0 ? displayPnl / m.riskMoney : 0;
+    const feeRule = feeRuleForSymbol($("fSymbol").value);
+    $("feesHint").textContent = feeRule
+        ? `${feeRule.label}. Auto aplicado sobre ${m.feeQty || 0} contrato(s); P&L exibido e estatisticas ficam liquidos de fees.`
+        : `${fmtFeesRule()}. Ativos fora dessas regras ficam sem fee automatico.`;
     $("fRiskUnit").value = m.riskUnit ? m.riskUnit.toFixed(4).replace(/\.?0+$/, "") : "";
     if ($("fRiskMoney").value === "") $("fRiskMoney").placeholder = m.riskMoney ? `auto ≈ ${m.riskMoney.toFixed(2)}` : "Calc auto = |entrada-stop| × qtd. Pode sobrescrever (R$).";
     $("fAvgExit").value = m.avgExit ? m.avgExit.toFixed(4).replace(/\.?0+$/, "") : "";
     if (!userTouchedPnl) $("fPnl").value = m.pnl ? m.pnl.toFixed(2) : "";
-    if (!userTouchedR) $("fR").value = m.r ? m.r.toFixed(2) : "";
+    if (!userTouchedR) $("fR").value = displayR ? displayR.toFixed(2) : "";
 
     const sum = $("partialSummary");
     if (sum) {
@@ -1221,8 +1283,9 @@ function recomputeFromInputs() {
             sum.innerHTML = `
                 <span>Qtd vendida: <strong>${m.totalQty}</strong></span>
                 <span>Saída média: <strong>${m.avgExit.toFixed(4).replace(/\.?0+$/, "")}</strong></span>
-                <span>P&L: <strong style="color:${m.pnl > 0 ? "var(--green)" : m.pnl < 0 ? "var(--red)" : "var(--accent-2)"}">${fmtCurrency(m.pnl)}</strong></span>
-                <span>R: <strong style="color:${m.r > 0 ? "var(--green)" : m.r < 0 ? "var(--red)" : "var(--accent-2)"}">${m.r >= 0 ? "+" : ""}${m.r.toFixed(2)}R</strong></span>
+                <span>Fees: <strong>${fmtCurrency(m.fees)}</strong></span>
+                <span>P&L: <strong style="color:${displayPnl > 0 ? "var(--green)" : displayPnl < 0 ? "var(--red)" : "var(--accent-2)"}">${fmtCurrency(displayPnl)}</strong></span>
+                <span>R: <strong style="color:${displayR > 0 ? "var(--green)" : displayR < 0 ? "var(--red)" : "var(--accent-2)"}">${displayR >= 0 ? "+" : ""}${displayR.toFixed(2)}R</strong></span>
             `;
         } else {
             sum.innerHTML = `<span class="muted">Preencha entrada, stop, qtd e parciais pra ver o R automático.</span>`;
@@ -1232,12 +1295,14 @@ function recomputeFromInputs() {
 
 let userTouchedPnl = false;
 let userTouchedR = false;
+let userTouchedFees = false;
 
 function closeModal() {
     $("modalBackdrop").classList.remove("open");
     state.editingId = null;
     userTouchedPnl = false;
     userTouchedR = false;
+    userTouchedFees = false;
 }
 
 async function saveFromForm() {
@@ -1247,13 +1312,17 @@ async function saveFromForm() {
     const initQty = Number($("fInitQty").value || 0);
     const fees = Number($("fFees").value || 0);
     const pnl = $("fPnl").value === "" ? m.pnl : Number($("fPnl").value);
-    const r = $("fR").value === "" ? m.r : Number($("fR").value);
     const partials = (state.editPartials || []).filter((p) => Number(p.price) > 0 && Number(p.qty) > 0)
         .map((p) => ({ price: Number(p.price), qty: Number(p.qty), fees: Number(p.fees || 0) }));
     const totalQty = partials.reduce((a, p) => a + p.qty, 0);
     const avgExit = totalQty > 0 ? partials.reduce((a, p) => a + p.price * p.qty, 0) / totalQty : 0;
 
     const isEdit = Boolean(state.editingId);
+    const existingTrade = isEdit ? state.trades.find((t) => t.id === state.editingId) : null;
+    const feeRule = feeRuleForSymbol($("fSymbol").value);
+    const rInput = $("fR").value;
+    const keepRPending = Boolean(isRPending(existingTrade) && rInput === "" && m.riskMoney <= 0);
+    const r = keepRPending ? null : (rInput === "" ? m.r : Number(rInput));
     const trade = {
         id: state.editingId || uid(),
         date: new Date($("fDate").value || new Date()).toISOString(),
@@ -1273,8 +1342,15 @@ async function saveFromForm() {
         tags: $("fTags").value.split(",").map((t) => t.trim()).filter(Boolean),
         mistakes: $("fMistakes").value.split(",").map((t) => t.trim()).filter(Boolean),
         notes: $("fNotes").value.trim(),
-        createdAt: isEdit ? state.trades.find((t) => t.id === state.editingId)?.createdAt : new Date().toISOString()
+        feesAuto: Boolean(feeRule && !userTouchedFees),
+        feeRule: feeRule ? feeRule.label : "",
+        createdAt: isEdit ? existingTrade?.createdAt : new Date().toISOString()
     };
+    if (existingTrade?.source) trade.source = existingTrade.source;
+    if (existingTrade?.pnlLocked) trade.pnlLocked = true;
+    if (existingTrade?.brokerPnl !== undefined) trade.brokerPnl = existingTrade.brokerPnl;
+    if (keepRPending) trade.rPending = true;
+    else if (existingTrade?.source === "broker_csv") trade.rCompleted = true;
 
     if (!trade.symbol) {
         toast("Informe o ativo");
@@ -1324,30 +1400,41 @@ async function deleteTrade(id) {
 function computeStats(trades) {
     const sorted = [...trades].sort((a, b) => new Date(a.date) - new Date(b.date));
     const total = sorted.length;
-    const wins = sorted.filter((t) => t.r > 0);
-    const losses = sorted.filter((t) => t.r < 0);
-    const bes = sorted.filter((t) => t.r === 0);
+    const completedR = sorted.filter((t) => !isRPending(t));
+    const rCount = completedR.length;
+    const pendingR = total - rCount;
+    const wins = completedR.filter((t) => tradeRValue(t) > 0);
+    const losses = completedR.filter((t) => tradeRValue(t) < 0);
+    const bes = completedR.filter((t) => tradeRValue(t) === 0);
     const decisive = wins.length + losses.length;
     const winrate = decisive ? (wins.length / decisive) * 100 : 0;
-    const rTotal = sorted.reduce((a, t) => a + Number(t.r || 0), 0);
+    const rTotal = completedR.reduce((a, t) => a + tradeRValue(t), 0);
     const pnlTotal = sorted.reduce((a, t) => a + Number(t.pnl || 0), 0);
-    const avgWin = wins.length ? wins.reduce((a, t) => a + t.r, 0) / wins.length : 0;
-    const avgLoss = losses.length ? losses.reduce((a, t) => a + t.r, 0) / losses.length : 0;
-    const grossWin = wins.reduce((a, t) => a + t.r, 0);
-    const grossLoss = Math.abs(losses.reduce((a, t) => a + t.r, 0));
+    const feesTotal = sorted.reduce((a, t) => a + tradeFees(t), 0);
+    const avgWin = wins.length ? wins.reduce((a, t) => a + tradeRValue(t), 0) / wins.length : 0;
+    const avgLoss = losses.length ? losses.reduce((a, t) => a + tradeRValue(t), 0) / losses.length : 0;
+    const grossWin = wins.reduce((a, t) => a + tradeRValue(t), 0);
+    const grossLoss = Math.abs(losses.reduce((a, t) => a + tradeRValue(t), 0));
     const pf = grossLoss ? grossWin / grossLoss : grossWin ? Infinity : 0;
-    const expectancy = total ? rTotal / total : 0;
-    const largestWin = wins.length ? Math.max(...wins.map((t) => t.r)) : 0;
-    const largestLoss = losses.length ? Math.min(...losses.map((t) => t.r)) : 0;
+    const expectancy = rCount ? rTotal / rCount : 0;
+    const largestWin = wins.length ? Math.max(...wins.map(tradeRValue)) : 0;
+    const largestLoss = losses.length ? Math.min(...losses.map(tradeRValue)) : 0;
     const equity = [0];
-    sorted.forEach((t) => equity.push(equity[equity.length - 1] + Number(t.r || 0)));
+    const capitalEquity = [0];
+    completedR.forEach((t) => {
+        equity.push(equity[equity.length - 1] + tradeRValue(t));
+    });
+    sorted.forEach((t) => {
+        capitalEquity.push(capitalEquity[capitalEquity.length - 1] + Number(t.pnl || 0));
+    });
     let peak = 0, maxDD = 0;
     equity.forEach((v) => { peak = Math.max(peak, v); maxDD = Math.max(maxDD, peak - v); });
 
     let curStreak = 0, bestWin = 0, bestLoss = 0;
     let lastSign = 0;
-    sorted.forEach((t) => {
-        const sign = t.r > 0 ? 1 : t.r < 0 ? -1 : 0;
+    completedR.forEach((t) => {
+        const r = tradeRValue(t);
+        const sign = r > 0 ? 1 : r < 0 ? -1 : 0;
         if (sign === 0) { curStreak = 0; lastSign = 0; return; }
         if (sign === lastSign) curStreak++;
         else { curStreak = 1; lastSign = sign; }
@@ -1355,18 +1442,19 @@ function computeStats(trades) {
         else bestLoss = Math.max(bestLoss, curStreak);
     });
 
-    const lastDir = sorted.length ? (sorted[sorted.length - 1].r > 0 ? 1 : sorted[sorted.length - 1].r < 0 ? -1 : 0) : 0;
+    const lastDir = completedR.length ? (tradeRValue(completedR[completedR.length - 1]) > 0 ? 1 : tradeRValue(completedR[completedR.length - 1]) < 0 ? -1 : 0) : 0;
     let curRunLen = 0;
-    for (let i = sorted.length - 1; i >= 0; i--) {
-        const s = sorted[i].r > 0 ? 1 : sorted[i].r < 0 ? -1 : 0;
+    for (let i = completedR.length - 1; i >= 0; i--) {
+        const r = tradeRValue(completedR[i]);
+        const s = r > 0 ? 1 : r < 0 ? -1 : 0;
         if (s === lastDir && s !== 0) curRunLen++;
         else break;
     }
 
     return {
-        total, wins: wins.length, losses: losses.length, bes: bes.length,
-        winrate, rTotal, pnlTotal, avgWin, avgLoss, pf, expectancy,
-        largestWin, largestLoss, maxDD, equity,
+        total, rCount, pendingR, wins: wins.length, losses: losses.length, bes: bes.length,
+        winrate, rTotal, pnlTotal, feesTotal, avgWin, avgLoss, pf, expectancy,
+        largestWin, largestLoss, maxDD, equity, capitalEquity,
         bestWinStreak: bestWin, bestLossStreak: bestLoss,
         currentStreak: curRunLen, currentStreakDir: lastDir
     };
@@ -1374,14 +1462,18 @@ function computeStats(trades) {
 
 function renderKPIs() {
     const s = computeStats(state.trades);
+    const rMeta = `${s.rCount} com R${s.pendingR ? ` / ${s.pendingR} pend.` : ""}`;
     const kpis = [
-        { label: "Net P&L", value: fmtCurrency(s.pnlTotal), cls: s.pnlTotal > 0 ? "win" : s.pnlTotal < 0 ? "loss" : "neutral" },
-        { label: "R Total", value: fmtR(s.rTotal), cls: s.rTotal > 0 ? "win" : s.rTotal < 0 ? "loss" : "neutral" },
-        { label: "Winrate", value: fmtPct(s.winrate), meta: `${s.wins}W / ${s.losses}L / ${s.bes}BE`, cls: "neutral" },
+        { label: "Net P&L liq.", value: fmtCurrency(s.pnlTotal), meta: `fees: ${fmtCurrency(s.feesTotal)}`, cls: s.pnlTotal > 0 ? "win" : s.pnlTotal < 0 ? "loss" : "neutral" },
+        { label: "R Total", value: s.rCount ? fmtR(s.rTotal) : "pendente", meta: rMeta, cls: s.rTotal > 0 ? "win" : s.rTotal < 0 ? "loss" : "neutral" },
+        { label: "Winrate", value: s.rCount ? fmtPct(s.winrate) : "pendente", meta: `${s.wins}W / ${s.losses}L / ${s.bes}BE${s.pendingR ? ` / ${s.pendingR} pend.` : ""}`, cls: "neutral" },
         { label: "Expectancy", value: fmtR(s.expectancy), meta: "média por trade", cls: s.expectancy > 0 ? "win" : "loss" },
         { label: "Max Drawdown", value: fmtR(-s.maxDD), cls: "loss" },
         { label: "Trades", value: s.total, meta: s.currentStreakDir ? `Streak ${s.currentStreakDir > 0 ? "🟢" : "🔴"} ${s.currentStreak}` : "", cls: "neutral" }
     ];
+    kpis[3] = { label: "Expectancy", value: s.rCount ? fmtR(s.expectancy) : "pendente", meta: "media por trade com R", cls: s.rCount && s.expectancy > 0 ? "win" : s.rCount && s.expectancy < 0 ? "loss" : "neutral" };
+    kpis[4] = { label: "Max Drawdown", value: s.rCount ? fmtR(-s.maxDD) : "pendente", cls: s.rCount ? "loss" : "neutral" };
+    kpis[5] = { label: "Trades", value: s.total, meta: s.pendingR ? `${s.pendingR} com R pendente` : (s.currentStreakDir ? `Streak ${s.currentStreakDir > 0 ? "up" : "down"} ${s.currentStreak}` : ""), cls: "neutral" };
     $("kpiGrid").innerHTML = kpis.map((k) => `
         <div class="kpi-card ${k.cls}">
             <div class="label">${k.label}</div>
@@ -1407,10 +1499,10 @@ function drawEquity() {
     const { ctx, w, h } = setupCanvas("equityCanvas");
     const s = computeStats(state.trades);
     if (!state.trades.length) { drawEmpty(ctx, w, h); return; }
-    const pad = { t: 18, r: 18, b: 24, l: 44 };
-    const pts = s.equity;
+    const pad = { t: 18, r: 18, b: 24, l: 78 };
+    const pts = s.capitalEquity;
     const min = Math.min(...pts, 0);
-    const max = Math.max(...pts, 1);
+    const max = Math.max(...pts, 0);
     const range = max - min || 1;
 
     ctx.strokeStyle = "rgba(255,255,255,0.06)";
@@ -1455,14 +1547,14 @@ function drawEquity() {
     ctx.fillStyle = "#8a98b5";
     ctx.font = "700 11px Inter, Arial";
     ctx.textAlign = "right";
-    ctx.fillText(fmtR(max), pad.l - 6, pad.t + 4);
-    ctx.fillText(fmtR(min), pad.l - 6, h - pad.b + 4);
+    ctx.fillText(fmtCurrency(max), pad.l - 6, pad.t + 4);
+    ctx.fillText(fmtCurrency(min), pad.l - 6, h - pad.b + 4);
 }
 
 function drawDist() {
     const { ctx, w, h } = setupCanvas("distCanvas");
     const s = computeStats(state.trades);
-    if (!s.total) { drawEmpty(ctx, w, h); return; }
+    if (!s.rCount) { drawEmpty(ctx, w, h, s.pendingR ? "R pendente nos trades importados" : "Sem dados ainda"); return; }
     const data = [
         { l: "Wins", v: s.wins, c: "#2ddb8a" },
         { l: "Stops", v: s.losses, c: "#ff5d6c" },
@@ -1504,11 +1596,13 @@ function drawDist() {
 
 function drawHour() {
     const { ctx, w, h } = setupCanvas("hourCanvas");
-    if (!state.trades.length) { drawEmpty(ctx, w, h); return; }
+    const s = computeStats(state.trades);
+    if (!s.rCount) { drawEmpty(ctx, w, h, s.pendingR ? "R pendente nos trades importados" : "Sem dados ainda"); return; }
     const buckets = Array.from({ length: 24 }, () => 0);
     state.trades.forEach((t) => {
+        if (isRPending(t)) return;
         const hr = new Date(t.date).getHours();
-        buckets[hr] += Number(t.r || 0);
+        buckets[hr] += tradeRValue(t);
     });
     const pad = { t: 12, r: 10, b: 24, l: 32 };
     const maxAbs = Math.max(1, ...buckets.map(Math.abs));
@@ -1534,11 +1628,11 @@ function drawHour() {
     }
 }
 
-function drawEmpty(ctx, w, h) {
+function drawEmpty(ctx, w, h, text = "Sem dados ainda") {
     ctx.fillStyle = "#5a6a8a";
     ctx.font = "700 13px Inter, Arial";
     ctx.textAlign = "center";
-    ctx.fillText("Sem dados ainda", w / 2, h / 2);
+    ctx.fillText(text, w / 2, h / 2);
 }
 
 function renderRecent() {
@@ -1548,14 +1642,15 @@ function renderRecent() {
         return;
     }
     $("recentTrades").innerHTML = `<table>
-        <thead><tr><th>Data</th><th>Ativo</th><th>Lado</th><th>Setup</th><th class="right">R</th><th class="right">P&L</th></tr></thead>
+        <thead><tr><th>Data</th><th>Ativo</th><th>Lado</th><th>Setup</th><th class="right">R</th><th class="right">Fees</th><th class="right">P&L liq.</th></tr></thead>
         <tbody>${recent.map((t) => `
             <tr>
                 <td class="muted">${fmtDate(t.date)}</td>
                 <td><strong>${escapeHtml(t.symbol)}</strong></td>
                 <td><span class="pill ${t.side}">${t.side === "long" ? "Long" : "Short"}</span></td>
                 <td class="muted">${escapeHtml(t.setup || "-")}</td>
-                <td class="right"><span class="pill ${t.r > 0 ? "win" : t.r < 0 ? "loss" : "be"}">${fmtR(t.r)}</span></td>
+                <td class="right">${renderRBadge(t)}</td>
+                <td class="right muted">${fmtCurrency(tradeFees(t))}</td>
                 <td class="right"><strong style="color:${t.pnl > 0 ? "var(--green)" : t.pnl < 0 ? "var(--red)" : "var(--muted)"}">${fmtCurrency(t.pnl)}</strong></td>
             </tr>
         `).join("")}</tbody></table>`;
@@ -1567,9 +1662,10 @@ function renderTrades() {
     const result = $("filterResult").value;
     const filtered = state.trades.filter((t) => {
         if (side && t.side !== side) return false;
-        if (result === "win" && !(t.r > 0)) return false;
-        if (result === "loss" && !(t.r < 0)) return false;
-        if (result === "be" && t.r !== 0) return false;
+        const r = tradeRValue(t);
+        if (result === "win" && !(r > 0)) return false;
+        if (result === "loss" && !(r < 0)) return false;
+        if (result === "be" && !(r === 0)) return false;
         if (text) {
             const blob = `${t.symbol} ${t.setup} ${t.notes} ${(t.tags || []).join(" ")} ${(t.mistakes || []).join(" ")}`.toLowerCase();
             if (!blob.includes(text)) return false;
@@ -1587,7 +1683,7 @@ function renderTrades() {
     $("tradesTable").innerHTML = `<table>
         <thead><tr>
             <th>Data</th><th>Ativo</th><th>Lado</th><th>Setup</th><th>Tags</th>
-            <th class="right">R</th><th class="right">P&L</th><th></th>
+            <th class="right">R</th><th class="right">Fees</th><th class="right">P&L liq.</th><th></th>
         </tr></thead>
         <tbody>${filtered.map((t) => `
             <tr>
@@ -1596,7 +1692,8 @@ function renderTrades() {
                 <td><span class="pill ${t.side}">${t.side === "long" ? "Long" : "Short"}</span></td>
                 <td class="muted">${escapeHtml(t.setup || "-")}</td>
                 <td>${(t.tags || []).slice(0, 3).map((tg) => `<span class="tag">${escapeHtml(tg)}</span>`).join("")}</td>
-                <td class="right"><span class="pill ${t.r > 0 ? "win" : t.r < 0 ? "loss" : "be"}">${fmtR(t.r)}</span></td>
+                <td class="right">${renderRBadge(t)}</td>
+                <td class="right muted">${fmtCurrency(tradeFees(t))}</td>
                 <td class="right" style="color:${t.pnl > 0 ? "var(--green)" : t.pnl < 0 ? "var(--red)" : "var(--muted)"}">${fmtCurrency(t.pnl)}</td>
                 <td class="right">
                     <button class="btn btn-ghost" data-edit="${t.id}" type="button">✎</button>
@@ -1623,10 +1720,11 @@ function renderCalendar() {
 
     const dayMap = {};
     state.trades.forEach((t) => {
+        if (isRPending(t)) return;
         const d = new Date(t.date);
         if (d.getFullYear() !== month.getFullYear() || d.getMonth() !== month.getMonth()) return;
         const k = d.getDate();
-        dayMap[k] = (dayMap[k] || 0) + Number(t.r || 0);
+        dayMap[k] = (dayMap[k] || 0) + tradeRValue(t);
     });
 
     const allVals = Object.values(dayMap);
@@ -1648,7 +1746,7 @@ function renderCalendar() {
     $("calendarGrid").innerHTML = html;
 
     const monthTotal = allVals.reduce((a, b) => a + b, 0);
-    $("calMonthSummary").textContent = state.trades.length
+    $("calMonthSummary").textContent = allVals.length
         ? `Mês: ${fmtR(monthTotal)} em ${allVals.length} dias operados`
         : "";
 }
@@ -1656,6 +1754,10 @@ function renderCalendar() {
 function renderAdvancedStats() {
     const s = computeStats(state.trades);
     const items = [
+        ["P&L liquido", fmtCurrency(s.pnlTotal)],
+        ["Fees/custos", fmtCurrency(s.feesTotal)],
+        ["Trades com R", s.rCount],
+        ["R pendente", s.pendingR],
         ["Profit factor", s.pf === Infinity ? "∞" : s.pf.toFixed(2)],
         ["Expectancy (R)", s.expectancy.toFixed(2)],
         ["Avg win", fmtR(s.avgWin)],
@@ -1670,6 +1772,15 @@ function renderAdvancedStats() {
         ["Stops", s.losses],
         ["Empates", s.bes]
     ];
+    if (!s.rCount) {
+        items[4] = ["Profit factor", "pendente"];
+        items[5] = ["Expectancy (R)", "pendente"];
+        items[6] = ["Avg win", "pendente"];
+        items[7] = ["Avg loss", "pendente"];
+        items[8] = ["Largest win", "pendente"];
+        items[9] = ["Largest loss", "pendente"];
+        items[10] = ["Max drawdown", "pendente"];
+    }
     $("advancedStats").innerHTML = items.map(([l, v]) => `
         <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line-soft)">
             <span class="muted">${l}</span>
@@ -1681,11 +1792,12 @@ function renderAdvancedStats() {
 function renderTagStats() {
     const tagAgg = {};
     state.trades.forEach((t) => {
+        if (isRPending(t)) return;
         (t.tags || []).forEach((tag) => {
             tagAgg[tag] = tagAgg[tag] || { count: 0, r: 0, wins: 0 };
             tagAgg[tag].count++;
-            tagAgg[tag].r += Number(t.r || 0);
-            if (t.r > 0) tagAgg[tag].wins++;
+            tagAgg[tag].r += tradeRValue(t);
+            if (tradeRValue(t) > 0) tagAgg[tag].wins++;
         });
     });
     const arr = Object.entries(tagAgg).sort((a, b) => b[1].count - a[1].count);
@@ -1728,7 +1840,8 @@ function renderJournal() {
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
                 <strong>${escapeHtml(t.symbol)}</strong>
                 <span class="pill ${t.side}">${t.side}</span>
-                <span class="pill ${t.r > 0 ? "win" : t.r < 0 ? "loss" : "be"}">${fmtR(t.r)}</span>
+                ${renderRBadge(t)}
+                <span class="muted">Fees ${fmtCurrency(tradeFees(t))} | P&L liq. ${fmtCurrency(t.pnl)}</span>
                 <span class="muted" style="margin-left:auto;font-size:0.78rem">${fmtDate(t.date)}</span>
             </div>
             ${(t.mistakes || []).length ? `<div style="margin:6px 0">${t.mistakes.map((m) => `<span class="tag" style="background:var(--red-soft);color:var(--red);border-color:rgba(255,93,108,0.32)">${escapeHtml(m)}</span>`).join("")}</div>` : ""}
@@ -1774,6 +1887,210 @@ function exportJSON() {
     toast("Exportado");
 }
 
+function importFile(file) {
+    const name = (file.name || "").toLowerCase();
+    if (name.endsWith(".json")) {
+        importJSON(file);
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        const text = decodeImportBuffer(reader.result);
+        const trimmed = text.trim();
+        if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+            importJSONText(trimmed);
+            return;
+        }
+        importBrokerCSVText(text);
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function decodeImportBuffer(buffer) {
+    const utf8 = new TextDecoder("utf-8").decode(buffer);
+    if (!utf8.includes("\uFFFD")) return utf8;
+    return new TextDecoder("windows-1252").decode(buffer);
+}
+
+function importJSONText(text) {
+    try {
+        const data = JSON.parse(text);
+        if (!Array.isArray(data)) throw new Error("Formato invalido");
+        if (!confirm(`Importar ${data.length} trades? Isso substitui os atuais.`)) return;
+        state.trades = data;
+        saveTrades();
+        toast(`${data.length} trades importados`);
+        renderAll();
+    } catch (e) {
+        alert(`Erro ao importar: ${e.message}`);
+    }
+}
+
+async function importBrokerCSVText(text) {
+    try {
+        const trades = parseBrokerCSV(text);
+        if (!trades.length) throw new Error("Nenhum trade encontrado");
+        if (!confirm(`Importar ${trades.length} trades da corretora? Eles serao adicionados ao historico atual.`)) return;
+        state.trades = [...state.trades, ...trades];
+        saveTrades();
+        renderAll();
+        const sync = await syncImportedTradesCloud(trades);
+        if (!sync.ok) {
+            alert(`Trades importados localmente, mas falha ao sincronizar na nuvem: ${sync.message}`);
+            toast(`${trades.length} trades importados localmente`);
+            return;
+        }
+        toast(sync.synced ? `${trades.length} trades importados e sincronizados` : `${trades.length} trades da corretora importados`);
+    } catch (e) {
+        alert(`Erro ao importar CSV: ${e.message}`);
+    }
+}
+
+async function syncImportedTradesCloud(trades) {
+    if (!canUseCloud()) return { ok: true, synced: false };
+    cloudBusy = true;
+    updateCloudUi();
+    try {
+        const results = await Promise.all(trades.map((trade) => upsertTradeCloud(trade)));
+        const failed = results.find((result) => !result.ok);
+        if (failed) return { ok: false, synced: true, message: failed.message };
+        return { ok: true, synced: true };
+    } catch (err) {
+        return { ok: false, synced: true, message: err.message || String(err) };
+    } finally {
+        cloudBusy = false;
+        updateCloudUi();
+    }
+}
+
+function splitCsvLine(line) {
+    const cells = [];
+    let current = "";
+    let quoted = false;
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === "\"") {
+            if (quoted && line[i + 1] === "\"") {
+                current += "\"";
+                i++;
+            } else {
+                quoted = !quoted;
+            }
+        } else if (ch === ";" && !quoted) {
+            cells.push(current.trim());
+            current = "";
+        } else {
+            current += ch;
+        }
+    }
+    cells.push(current.trim());
+    return cells;
+}
+
+function normalizeCsvHeader(value) {
+    return String(value ?? "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\uFFFD/g, "")
+        .replace(/[^a-z0-9%]+/g, " ")
+        .trim();
+}
+
+function findHeaderIndex(headers, matcher) {
+    return headers.findIndex((header) => matcher(normalizeCsvHeader(header)));
+}
+
+function parseBrokerNumber(value) {
+    const raw = String(value ?? "").trim();
+    if (!raw || raw === "-") return 0;
+    const cleaned = raw.replace(/\s/g, "").replace(/[^\d,.\-]/g, "");
+    if (!cleaned || cleaned === "-") return 0;
+    const normalized = cleaned.includes(",")
+        ? cleaned.replace(/\./g, "").replace(",", ".")
+        : cleaned;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseBrokerDate(value) {
+    const match = String(value ?? "").match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (!match) return new Date().toISOString();
+    const [, day, month, year, hour = "0", minute = "0", second = "0"] = match;
+    const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+    return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
+function parseBrokerCSV(text) {
+    const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const headerLine = lines.findIndex((line) => normalizeCsvHeader(splitCsvLine(line)[0]) === "ativo");
+    if (headerLine < 0) throw new Error("Cabecalho 'Ativo' nao encontrado");
+
+    const headers = splitCsvLine(lines[headerLine]);
+    const idx = {
+        symbol: findHeaderIndex(headers, (h) => h === "ativo"),
+        opened: findHeaderIndex(headers, (h) => h === "abertura"),
+        side: findHeaderIndex(headers, (h) => h === "lado"),
+        qtyBuy: findHeaderIndex(headers, (h) => h.includes("qtd") && h.includes("compra")),
+        qtySell: findHeaderIndex(headers, (h) => h.includes("qtd") && h.includes("venda")),
+        buyPrice: findHeaderIndex(headers, (h) => h.includes("pre") && h.includes("compra")),
+        sellPrice: findHeaderIndex(headers, (h) => h.includes("pre") && h.includes("venda")),
+        pnl: findHeaderIndex(headers, (h) => h.includes("res") && h.includes("opera") && !h.includes("%"))
+    };
+    const required = ["symbol", "opened", "side", "buyPrice", "sellPrice", "pnl"];
+    const missing = required.filter((key) => idx[key] < 0);
+    if (missing.length) throw new Error(`Colunas obrigatorias ausentes: ${missing.join(", ")}`);
+
+    const cell = (row, index) => index >= 0 ? row[index] || "" : "";
+    return lines.slice(headerLine + 1).map((line) => {
+        const row = splitCsvLine(line);
+        const symbol = cell(row, idx.symbol).trim().toUpperCase();
+        if (!symbol) return null;
+
+        const sideRaw = cell(row, idx.side).trim().toUpperCase();
+        const side = sideRaw.startsWith("V") ? "short" : "long";
+        const qtyBuy = parseBrokerNumber(cell(row, idx.qtyBuy));
+        const qtySell = parseBrokerNumber(cell(row, idx.qtySell));
+        const qty = side === "long" ? (qtyBuy || qtySell) : (qtySell || qtyBuy);
+        const buyPrice = parseBrokerNumber(cell(row, idx.buyPrice));
+        const sellPrice = parseBrokerNumber(cell(row, idx.sellPrice));
+        const entry = side === "long" ? buyPrice : sellPrice;
+        const exit = side === "long" ? sellPrice : buyPrice;
+        const fees = calcAutoFees(symbol, qty);
+        const brokerPnl = parseBrokerNumber(cell(row, idx.pnl));
+        const feeRule = feeRuleForSymbol(symbol);
+
+        return {
+            id: uid(),
+            date: parseBrokerDate(cell(row, idx.opened)),
+            symbol,
+            side,
+            r: null,
+            rPending: true,
+            entry,
+            stop: "",
+            exit,
+            qty,
+            initQty: qty,
+            partials: exit && qty ? [{ price: exit, qty, fees: 0 }] : [],
+            riskMoney: 0,
+            fees,
+            pnl: brokerPnl - fees,
+            brokerPnl,
+            setup: "",
+            tags: [],
+            mistakes: [],
+            notes: `Importado da corretora. P&L liquido = resultado CSV ${fmtCurrency(brokerPnl)} - fees ${fmtCurrency(fees)} (${feeRule ? feeRule.label : "sem regra auto"}). Preencha stop/risco para calcular o R.`,
+            source: "broker_csv",
+            pnlLocked: true,
+            feesAuto: Boolean(feeRule),
+            feeRule: feeRule ? feeRule.label : "",
+            createdAt: new Date().toISOString()
+        };
+    }).filter(Boolean);
+}
+
 function importJSON(file) {
     const reader = new FileReader();
     reader.onload = () => {
@@ -1816,17 +2133,18 @@ function bindEvents() {
         renderPartials();
     });
 
-    ["fEntry", "fStop", "fInitQty", "fSide", "fFees", "fRiskMoney"].forEach((id) => {
+    ["fSymbol", "fEntry", "fStop", "fInitQty", "fSide", "fRiskMoney"].forEach((id) => {
         $(id).addEventListener("input", recomputeFromInputs);
     });
     $("fSide").addEventListener("change", recomputeFromInputs);
     $("fPnl").addEventListener("input", () => { userTouchedPnl = true; });
     $("fR").addEventListener("input", () => { userTouchedR = true; });
+    $("fFees").addEventListener("input", () => { userTouchedFees = true; recomputeFromInputs(); });
 
     $("btnExport").addEventListener("click", exportJSON);
     $("btnImport").addEventListener("click", () => $("importFile").click());
     $("importFile").addEventListener("change", (e) => {
-        if (e.target.files[0]) importJSON(e.target.files[0]);
+        if (e.target.files[0]) importFile(e.target.files[0]);
         e.target.value = "";
     });
 
