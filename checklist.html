@@ -262,12 +262,12 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
 .item.bonus.chk .cb{background:var(--yellow-s);border-color:var(--yellow);border-style:solid;box-shadow:0 0 8px rgba(245,200,66,.35);}
 .item.bonus.chk .cb::after{border-color:var(--yellow);}
 
-/* invalidation item */
-.item.inv{opacity:.9;}
-.item.inv .cb{border-color:var(--red);}
-.item.inv .itext::before{content:'⛔ ';font-size:.75rem;}
-.item.inv.chk .cb{background:var(--red-s);border-color:var(--red);border-style:solid;box-shadow:0 0 8px rgba(255,79,79,.35);}
-.item.inv.chk .cb::after{border-color:var(--red);}
+/* static warning item */
+.warn-item{
+  padding:8px 8px;border-bottom:1px solid var(--border);
+  font-size:.855rem;color:var(--muted);line-height:1.45;
+}
+.warn-item:last-child{border-bottom:none;}
 
 /* ── Gestao panel ── */
 .gestao-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
@@ -480,14 +480,14 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
         </div>
       </div>
 
-      <div class="block" data-block="1-5" data-max="2">
+      <div class="block" data-block="1-5" data-max="1">
         <div class="bhead" onclick="toggleBlock(this)">
           <div class="bnum">5</div>
           <div class="btitle-w">
-            <div class="btitle">Ponto de Entrada + R:R</div>
-            <div class="bsub">Region de OB · 50% se sem OB · R:R favorável</div>
+            <div class="btitle">Ponto de Entrada</div>
+            <div class="bsub">Região de OB · 50% se sem OB</div>
           </div>
-          <div class="bprog"><div class="dots" id="d-1-5"></div><div class="bbadge" id="b-1-5">0/2</div></div>
+          <div class="bprog"><div class="dots" id="d-1-5"></div><div class="bbadge" id="b-1-5">0/1</div></div>
           <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
             <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -497,11 +497,6 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
             <div class="cb"></div>
             <div class="itext">Entrada na <strong>região do OB</strong> (início ou 50%), ou no 50% do movimento se sem OB mas outros pontos muito alinhados</div>
             <span class="tag tg">Crítico</span>
-          </div>
-          <div class="item" onclick="toggleItem(this)">
-            <div class="cb"></div>
-            <div class="itext"><strong>R:R favorável</strong> — trade conduzido até mínimo 3x o risco conforme plano</div>
-            <span class="tag tr">Risco</span>
           </div>
         </div>
       </div>
@@ -570,14 +565,14 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
         </div>
       </div>
 
-      <div class="block" data-block="2-3" data-max="2">
+      <div class="block" data-block="2-3" data-max="1">
         <div class="bhead" onclick="toggleBlock(this)">
           <div class="bnum">3</div>
           <div class="btitle-w">
-            <div class="btitle">Entrada e R:R no OB</div>
-            <div class="bsub">Início do bloco ou nos 50% · R:R favorável</div>
+            <div class="btitle">Entrada no OB</div>
+            <div class="bsub">Início do bloco ou nos 50%</div>
           </div>
-          <div class="bprog"><div class="dots" id="d-2-3"></div><div class="bbadge" id="b-2-3">0/2</div></div>
+          <div class="bprog"><div class="dots" id="d-2-3"></div><div class="bbadge" id="b-2-3">0/1</div></div>
           <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
             <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -587,11 +582,6 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
             <div class="cb"></div>
             <div class="itext">Entrada no <strong>início do OB</strong> ou nos <strong>50% do bloco</strong> — zona de localização ideal</div>
             <span class="tag tg">Crítico</span>
-          </div>
-          <div class="item" onclick="toggleItem(this)">
-            <div class="cb"></div>
-            <div class="itext"><strong>R:R favorável</strong> com alvo claro — conduzir até mínimo 3x o risco</div>
-            <span class="tag tr">Risco</span>
           </div>
         </div>
       </div>
@@ -655,29 +645,20 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
         </div>
       </div>
 
-      <div class="block" data-block="3-3" data-max="2">
+      <div class="block">
         <div class="bhead" onclick="toggleBlock(this)">
           <div class="bnum">3</div>
           <div class="btitle-w">
             <div class="btitle">Invalidações</div>
             <div class="bsub">Condições que tornam o modelo inválido</div>
           </div>
-          <div class="bprog"><div class="dots" id="d-3-3"></div><div class="bbadge" id="b-3-3">0/2</div></div>
           <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
             <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
         <div class="bbody">
-          <div class="item inv" onclick="toggleItem(this)">
-            <div class="cb"></div>
-            <div class="itext"><strong>NÃO</strong> está em cima de nível de suporte ou resistência — se estiver, setup <strong>inválido</strong></div>
-            <span class="tag tr">Invalida</span>
-          </div>
-          <div class="item inv" onclick="toggleItem(this)">
-            <div class="cb"></div>
-            <div class="itext"><strong>NÃO</strong> está em zona de oferta (compra) ou demanda (venda) contrária que bloqueie o movimento</div>
-            <span class="tag tr">Invalida</span>
-          </div>
+          <div class="warn-item"><strong>NÃO</strong> está em cima de nível de suporte ou resistência — se estiver, setup <strong>inválido</strong></div>
+          <div class="warn-item"><strong>NÃO</strong> está em zona de oferta (compra) ou demanda (venda) contrária que bloqueie o movimento</div>
         </div>
       </div>
 
@@ -768,7 +749,7 @@ let activeModel = null;
 const MODELS = {
   '1': { blocks: ['1-1','1-2','1-3','1-4','1-5'], required: ['1-1','1-2','1-4','1-5'], label: 'Modelo #1 — Liquidez Nítida' },
   '2': { blocks: ['2-1','2-2','2-3'], required: ['2-1','2-2','2-3'], label: 'Modelo #2 — Order Block' },
-  '3': { blocks: ['3-1','3-2','3-3'], required: ['3-1','3-2','3-3'], label: 'Modelo #3 — POI' },
+  '3': { blocks: ['3-1','3-2'], required: ['3-1','3-2'], label: 'Modelo #3 — POI' },
   'g': { blocks: ['g-1'], required: ['g-1'], label: 'Gestão' }
 };
 
