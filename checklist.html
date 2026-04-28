@@ -139,14 +139,14 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
 
 /* ── Model tabs ── */
 .model-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
-.mtab.gate-tab{border-color:rgba(167,139,250,.3);background:rgba(167,139,250,.04);}
-.mtab.gate-tab:hover{border-color:var(--violet);background:rgba(167,139,250,.08);}
-.mtab.gate-tab.active{border-color:var(--violet);background:var(--violet-s);box-shadow:0 0 20px rgba(167,139,250,.3);}
-.mtab.gate-tab.active .mtab-num{color:var(--violet);}
-.mtab.gate-tab.gate-done{border-color:var(--violet);background:rgba(167,139,250,.05);}
-.mtab.gate-tab.gate-done .mtab-num{color:var(--violet);}
+.mtab.gate-tab{border-color:rgba(59,158,255,.3);background:rgba(59,158,255,.04);}
+.mtab.gate-tab:hover{border-color:var(--blue);background:rgba(59,158,255,.08);}
+.mtab.gate-tab.active{border-color:var(--blue);background:var(--blue-s);box-shadow:0 0 20px var(--blue-g);}
+.mtab.gate-tab.active .mtab-num{color:var(--blue);}
+.mtab.gate-tab.gate-done{border-color:var(--blue);background:rgba(59,158,255,.05);}
+.mtab.gate-tab.gate-done .mtab-num{color:var(--blue);}
 .mtab-flag{display:inline-block;color:var(--yellow);font-size:1rem;line-height:0;animation:blink 1.2s ease-in-out infinite;}
-.mtab.gate-tab.gate-done .mtab-flag{color:var(--violet);animation:none;font-size:.8rem;}
+.mtab.gate-tab.gate-done .mtab-flag{color:var(--blue);animation:none;font-size:.8rem;}
 .mtab.gate-tab.gate-done .mtab-flag::before{content:'✓ ';}
 
 @keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
@@ -173,8 +173,8 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
 
 .block{border-radius:var(--r);border:1px solid var(--border);background:var(--surf);overflow:hidden;transition:border-color .3s;}
 .block:hover{border-color:var(--border2);}
-.block.gate{border-color:rgba(167,139,250,.22);}
-.block.gate .bhead{background:rgba(167,139,250,.05);}
+.block.gate{border-color:rgba(59,158,255,.22);}
+.block.gate .bhead{background:rgba(59,158,255,.05);}
 
 .bhead{
   display:flex;align-items:center;gap:12px;padding:13px 17px;
@@ -189,7 +189,7 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
   font-size:.7rem;font-weight:800;color:var(--muted);flex-shrink:0;transition:all .3s;
 }
 .block.done .bnum{background:var(--surf2);border-color:var(--text);color:var(--text);}
-.block.gate .bnum{background:var(--violet-s);border-color:var(--violet);color:var(--violet);}
+.block.gate .bnum{background:var(--blue-s);border-color:var(--blue);color:var(--blue);}
 
 .btitle-w{flex:1;}
 .btitle{font-weight:700;font-size:.88rem;}
@@ -199,7 +199,7 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
 .dots{display:flex;gap:3px;}
 .dot{width:6px;height:6px;border-radius:50%;background:var(--border2);transition:all .22s;}
 .dot.on{background:var(--text);}
-.block.gate .dot.on{background:var(--violet);}
+.block.gate .dot.on{background:var(--blue);}
 
 .bbadge{
   font-size:.7rem;font-weight:700;color:var(--muted);
@@ -232,7 +232,7 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
   display:flex;align-items:center;justify-content:center;transition:all .2s;
 }
 .item.chk .cb{background:var(--text);border-color:var(--text);}
-.gate .item.chk .cb{background:var(--violet);border-color:var(--violet);}
+.gate .item.chk .cb{background:var(--blue);border-color:var(--blue);}
 .cb::after{
   content:'';width:5px;height:8px;
   border:2px solid var(--bg);border-top:none;border-left:none;
@@ -251,7 +251,7 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
   background:transparent;color:var(--muted);border:1px solid var(--border2);
 }
 .tr{color:#ff8a8a;border-color:rgba(255,79,79,.25);}
-.tv{color:var(--violet);border-color:rgba(167,139,250,.3);}
+.tv{color:var(--blue);border-color:rgba(59,158,255,.3);}
 .tg, .ty, .tb, .to{color:var(--muted);border-color:var(--border2);}
 
 /* bonus item */
@@ -730,8 +730,8 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
       <div class="lt"><span class="lr" style="color:var(--yellow)">Faltam 1-2</span><span class="ll">— AGUARDA</span></div></div>
     <div class="li"><div class="ld" style="background:var(--red)"></div>
       <div class="lt"><span class="lr" style="color:var(--red)">Faltam ≥3</span><span class="ll">— NÃO OPERA</span></div></div>
-    <div class="li"><div class="ld" style="background:var(--violet)"></div>
-      <div class="lt"><span class="lr" style="color:var(--violet)">Gate</span><span class="ll">— Veto absoluto</span></div></div>
+    <div class="li"><div class="ld" style="background:var(--blue)"></div>
+      <div class="lt"><span class="lr" style="color:var(--blue)">Gate</span><span class="ll">— Veto absoluto</span></div></div>
   </div>
 
   <div class="foot">
