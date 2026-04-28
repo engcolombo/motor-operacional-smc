@@ -262,9 +262,16 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
 .ll{color:var(--muted);margin-left:2px;}
 
 /* ── Footer ── */
-.foot{margin-top:28px;text-align:center;font-size:.73rem;color:var(--dim);}
-.foot a{color:var(--blue);opacity:.55;text-decoration:none;}
-.foot a:hover{opacity:1;}
+.foot{margin-top:28px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;}
+.foot-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:8px 16px;border-radius:var(--rs);
+  font-size:.82rem;font-weight:600;text-decoration:none;
+  border:1px solid var(--border2);background:var(--surf2);color:var(--muted);
+  transition:all .18s;
+}
+.foot-btn:hover{color:var(--text);border-color:var(--blue);background:var(--blue-s);}
+.foot-label{font-size:.72rem;color:var(--dim);}
 
 @keyframes pulse{0%{transform:scale(1);}40%{transform:scale(1.07);}100%{transform:scale(1);}}
 .pulse{animation:pulse .32s ease;}
@@ -707,11 +714,9 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
   </div>
 
   <div class="foot">
-    <a href="index.html">← Motor SMC</a>
-    &nbsp;·&nbsp;
-    <a href="diario.html">Diário Pro</a>
-    &nbsp;·&nbsp;
-    Excelência Trading — Modelos #1 · #2 · #3
+    <a class="foot-btn" href="index.html">← Motor SMC</a>
+    <a class="foot-btn" href="diario.html">Diário Pro →</a>
+    <span class="foot-label">Excelência Trading</span>
   </div>
 </div>
 

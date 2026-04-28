@@ -125,13 +125,20 @@ a { color: inherit; text-decoration: none; }
 
 .nav-back {
     margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 7px;
     color: var(--muted);
-    font-size: 0.78rem;
+    font-size: 0.82rem;
+    font-weight: 600;
     padding: 10px 12px;
     border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--bg-elev-2);
+    transition: all 0.18s;
 }
 
-.nav-back:hover { background: var(--bg-elev-2); color: var(--text); }
+.nav-back:hover { border-color: var(--accent); color: var(--text); background: rgba(123,92,255,0.1); }
 
 .cloud-box {
     margin: 4px 4px 14px;
