@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Checklist Operacional · Excelência Trading</title>
+<title>Checklist Pré-Trade</title>
 <style>
 :root {
   --bg:        #080e1a;
@@ -116,8 +116,42 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
 }
 .veto-bar.show{display:flex;}
 
+/* ── Plano warning ── */
+.plano-warn{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 18px;margin-bottom:14px;
+  border-radius:var(--r);border:1px solid var(--yellow);
+  background:linear-gradient(135deg,rgba(245,200,66,.08),rgba(245,200,66,.03));
+  box-shadow:0 0 24px var(--yellow-g);
+  animation:pulseWarn 2.4s ease-in-out infinite;
+}
+.plano-warn.hide{display:none;}
+.pw-icon{font-size:1.6rem;line-height:1;flex-shrink:0;}
+.pw-body{display:flex;flex-direction:column;gap:2px;font-size:.85rem;}
+.pw-body strong{color:var(--yellow);font-size:.92rem;}
+.pw-body span{color:var(--muted);font-size:.78rem;}
+.pw-body b{color:var(--yellow);font-weight:700;}
+
+@keyframes pulseWarn{
+  0%,100%{box-shadow:0 0 18px rgba(245,200,66,.18);}
+  50%{box-shadow:0 0 32px rgba(245,200,66,.38);}
+}
+
 /* ── Model tabs ── */
 .model-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.mtab.gate-tab{border-color:rgba(167,139,250,.3);background:rgba(167,139,250,.04);}
+.mtab.gate-tab:hover{border-color:var(--violet);background:rgba(167,139,250,.08);}
+.mtab.gate-tab.active{border-color:var(--violet);background:var(--violet-s);box-shadow:0 0 20px rgba(167,139,250,.3);}
+.mtab.gate-tab.active .mtab-num{color:var(--violet);}
+.mtab.gate-tab.gate-done{border-color:var(--green);background:var(--green-s);}
+.mtab.gate-tab.gate-done .mtab-num{color:var(--green);}
+.mtab-flag{display:inline-block;color:var(--red);font-size:1rem;line-height:0;animation:blink 1.2s ease-in-out infinite;}
+.mtab.gate-tab.gate-done .mtab-flag{color:var(--green);animation:none;}
+.mtab.gate-tab.gate-done .mtab-flag::before{content:'✓ ';}
+.mtab.gate-tab.gate-done .mtab-flag{font-size:.8rem;}
+
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+
 .mtab{
   flex:1;min-width:140px;
   padding:12px 16px;border-radius:var(--r);
@@ -283,7 +317,7 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
   <!-- Header -->
   <div class="hdr">
     <div class="brand">
-      <p class="eye">Checklist Operacional · Excelência Trading</p>
+      <p class="eye">Checklist Pré-Trade</p>
       <h1>Qual modelo é este setup?</h1>
       <p class="hdr-sub">Selecione o modelo, marque os critérios, receba o veredicto</p>
     </div>
@@ -313,27 +347,36 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
     🚫 &nbsp;Gate de gestão não confirmado — <strong>NÃO OPERA</strong> independente do score.
   </div>
 
+  <!-- Plano warning banner -->
+  <div class="plano-warn" id="planoWarn">
+    <div class="pw-icon">⚠️</div>
+    <div class="pw-body">
+      <strong>Preencha o Plano de Trading primeiro</strong>
+      <span>Sem isso, qualquer setup retorna "NÃO OPERA". Clique em <b>Passo 1 · Plano de Trading</b> abaixo.</span>
+    </div>
+  </div>
+
   <!-- Model tabs -->
   <div class="model-tabs">
+    <div class="mtab gate-tab" data-model="g" onclick="switchModel('g')">
+      <div class="mtab-num"><span class="mtab-flag" id="planoFlag">●</span> Passo 1</div>
+      <div class="mtab-title">Plano de Trading</div>
+      <div class="mtab-sub">Risco · stops · condução</div>
+    </div>
     <div class="mtab" data-model="1" onclick="switchModel(1)">
-      <div class="mtab-num">Modelo #1</div>
+      <div class="mtab-num">Passo 2 · Modelo #1</div>
       <div class="mtab-title">Liquidez Nítida</div>
       <div class="mtab-sub">EQL/EQH · BSL/SSL · captura</div>
     </div>
     <div class="mtab" data-model="2" onclick="switchModel(2)">
-      <div class="mtab-num">Modelo #2</div>
+      <div class="mtab-num">Passo 2 · Modelo #2</div>
       <div class="mtab-title">Order Block</div>
       <div class="mtab-sub">OB forte · liquidez antes · 50% OB</div>
     </div>
     <div class="mtab" data-model="3" onclick="switchModel(3)">
-      <div class="mtab-num">Modelo #3</div>
+      <div class="mtab-num">Passo 2 · Modelo #3</div>
       <div class="mtab-title">POI</div>
       <div class="mtab-sub">CHoCH indução · 50% impulsão · favor captura</div>
-    </div>
-    <div class="mtab" data-model="g" onclick="switchModel('g')">
-      <div class="mtab-num">Gestão</div>
-      <div class="mtab-title">Plano de Trading</div>
-      <div class="mtab-sub">Risco · stops · condução</div>
     </div>
   </div>
 
@@ -716,7 +759,7 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
   <div class="foot">
     <a class="foot-btn" href="index.html">← Motor SMC</a>
     <a class="foot-btn" href="diario.html">Diário Pro →</a>
-    <span class="foot-label">Excelência Trading</span>
+    <span class="foot-label">Modelos #1 · #2 · #3</span>
   </div>
 </div>
 
@@ -809,8 +852,14 @@ function updateAll() {
 
   document.getElementById('vetoBar').classList.toggle('show', !gateOk && activeModel && activeModel !== 'g');
 
+  // Plano warning + tab indicator
+  const planoWarn = document.getElementById('planoWarn');
+  const planoTab = document.querySelector('.mtab.gate-tab');
+  if (planoWarn) planoWarn.classList.toggle('hide', gateOk);
+  if (planoTab) planoTab.classList.toggle('gate-done', gateOk);
+
   if (!activeModel || activeModel === 'g') {
-    resetVerdict();
+    resetVerdict(gateOk);
     return;
   }
 
@@ -841,12 +890,18 @@ function updateAll() {
   updateVerdict(scored, total, gateOk, model.label);
 }
 
-function resetVerdict() {
+function resetVerdict(gateOk) {
   const card = document.getElementById('vcard');
   card.className = 'verdict';
-  document.getElementById('vtxt').textContent = 'Selecione um modelo';
-  document.getElementById('vsub').textContent = 'Modelo #1, #2 ou #3';
-  document.getElementById('vicon').textContent = '📋';
+  if (activeModel === 'g') {
+    document.getElementById('vtxt').textContent = gateOk ? 'Plano OK · escolha modelo' : 'Preencha o Plano';
+    document.getElementById('vsub').textContent = gateOk ? 'Agora vá para Modelo #1, #2 ou #3' : 'Marque os 3 itens do Plano de Trading';
+    document.getElementById('vicon').textContent = gateOk ? '✅' : '📝';
+  } else {
+    document.getElementById('vtxt').textContent = 'Comece pelo Plano';
+    document.getElementById('vsub').textContent = 'Passo 1: preencha o Plano de Trading';
+    document.getElementById('vicon').textContent = '📋';
+  }
   document.getElementById('snum').textContent = '0';
   document.getElementById('sden').textContent = '/0';
   document.getElementById('ring').style.strokeDashoffset = '169.6';
@@ -872,7 +927,7 @@ function updateVerdict(scored, total, gateOk, label) {
   if (!gateOk) {
     card.classList.add('stop');
     vtxt.textContent = 'NÃO OPERA';
-    vsub.textContent = 'Gate de gestão não confirmado';
+    vsub.textContent = '⚠️ Plano de Trading não preenchido — vá no Passo 1';
     vicon.textContent = '🚫';
   } else {
     const missing = total - scored;
@@ -918,13 +973,16 @@ function saveState() {
 function loadState() {
   try {
     const raw = localStorage.getItem('et_checklist');
-    if (!raw) return;
-    const st = JSON.parse(raw);
-    document.querySelectorAll('.item').forEach((item, i) => {
-      if (st.items?.[i]) item.classList.add('chk');
-    });
-    if (st.model) switchModel(st.model);
+    if (raw) {
+      const st = JSON.parse(raw);
+      document.querySelectorAll('.item').forEach((item, i) => {
+        if (st.items?.[i]) item.classList.add('chk');
+      });
+      if (st.model) { switchModel(st.model); return; }
+    }
   } catch(e){}
+  // Default: open Plano de Trading first
+  switchModel('g');
 }
 
 loadState();
