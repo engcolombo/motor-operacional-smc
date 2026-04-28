@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checklist Operacional · Excelência Trading</title>
+<style>
+:root {
+  --bg:        #080e1a;
+  --bg2:       #0d1627;
+  --surf:      #111c2e;
+  --surf2:     #162033;
+  --border:    rgba(255,255,255,0.07);
+  --border2:   rgba(255,255,255,0.13);
+  --text:      #e8f0fa;
+  --muted:     #6a80a0;
+  --dim:       #3a4f6e;
+
+  --blue:      #3b9eff;
+  --blue-s:    rgba(59,158,255,0.13);
+  --blue-g:    rgba(59,158,255,0.22);
+
+  --green:     #22c97a;
+  --green-s:   rgba(34,201,122,0.13);
+  --green-g:   rgba(34,201,122,0.28);
+
+  --yellow:    #f5c842;
+  --yellow-s:  rgba(245,200,66,0.13);
+  --yellow-g:  rgba(245,200,66,0.25);
+
+  --red:       #ff4f4f;
+  --red-s:     rgba(255,79,79,0.13);
+  --red-g:     rgba(255,79,79,0.25);
+
+  --violet:    #a78bfa;
+  --violet-s:  rgba(167,139,250,0.13);
+
+  --orange:    #fb923c;
+  --orange-s:  rgba(251,146,60,0.13);
+
+  --r: 12px;
+  --rs: 8px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:Inter,"Segoe UI",Arial,sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  min-height:100vh;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 15% -5%, rgba(59,158,255,0.055) 0%,transparent 60%),
+    radial-gradient(ellipse 60% 40% at 85% 105%, rgba(34,201,122,0.035) 0%,transparent 55%);
+}
+
+.shell{max-width:820px;margin:0 auto;padding:28px 16px 80px;}
+
+/* ── Header ── */
+.hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px;}
+.brand .eye{font-size:.68rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);}
+h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line-height:1.1;
+  background:linear-gradient(135deg,#e8f0fa 0%,#7db8ff 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.hdr-sub{font-size:.8rem;color:var(--muted);margin-top:3px;}
+.hdr-btns{display:flex;gap:8px;align-items:center;flex-shrink:0;margin-top:4px;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--rs);
+  font-size:.82rem;font-weight:600;cursor:pointer;border:1px solid var(--border2);
+  background:var(--surf2);color:var(--muted);transition:all .18s;}
+.btn:hover{color:var(--text);border-color:var(--blue);background:var(--blue-s);}
+.btn-ghost{background:transparent;border-color:transparent;}
+.btn-ghost:hover{border-color:var(--border2);background:var(--surf2);}
+
+/* ── Verdict ── */
+.verdict{
+  display:flex;align-items:center;gap:18px;
+  padding:18px 22px;border-radius:var(--r);border:1px solid var(--border);
+  background:var(--surf);margin-bottom:20px;transition:all .4s;position:relative;overflow:hidden;
+}
+.verdict::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .4s;pointer-events:none;}
+.verdict.go{border-color:var(--green);box-shadow:0 0 36px var(--green-g);}
+.verdict.go::before{background:radial-gradient(ellipse at left,rgba(34,201,122,.07),transparent 70%);opacity:1;}
+.verdict.wait{border-color:var(--yellow);box-shadow:0 0 36px var(--yellow-g);}
+.verdict.wait::before{background:radial-gradient(ellipse at left,rgba(245,200,66,.07),transparent 70%);opacity:1;}
+.verdict.stop{border-color:var(--red);box-shadow:0 0 36px var(--red-g);}
+.verdict.stop::before{background:radial-gradient(ellipse at left,rgba(255,79,79,.07),transparent 70%);opacity:1;}
+
+.v-ring{position:relative;width:64px;height:64px;flex-shrink:0;}
+.v-ring svg{transform:rotate(-90deg);width:64px;height:64px;}
+.v-ring circle{fill:none;stroke-width:5;}
+.rg-bg{stroke:var(--border2);}
+.rg-fill{stroke:var(--muted);stroke-linecap:round;transition:stroke-dashoffset .6s cubic-bezier(.4,0,.2,1),stroke .4s;}
+.verdict.go .rg-fill{stroke:var(--green);}
+.verdict.wait .rg-fill{stroke:var(--yellow);}
+.verdict.stop .rg-fill{stroke:var(--red);}
+.v-num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;}
+.v-num .n{font-size:1.15rem;font-weight:800;}
+.v-num .d{font-size:.62rem;color:var(--muted);margin-top:1px;}
+
+.v-body{flex:1;position:relative;}
+.v-lbl{font-size:.65rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:2px;}
+.v-txt{font-size:1.25rem;font-weight:800;letter-spacing:-.01em;transition:color .4s;}
+.verdict.go .v-txt{color:var(--green);}
+.verdict.wait .v-txt{color:var(--yellow);}
+.verdict.stop .v-txt{color:var(--red);}
+.v-sub{font-size:.78rem;color:var(--muted);margin-top:2px;}
+.v-icon{font-size:2rem;line-height:1;flex-shrink:0;}
+
+.veto-bar{
+  display:none;align-items:center;gap:10px;
+  margin-top:10px;padding:10px 14px;border-radius:var(--rs);
+  background:var(--red-s);border:1px solid rgba(255,79,79,.3);
+  font-size:.8rem;color:#ff8080;font-weight:600;
+}
+.veto-bar.show{display:flex;}
+
+/* ── Model tabs ── */
+.model-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.mtab{
+  flex:1;min-width:140px;
+  padding:12px 16px;border-radius:var(--r);
+  border:1px solid var(--border);background:var(--surf);
+  cursor:pointer;transition:all .2s;text-align:center;
+}
+.mtab:hover{border-color:var(--border2);background:var(--surf2);}
+.mtab.active{border-color:var(--blue);background:var(--blue-s);box-shadow:0 0 20px var(--blue-g);}
+.mtab-num{font-size:.65rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;}
+.mtab.active .mtab-num{color:var(--blue);}
+.mtab-title{font-size:.88rem;font-weight:700;color:var(--text);}
+.mtab-sub{font-size:.72rem;color:var(--muted);margin-top:2px;}
+
+/* ── Panels ── */
+.panel{display:none;}
+.panel.active{display:block;}
+
+/* ── Block cards ── */
+.blocks{display:flex;flex-direction:column;gap:12px;}
+
+.block{border-radius:var(--r);border:1px solid var(--border);background:var(--surf);overflow:hidden;transition:border-color .3s;}
+.block:hover{border-color:var(--border2);}
+.block.gate{border-color:rgba(167,139,250,.22);}
+.block.gate .bhead{background:rgba(167,139,250,.05);}
+
+.bhead{
+  display:flex;align-items:center;gap:12px;padding:13px 17px;
+  cursor:pointer;user-select:none;background:var(--surf2);transition:background .18s;
+}
+.bhead:hover{background:rgba(255,255,255,.035);}
+
+.bnum{
+  width:24px;height:24px;border-radius:50%;
+  background:var(--bg2);border:1px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.7rem;font-weight:800;color:var(--muted);flex-shrink:0;transition:all .3s;
+}
+.block.done .bnum{background:var(--green-s);border-color:var(--green);color:var(--green);}
+.block.gate .bnum{background:var(--violet-s);border-color:var(--violet);color:var(--violet);}
+
+.btitle-w{flex:1;}
+.btitle{font-weight:700;font-size:.88rem;}
+.bsub{font-size:.72rem;color:var(--muted);margin-top:1px;}
+
+.bprog{display:flex;align-items:center;gap:7px;flex-shrink:0;}
+.dots{display:flex;gap:3px;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--border2);transition:all .22s;}
+.dot.on{background:var(--green);box-shadow:0 0 5px var(--green);}
+.block.gate .dot.on{background:var(--violet);box-shadow:0 0 5px var(--violet);}
+
+.bbadge{
+  font-size:.7rem;font-weight:700;color:var(--muted);
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:20px;padding:2px 7px;min-width:32px;text-align:center;transition:all .3s;
+}
+.block.done .bbadge{color:var(--green);border-color:var(--green);background:var(--green-s);}
+
+.chev{color:var(--dim);transition:transform .22s;flex-shrink:0;}
+.block.open .chev{transform:rotate(180deg);}
+
+.bbody{display:none;padding:5px 17px 14px;border-top:1px solid var(--border);}
+.block.open .bbody{display:block;animation:fadeIn .2s ease;}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(-5px);}to{opacity:1;transform:translateY(0);}}
+
+/* ── Items ── */
+.item{
+  display:flex;align-items:flex-start;gap:11px;
+  padding:9px 8px;border-bottom:1px solid var(--border);
+  cursor:pointer;border-radius:6px;margin:0 -4px;transition:background .15s;
+}
+.item:last-child{border-bottom:none;}
+.item:hover{background:rgba(255,255,255,.022);}
+
+.cb{
+  width:19px;height:19px;border-radius:5px;
+  border:2px solid var(--dim);background:var(--bg2);
+  flex-shrink:0;margin-top:1px;
+  display:flex;align-items:center;justify-content:center;transition:all .2s;
+}
+.item.chk .cb{background:var(--green);border-color:var(--green);box-shadow:0 0 9px rgba(34,201,122,.4);}
+.gate .item.chk .cb{background:var(--violet);border-color:var(--violet);box-shadow:0 0 9px rgba(167,139,250,.4);}
+.cb::after{
+  content:'';width:5px;height:8px;
+  border:2px solid white;border-top:none;border-left:none;
+  transform:rotate(45deg) scale(0);transition:transform .15s cubic-bezier(.34,1.56,.64,1);
+  margin-top:-2px;
+}
+.item.chk .cb::after{transform:rotate(45deg) scale(1);}
+
+.itext{flex:1;font-size:.855rem;color:var(--text);line-height:1.45;}
+.item.chk .itext{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--dim);}
+
+.tag{
+  font-size:.63rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  padding:2px 7px;border-radius:20px;flex-shrink:0;margin-top:2px;
+}
+.tg{background:var(--green-s);color:var(--green);}
+.ty{background:var(--yellow-s);color:var(--yellow);}
+.tr{background:var(--red-s);color:var(--red);}
+.tb{background:var(--blue-s);color:var(--blue);}
+.tv{background:var(--violet-s);color:var(--violet);}
+.to{background:var(--orange-s);color:var(--orange);}
+
+/* bonus item */
+.item.bonus .itext::before{
+  content:'★ ';font-size:.75rem;color:var(--yellow);margin-right:2px;
+}
+.item.bonus .cb{border-color:var(--yellow);border-style:dashed;}
+.item.bonus.chk .cb{background:var(--yellow-s);border-color:var(--yellow);border-style:solid;box-shadow:0 0 8px rgba(245,200,66,.35);}
+.item.bonus.chk .cb::after{border-color:var(--yellow);}
+
+/* invalidation item */
+.item.inv{opacity:.9;}
+.item.inv .cb{border-color:var(--red);}
+.item.inv .itext::before{content:'⛔ ';font-size:.75rem;}
+.item.inv.chk .cb{background:var(--red-s);border-color:var(--red);border-style:solid;box-shadow:0 0 8px rgba(255,79,79,.35);}
+.item.inv.chk .cb::after{border-color:var(--red);}
+
+/* ── Gestao panel ── */
+.gestao-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+@media(max-width:500px){.gestao-grid{grid-template-columns:1fr;}}
+
+.gestao-card{
+  padding:14px 16px;border-radius:var(--r);
+  border:1px solid var(--border);background:var(--surf2);
+}
+.gc-title{font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+.gc-list{display:flex;flex-direction:column;gap:5px;font-size:.82rem;color:var(--text);}
+.gc-item{display:flex;gap:7px;align-items:baseline;}
+.gc-dot{width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0;margin-top:5px;}
+
+/* ── Legend ── */
+.legend{display:flex;gap:8px;margin-top:22px;flex-wrap:wrap;}
+.li{
+  display:flex;align-items:center;gap:7px;padding:8px 11px;
+  border-radius:var(--rs);border:1px solid var(--border);background:var(--surf);flex:1;min-width:130px;
+}
+.ld{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.lt{font-size:.76rem;}
+.lr{font-weight:700;}
+.ll{color:var(--muted);margin-left:2px;}
+
+/* ── Footer ── */
+.foot{margin-top:28px;text-align:center;font-size:.73rem;color:var(--dim);}
+.foot a{color:var(--blue);opacity:.55;text-decoration:none;}
+.foot a:hover{opacity:1;}
+
+@keyframes pulse{0%{transform:scale(1);}40%{transform:scale(1.07);}100%{transform:scale(1);}}
+.pulse{animation:pulse .32s ease;}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="brand">
+      <p class="eye">Checklist Operacional · Excelência Trading</p>
+      <h1>Qual modelo é este setup?</h1>
+      <p class="hdr-sub">Selecione o modelo, marque os critérios, receba o veredicto</p>
+    </div>
+    <div class="hdr-btns">
+      <button class="btn btn-ghost" id="btnReset">↺ Resetar</button>
+    </div>
+  </div>
+
+  <!-- Verdict -->
+  <div class="verdict" id="vcard">
+    <div class="v-ring">
+      <svg viewBox="0 0 64 64">
+        <circle class="rg-bg" cx="32" cy="32" r="27"/>
+        <circle class="rg-fill" cx="32" cy="32" r="27" id="ring"
+          stroke-dasharray="169.6" stroke-dashoffset="169.6"/>
+      </svg>
+      <div class="v-num"><span class="n" id="snum">0</span><span class="d" id="sden">/0</span></div>
+    </div>
+    <div class="v-body">
+      <p class="v-lbl">Decisão</p>
+      <p class="v-txt" id="vtxt">Selecione um modelo</p>
+      <p class="v-sub" id="vsub">Modelo #1, #2 ou #3</p>
+    </div>
+    <div class="v-icon" id="vicon">📋</div>
+  </div>
+  <div class="veto-bar" id="vetoBar">
+    🚫 &nbsp;Gate de gestão não confirmado — <strong>NÃO OPERA</strong> independente do score.
+  </div>
+
+  <!-- Model tabs -->
+  <div class="model-tabs">
+    <div class="mtab" data-model="1" onclick="switchModel(1)">
+      <div class="mtab-num">Modelo #1</div>
+      <div class="mtab-title">Liquidez Nítida</div>
+      <div class="mtab-sub">EQL/EQH · BSL/SSL · captura</div>
+    </div>
+    <div class="mtab" data-model="2" onclick="switchModel(2)">
+      <div class="mtab-num">Modelo #2</div>
+      <div class="mtab-title">Order Block</div>
+      <div class="mtab-sub">OB forte · liquidez antes · 50% OB</div>
+    </div>
+    <div class="mtab" data-model="3" onclick="switchModel(3)">
+      <div class="mtab-num">Modelo #3</div>
+      <div class="mtab-title">POI</div>
+      <div class="mtab-sub">CHoCH indução · 50% impulsão · favor captura</div>
+    </div>
+    <div class="mtab" data-model="g" onclick="switchModel('g')">
+      <div class="mtab-num">Gestão</div>
+      <div class="mtab-title">Plano de Trading</div>
+      <div class="mtab-sub">Risco · stops · condução</div>
+    </div>
+  </div>
+
+  <!-- ═══ PANEL 1 ═══ -->
+  <div class="panel" id="panel-1">
+    <div class="blocks">
+
+      <div class="block open" data-block="1-1" data-max="2">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">1</div>
+          <div class="btitle-w">
+            <div class="btitle">Liquidez Nítida Identificada</div>
+            <div class="bsub">EQL, EQH, BSL, SSL, SH, SL — quanto mais nítida melhor</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-1-1"></div><div class="bbadge" id="b-1-1">0/2</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Liquidez <strong>nítida visível</strong> no gráfico — EQL ou EQH claros (suporte/resistência tocado múltiplas vezes)</div>
+            <span class="tag tg">Crítico</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Tipo de liquidez identificado: BSL (Buy-Side) ou SSL (Sell-Side) ou SH/SL estrutural</div>
+            <span class="tag tb">Estrutura</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" data-block="1-2" data-max="2">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">2</div>
+          <div class="btitle-w">
+            <div class="btitle">Captura de Liquidez Expressiva</div>
+            <div class="bsub">CHoCH em posição de captura = genuíno · CHoCH após = possível</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-1-2"></div><div class="bbadge" id="b-1-2">0/2</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">A liquidez foi <strong>capturada expressivamente</strong> — movimento forte que limpou o nível</div>
+            <span class="tag tg">Crítico</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">CHoCH ocorreu <strong>em posição de captura</strong> (desenvolvimento genuíno) — não apenas depois</div>
+            <span class="tag tg">Crítico</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" data-block="1-3" data-max="1">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">3</div>
+          <div class="btitle-w">
+            <div class="btitle">Divergência RSI na Captura</div>
+            <div class="bsub">★ Bônus — melhora o cenário, não obrigatório</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-1-3"></div><div class="bbadge" id="b-1-3">0/1</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item bonus" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Divergência no RSI na captura — preço renova extrema mas RSI não renova (força relativa fraquejando)</div>
+            <span class="tag ty">Bônus</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" data-block="1-4" data-max="2">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">4</div>
+          <div class="btitle-w">
+            <div class="btitle">CHoCH de Qualidade + Entrada</div>
+            <div class="bsub">Fechamento de candle · intencionalidade · OB ou 50%</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-1-4"></div><div class="bbadge" id="b-1-4">0/2</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">CHoCH com <strong>fechamento de candle</strong> acima/abaixo dos pavios — não apenas wick (maior qualidade)</div>
+            <span class="tag tg">Crítico</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Impulsão do CHoCH mostra <strong>intencionalidade</strong> — candles cheios, direcional, ineficiência gerada</div>
+            <span class="tag ty">Confirmação</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" data-block="1-5" data-max="2">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">5</div>
+          <div class="btitle-w">
+            <div class="btitle">Ponto de Entrada + R:R</div>
+            <div class="bsub">Region de OB · 50% se sem OB · R:R favorável</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-1-5"></div><div class="bbadge" id="b-1-5">0/2</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Entrada na <strong>região do OB</strong> (início ou 50%), ou no 50% do movimento se sem OB mas outros pontos muito alinhados</div>
+            <span class="tag tg">Crítico</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext"><strong>R:R favorável</strong> — trade conduzido até mínimo 3x o risco conforme plano</div>
+            <span class="tag tr">Risco</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ PANEL 2 ═══ -->
+  <div class="panel" id="panel-2">
+    <div class="blocks">
+
+      <div class="block open" data-block="2-1" data-max="3">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">1</div>
+          <div class="btitle-w">
+            <div class="btitle">Order Block Forte</div>
+            <div class="bsub">Ineficiência gerada · engolfado · TF maior</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-2-1"></div><div class="bbadge" id="b-2-1">0/3</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">OB <strong>gera ineficiência</strong> após o bloco — região muito mais forte</div>
+            <span class="tag tg">Forte</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">OB é <strong>engolfado</strong> (último candle antes do impulso é engolfado) — região muito mais forte</div>
+            <span class="tag tg">Forte</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">OB em <strong>TF maior</strong> (4h, 1h, 15m ou 5m conforme o mercado) — mais vantajoso</div>
+            <span class="tag ty">Qualidade</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" data-block="2-2" data-max="2">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">2</div>
+          <div class="btitle-w">
+            <div class="btitle">Criação de Liquidez Antes do OB</div>
+            <div class="bsub">$$$ criado acima/abaixo antes de mitigar o bloco</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-2-2"></div><div class="bbadge" id="b-2-2">0/2</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext"><strong>Liquidez criada</strong> antes de o preço retornar ao OB — $$$ acumulados acima (compra) ou abaixo (venda)</div>
+            <span class="tag tg">Crítico</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">O preço <strong>limpou essa liquidez</strong> e então retornou para o OB (ou está retornando)</div>
+            <span class="tag tg">Crítico</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" data-block="2-3" data-max="2">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">3</div>
+          <div class="btitle-w">
+            <div class="btitle">Entrada e R:R no OB</div>
+            <div class="bsub">Início do bloco ou nos 50% · R:R favorável</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-2-3"></div><div class="bbadge" id="b-2-3">0/2</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Entrada no <strong>início do OB</strong> ou nos <strong>50% do bloco</strong> — zona de localização ideal</div>
+            <span class="tag tg">Crítico</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext"><strong>R:R favorável</strong> com alvo claro — conduzir até mínimo 3x o risco</div>
+            <span class="tag tr">Risco</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ PANEL 3 ═══ -->
+  <div class="panel" id="panel-3">
+    <div class="blocks">
+
+      <div class="block open" data-block="3-1" data-max="2">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">1</div>
+          <div class="btitle-w">
+            <div class="btitle">POI — CHoCH de Indução Confirmado</div>
+            <div class="bsub">CHoCH de compra ou de venda com intencionalidade - contrario a captura</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-3-1"></div><div class="bbadge" id="b-3-1">0/2</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext"><strong>CHoCH de indução</strong> formado — quebra de topo ou fundo válido </div>
+            <span class="tag tg">Crítico</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Impulsão que quebra o CHoCH tem <strong>interesse</strong> — candles cheios, direcional, gerou ineficiência</div>
+            <span class="tag ty">Qualidade</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" data-block="3-2" data-max="2">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">2</div>
+          <div class="btitle-w">
+            <div class="btitle">Região dos 50% da Impulsão</div>
+            <div class="bsub">Zona de compra ou venda nos 50% da última impulsão</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-3-2"></div><div class="bbadge" id="b-3-2">0/2</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Zona de entrada <strong>acima dos 50%</strong> da última impulsão (compra) ou <strong>abaixo dos 50%</strong> (venda)</div>
+            <span class="tag tg">Crítico</span>
+          </div>
+          <div class="item bonus" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Entrada está <strong>a favor da última captura de liquidez</strong> — setup de maior qualidade</div>
+            <span class="tag ty">Bônus</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" data-block="3-3" data-max="2">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">3</div>
+          <div class="btitle-w">
+            <div class="btitle">Invalidações</div>
+            <div class="bsub">Condições que tornam o modelo inválido</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-3-3"></div><div class="bbadge" id="b-3-3">0/2</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item inv" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext"><strong>NÃO</strong> está em cima de nível de suporte ou resistência — se estiver, setup <strong>inválido</strong></div>
+            <span class="tag tr">Invalida</span>
+          </div>
+          <div class="item inv" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext"><strong>NÃO</strong> está em zona de oferta (compra) ou demanda (venda) contrária que bloqueie o movimento</div>
+            <span class="tag tr">Invalida</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ PANEL GESTÃO ═══ -->
+  <div class="panel" id="panel-g">
+    <div class="gestao-grid">
+      <div class="gestao-card">
+        <div class="gc-title">Gestão de Trading</div>
+        <div class="gc-list">
+          <div class="gc-item"><div class="gc-dot"></div><span>Risco diário dividido em 2 partes (1-5%)</span></div>
+          <div class="gc-item"><div class="gc-dot"></div><span>2 stops no dia = encerra, volta só se configurar bom cenário</span></div>
+          <div class="gc-item"><div class="gc-dot"></div><span>Todos trades conduzidos até mínimo <strong>3x o risco</strong></span></div>
+          <div class="gc-item"><div class="gc-dot"></div><span>Fechar antes do alvo <strong>não é uma opção</strong></span></div>
+        </div>
+      </div>
+      <div class="gestao-card">
+        <div class="gc-title">Operacional ET</div>
+        <div class="gc-list">
+          <div class="gc-item"><div class="gc-dot"></div><span>Usar Checklist #1, #2 ou #3 para cada setup</span></div>
+          <div class="gc-item"><div class="gc-dot"></div><span>Aproveitar <strong>todos</strong> os movimentos visualizados dentro do checklist</span></div>
+          <div class="gc-item"><div class="gc-dot"></div><span>Seguir sistematicamente — estatística operacional do mercado</span></div>
+          <div class="gc-item"><div class="gc-dot"></div><span>Não participar de cenários não alinhados</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="blocks">
+      <div class="block gate open" data-block="g-1" data-max="3">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">⚡</div>
+          <div class="btitle-w">
+            <div class="btitle">Gate — Antes de Operar Hoje</div>
+            <div class="bsub">Qualquer NÃO = não opera · independente do score do modelo</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-g-1"></div><div class="bbadge" id="b-g-1">0/3</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Ainda <strong>não tomei 2 stops hoje</strong> (se tomei, só volto se configurar cenário muito bem alinhado)</div>
+            <span class="tag tv">Gate</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Estou operando por <strong>análise racional</strong>, não por FOMO, revanche ou impulsividade</div>
+            <span class="tag tv">Gate</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Aceito conduzir o trade <strong>até o alvo (≥3R)</strong> sem fechar antes por ansiedade</div>
+            <span class="tag tv">Gate</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend" id="legend" style="display:none;">
+    <div class="li"><div class="ld" style="background:var(--green)"></div>
+      <div class="lt"><span class="lr" style="color:var(--green)">Todos ✓</span><span class="ll">— OPERA</span></div></div>
+    <div class="li"><div class="ld" style="background:var(--yellow)"></div>
+      <div class="lt"><span class="lr" style="color:var(--yellow)">Faltam 1-2</span><span class="ll">— AGUARDA</span></div></div>
+    <div class="li"><div class="ld" style="background:var(--red)"></div>
+      <div class="lt"><span class="lr" style="color:var(--red)">Faltam ≥3</span><span class="ll">— NÃO OPERA</span></div></div>
+    <div class="li"><div class="ld" style="background:var(--violet)"></div>
+      <div class="lt"><span class="lr" style="color:var(--violet)">Gate</span><span class="ll">— Veto absoluto</span></div></div>
+  </div>
+
+  <div class="foot">
+    <a href="index.html">← Motor SMC</a>
+    &nbsp;·&nbsp;
+    <a href="diario.html">Diário Pro</a>
+    &nbsp;·&nbsp;
+    Excelência Trading — Modelos #1 · #2 · #3
+  </div>
+</div>
+
+<script>
+// ── State ──
+let activeModel = null;
+
+// Block configs per model
+const MODELS = {
+  '1': { blocks: ['1-1','1-2','1-3','1-4','1-5'], required: ['1-1','1-2','1-4','1-5'], label: 'Modelo #1 — Liquidez Nítida' },
+  '2': { blocks: ['2-1','2-2','2-3'], required: ['2-1','2-2','2-3'], label: 'Modelo #2 — Order Block' },
+  '3': { blocks: ['3-1','3-2','3-3'], required: ['3-1','3-2','3-3'], label: 'Modelo #3 — POI' },
+  'g': { blocks: ['g-1'], required: ['g-1'], label: 'Gestão' }
+};
+
+// ── Init dots ──
+document.querySelectorAll('[data-block]').forEach(block => {
+  const id = block.dataset.block;
+  const max = +block.dataset.max;
+  const wrap = document.getElementById(`d-${id}`);
+  if (!wrap) return;
+  for (let i = 0; i < max; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    wrap.appendChild(d);
+  }
+});
+
+// ── Switch model ──
+function switchModel(m) {
+  m = String(m);
+  activeModel = m;
+
+  // tabs
+  document.querySelectorAll('.mtab').forEach(t => t.classList.toggle('active', t.dataset.model === m));
+
+  // panels
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById(`panel-${m}`);
+  if (panel) panel.classList.add('active');
+
+  // legend
+  document.getElementById('legend').style.display = m !== 'g' ? 'flex' : 'none';
+
+  updateAll();
+  saveState();
+}
+
+// ── Toggle block ──
+function toggleBlock(hdr) {
+  hdr.closest('.block').classList.toggle('open');
+}
+
+// ── Toggle item ──
+function toggleItem(item) {
+  item.classList.toggle('chk');
+  updateAll();
+  saveState();
+}
+
+// ── Update scores ──
+function updateAll() {
+  // Update all blocks regardless of active model
+  document.querySelectorAll('[data-block]').forEach(block => {
+    const id = block.dataset.block;
+    const max = +block.dataset.max;
+    const items = block.querySelectorAll('.item');
+    let count = 0;
+    items.forEach(i => { if (i.classList.contains('chk')) count++; });
+
+    // dots
+    const dots = document.querySelectorAll(`#d-${id} .dot`);
+    dots.forEach((d, idx) => d.classList.toggle('on', idx < count));
+
+    // badge
+    const badge = document.getElementById(`b-${id}`);
+    if (badge) badge.textContent = `${count}/${max}`;
+
+    // done
+    block.classList.toggle('done', count === max && !block.classList.contains('gate'));
+  });
+
+  // Gate check
+  const gblock = document.querySelector('[data-block="g-1"]');
+  const gItems = gblock ? gblock.querySelectorAll('.item') : [];
+  let gCount = 0;
+  gItems.forEach(i => { if (i.classList.contains('chk')) gCount++; });
+  const gMax = gblock ? +gblock.dataset.max : 3;
+  const gateOk = gCount === gMax;
+
+  document.getElementById('vetoBar').classList.toggle('show', !gateOk && activeModel && activeModel !== 'g');
+
+  if (!activeModel || activeModel === 'g') {
+    resetVerdict();
+    return;
+  }
+
+  const model = MODELS[activeModel];
+  if (!model) return;
+
+  // Count scored items (non-inv = positive; inv.chk counts as pass; bonus counts as extra)
+  let scored = 0, total = 0;
+  model.blocks.forEach(bid => {
+    const block = document.querySelector(`[data-block="${bid}"]`);
+    if (!block) return;
+    const items = block.querySelectorAll('.item');
+    items.forEach(item => {
+      const isBonus = item.classList.contains('bonus');
+      const isInv = item.classList.contains('inv');
+      const chk = item.classList.contains('chk');
+
+      if (!isBonus) total++;
+
+      if (isInv) {
+        if (chk) scored++; // inv checked = condition met (not invalid)
+      } else if (chk) {
+        scored++;
+      }
+    });
+  });
+
+  updateVerdict(scored, total, gateOk, model.label);
+}
+
+function resetVerdict() {
+  const card = document.getElementById('vcard');
+  card.className = 'verdict';
+  document.getElementById('vtxt').textContent = 'Selecione um modelo';
+  document.getElementById('vsub').textContent = 'Modelo #1, #2 ou #3';
+  document.getElementById('vicon').textContent = '📋';
+  document.getElementById('snum').textContent = '0';
+  document.getElementById('sden').textContent = '/0';
+  document.getElementById('ring').style.strokeDashoffset = '169.6';
+}
+
+function updateVerdict(scored, total, gateOk, label) {
+  const card = document.getElementById('vcard');
+  const vtxt = document.getElementById('vtxt');
+  const vsub = document.getElementById('vsub');
+  const vicon = document.getElementById('vicon');
+  const snum = document.getElementById('snum');
+  const sden = document.getElementById('sden');
+  const ring = document.getElementById('ring');
+
+  snum.textContent = scored;
+  sden.textContent = `/${total}`;
+
+  const circ = 169.6;
+  ring.style.strokeDashoffset = circ * (1 - Math.min(scored / Math.max(total, 1), 1));
+
+  card.classList.remove('go','wait','stop');
+
+  if (!gateOk) {
+    card.classList.add('stop');
+    vtxt.textContent = 'NÃO OPERA';
+    vsub.textContent = 'Gate de gestão não confirmado';
+    vicon.textContent = '🚫';
+  } else {
+    const missing = total - scored;
+    if (missing === 0) {
+      card.classList.add('go');
+      vtxt.textContent = 'OPERA ✓';
+      vsub.textContent = `${label} — todos critérios confirmados`;
+      vicon.textContent = '🟢';
+    } else if (missing <= 2) {
+      card.classList.add('wait');
+      vtxt.textContent = 'AGUARDA';
+      vsub.textContent = `${missing} critério(s) pendente(s) — quase lá`;
+      vicon.textContent = '⏳';
+    } else {
+      card.classList.add('stop');
+      vtxt.textContent = 'NÃO OPERA';
+      vsub.textContent = `${missing} critérios faltando — setup incompleto`;
+      vicon.textContent = '🔴';
+    }
+  }
+
+  vtxt.classList.remove('pulse');
+  void vtxt.offsetWidth;
+  vtxt.classList.add('pulse');
+}
+
+// ── Reset ──
+document.getElementById('btnReset').addEventListener('click', () => {
+  document.querySelectorAll('.item.chk').forEach(i => i.classList.remove('chk'));
+  updateAll();
+  saveState();
+});
+
+// ── Persist ──
+function saveState() {
+  const st = { model: activeModel, items: {} };
+  document.querySelectorAll('.item').forEach((item, i) => {
+    st.items[i] = item.classList.contains('chk');
+  });
+  try { localStorage.setItem('et_checklist', JSON.stringify(st)); } catch(e){}
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('et_checklist');
+    if (!raw) return;
+    const st = JSON.parse(raw);
+    document.querySelectorAll('.item').forEach((item, i) => {
+      if (st.items?.[i]) item.classList.add('chk');
+    });
+    if (st.model) switchModel(st.model);
+  } catch(e){}
+}
+
+loadState();
+</script>
+</body>
+</html>
