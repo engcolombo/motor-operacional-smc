@@ -232,7 +232,7 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
   display:flex;align-items:center;justify-content:center;transition:all .2s;
 }
 .item.chk .cb{background:var(--text);border-color:var(--text);}
-.gate .item.chk .cb{background:var(--blue);border-color:var(--blue);}
+.gate .item.chk .cb{background:var(--text);border-color:var(--text);}
 .cb::after{
   content:'';width:5px;height:8px;
   border:2px solid var(--bg);border-top:none;border-left:none;
@@ -240,7 +240,7 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
   margin-top:-2px;
 }
 .item.chk .cb::after{transform:rotate(45deg) scale(1);}
-.gate .item.chk .cb::after{border-color:white;}
+.gate .item.chk .cb::after{border-color:var(--bg);}
 
 .itext{flex:1;font-size:.855rem;color:var(--text);line-height:1.45;}
 .item.chk .itext{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--dim);}
