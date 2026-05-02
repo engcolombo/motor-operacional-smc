@@ -38,6 +38,10 @@
   --orange:    #fb923c;
   --orange-s:  rgba(251,146,60,0.13);
 
+  --teal:      #2dd4bf;
+  --teal-s:    rgba(45,212,191,0.13);
+  --teal-g:    rgba(45,212,191,0.22);
+
   --r: 12px;
   --rs: 8px;
 }
@@ -252,6 +256,7 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
 }
 .tr{color:#ff8a8a;border-color:rgba(255,79,79,.25);}
 .tv{color:var(--blue);border-color:rgba(59,158,255,.3);}
+.tt{color:var(--teal);border-color:rgba(45,212,191,.3);}
 .tg, .ty, .tb, .to{color:var(--muted);border-color:var(--border2);}
 
 /* bonus item */
@@ -336,7 +341,7 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
     <div class="v-body">
       <p class="v-lbl">Decisão</p>
       <p class="v-txt" id="vtxt">Selecione um modelo</p>
-      <p class="v-sub" id="vsub">Modelo #1, #2 ou #3</p>
+      <p class="v-sub" id="vsub">Modelo #1, #2, #3 ou #4</p>
     </div>
     <div class="v-icon" id="vicon">📋</div>
   </div>
@@ -373,6 +378,11 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
       <div class="mtab-num">Passo 2 · Modelo #3</div>
       <div class="mtab-title">POI</div>
       <div class="mtab-sub">CHoCH indução · 50% impulsão · favor captura</div>
+    </div>
+    <div class="mtab" data-model="4" onclick="switchModel(4)">
+      <div class="mtab-num">Passo 2 · Modelo #4</div>
+      <div class="mtab-title">VWAP Trade</div>
+      <div class="mtab-sub">VWAP oposta · liquidez OB · CHoCH + entrada</div>
     </div>
   </div>
 
@@ -664,6 +674,141 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
     </div>
   </div>
 
+  <!-- ═══ PANEL 4 — VWAP ═══ -->
+  <div class="panel" id="panel-4">
+    <div class="blocks">
+
+      <div class="block open" data-block="4-1" data-max="2">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">1</div>
+          <div class="btitle-w">
+            <div class="btitle">Contexto VWAP</div>
+            <div class="bsub">VWAP oposta ≥2R da entrada · VWAP operacional visível</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-4-1"></div><div class="bbadge" id="b-4-1">0/2</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">VWAP oposta (alvo) está <strong>a pelo menos 2R</strong> de distância da entrada — espaço suficiente para conduzir</div>
+            <span class="tag tt">Crítico</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">VWAP do <strong>TF operacional</strong> está visível e clara — ancoragem confiável (sessão, diária ou semanal)</div>
+            <span class="tag tt">Estrutura</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" data-block="4-2" data-max="2">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">2</div>
+          <div class="btitle-w">
+            <div class="btitle">Captura de Liquidez Pré-VWAP</div>
+            <div class="bsub">Preço capturou OB ou fundo/topo interno antes de tocar na VWAP</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-4-2"></div><div class="bbadge" id="b-4-2">0/2</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Preço <strong>capturou liquidez</strong> de OB ou fundo/topo interno <strong>antes</strong> de tocar na VWAP — não chegou direto</div>
+            <span class="tag tt">Crítico</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Região de toque na VWAP tem <strong>confluência</strong> com zona de demanda/oferta ou OB — não é toque "no vazio"</div>
+            <span class="tag tt">Qualidade</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" data-block="4-3" data-max="3">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">3</div>
+          <div class="btitle-w">
+            <div class="btitle">Reação Pós-VWAP (CHoCH / FFFD)</div>
+            <div class="bsub">Fez CHoCH ou FFFD depois que tocou na VWAP · intencionalidade da reação</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-4-3"></div><div class="bbadge" id="b-4-3">0/3</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Preço <strong>fez CHoCH</strong> ou <strong>FFFD</strong> após tocar na VWAP — ambos confirmam reação real (fechamento de candle ou rejeição decisiva)</div>
+            <span class="tag tt">Crítico</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Impulsão do CHoCH mostra <strong>intencionalidade</strong> — candles cheios, direcionais, ineficiência gerada na rejeição</div>
+            <span class="tag tt">Confirmação</span>
+          </div>
+          <div class="item bonus" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Divergência no RSI na região do toque com VWAP — preço toca mas RSI não acompanha (força relativa fraquejando)</div>
+            <span class="tag ty">Bônus</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" data-block="4-4" data-max="2">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">4</div>
+          <div class="btitle-w">
+            <div class="btitle">Tipo de Entrada</div>
+            <div class="bsub">Direta no toque · FFFD · por CHoCH — classifique a entrada</div>
+          </div>
+          <div class="bprog"><div class="dots" id="d-4-4"></div><div class="bbadge" id="b-4-4">0/2</div></div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Entrada foi <strong>direta no toque</strong> da VWAP (agressiva, bom R:R) <strong>OU</strong> entrada por <strong>FFFD</strong> (Failure to Form a Decisive candle — rejeição clara)</div>
+            <span class="tag tt">Crítico</span>
+          </div>
+          <div class="item" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Entrada confirmada por <strong>CHoCH no TF menor</strong> após toque na VWAP — modelo conservador com confirmação de quebra de estrutura</div>
+            <span class="tag tt">Confirmação</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="bhead" onclick="toggleBlock(this)">
+          <div class="bnum">5</div>
+          <div class="btitle-w">
+            <div class="btitle">Invalidações</div>
+            <div class="bsub">Condições que tornam o trade com VWAP inválido</div>
+          </div>
+          <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="bbody">
+          <div class="warn-item"><strong>NÃO</strong> operar se a VWAP oposta está a <strong>menos de 2R</strong> — sem espaço para condução</div>
+          <div class="warn-item"><strong>NÃO</strong> operar se o preço chegou na VWAP <strong>direto</strong> sem capturar liquidez antes — toque sem contexto</div>
+          <div class="warn-item"><strong>NÃO</strong> operar se não houve <strong>reação estrutural</strong> (CHoCH) após o toque — VWAP pode ser rompida</div>
+          <div class="warn-item"><strong>NÃO</strong> operar contra a <strong>tendência dominante</strong> do TF maior sem confluência extrema</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- ═══ PANEL GESTÃO ═══ -->
   <div class="panel" id="panel-g">
     <div class="gestao-grid">
@@ -736,7 +881,7 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
   <div class="foot">
     <a class="foot-btn" href="index.html">← Motor SMC</a>
     <a class="foot-btn" href="diario.html">Diário Pro →</a>
-    <span class="foot-label">Modelos #1 · #2 · #3</span>
+    <span class="foot-label">Modelos #1 · #2 · #3 · #4</span>
   </div>
 </div>
 
@@ -749,6 +894,7 @@ const MODELS = {
   '1': { blocks: ['1-1','1-2','1-3','1-4','1-5'], required: ['1-1','1-2','1-4','1-5'], label: 'Modelo #1 — Liquidez Nítida' },
   '2': { blocks: ['2-1','2-2','2-3'], required: ['2-1','2-2','2-3'], label: 'Modelo #2 — Order Block' },
   '3': { blocks: ['3-1','3-2'], required: ['3-1','3-2'], label: 'Modelo #3 — POI' },
+  '4': { blocks: ['4-1','4-2','4-3','4-4'], required: ['4-1','4-2','4-3','4-4'], label: 'Modelo #4 — VWAP Trade' },
   'g': { blocks: ['g-1'], required: ['g-1'], label: 'Gestão' }
 };
 
