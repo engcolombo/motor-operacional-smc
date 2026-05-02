@@ -1055,7 +1055,7 @@ function updateVerdict(scored, total, gateOk, label) {
     vicon.textContent = '🚫';
   } else {
     const missing = total - scored;
-    if (missing === 0) {
+    if (missing <= 0) {
       card.classList.add('go');
       vtxt.textContent = 'OPERA ✓';
       vsub.textContent = `${label} — todos critérios confirmados`;
