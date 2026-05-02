@@ -761,14 +761,14 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
         </div>
       </div>
 
-      <div class="block" data-block="4-4" data-max="2">
+      <div class="block" data-block="4-4" data-max="3">
         <div class="bhead" onclick="toggleBlock(this)">
           <div class="bnum">4</div>
           <div class="btitle-w">
             <div class="btitle">Tipo de Entrada</div>
-            <div class="bsub">CHoCH = libera · Toque direto / FFFD = exige confluência total</div>
+            <div class="bsub">CHoCH = libera direto · Toque / FFFD = exige confluências extras</div>
           </div>
-          <div class="bprog"><div class="dots" id="d-4-4"></div><div class="bbadge" id="b-4-4">0/2</div></div>
+          <div class="bprog"><div class="dots" id="d-4-4"></div><div class="bbadge" id="b-4-4">0/3</div></div>
           <svg class="chev" width="15" height="15" viewBox="0 0 16 16" fill="none">
             <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -784,7 +784,11 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
             <div class="itext">CHoCH mostra <strong>intencionalidade na quebra</strong> — candles cheios, direcionais, fechamento claro acima/abaixo</div>
             <span class="tag tt">Confirmação</span>
           </div>
-          <div class="warn-item" style="color:var(--yellow);border-left:3px solid var(--yellow);padding-left:14px;margin-top:6px;">⚠️ Se entrada foi <strong>direta no toque</strong> ou por <strong>FFFD</strong> (sem CHoCH): exige que <strong>TODOS</strong> os blocos anteriores (1+2+3) estejam 100% ✓ — margem de erro zero</div>
+          <div class="item bonus" onclick="toggleItem(this)">
+            <div class="cb"></div>
+            <div class="itext">Entrada foi <strong>direta no toque</strong> da VWAP ou por <strong>FFFD</strong> (sem CHoCH) — exige blocos 1+2+3 todos ✓ incluindo bônus</div>
+            <span class="tag ty">Toque/FFFD</span>
+          </div>
         </div>
       </div>
 
