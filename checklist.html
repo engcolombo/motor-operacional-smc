@@ -349,7 +349,6 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
     <div class="pw-icon">⚠️</div>
     <div class="pw-body">
       <strong>Preencha o Plano de Trading primeiro</strong>
-      <span>Sem isso, qualquer setup retorna "NÃO OPERA". Clique em <b>Passo 1 · Plano de Trading</b> abaixo.</span>
     </div>
   </div>
 
@@ -873,7 +872,7 @@ function resetVerdict(gateOk) {
   card.className = 'verdict';
   if (activeModel === 'g') {
     document.getElementById('vtxt').textContent = gateOk ? 'Plano OK · escolha modelo' : 'Preencha o Plano';
-    document.getElementById('vsub').textContent = gateOk ? 'Agora vá para Modelo #1, #2 ou #3' : 'Marque os 3 itens do Plano de Trading';
+    document.getElementById('vsub').textContent = gateOk ? 'Agora vá para Modelo #1, #2 ou #3' : '';
     document.getElementById('vicon').textContent = gateOk ? '✅' : '📝';
   } else {
     document.getElementById('vtxt').textContent = 'Comece pelo Plano';
