@@ -774,17 +774,17 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
           </svg>
         </div>
         <div class="bbody">
-          <div class="item" onclick="toggleItem(this)">
+          <div class="item" data-excl="vwap-choch" onclick="toggleItem(this)">
             <div class="cb"></div>
             <div class="itext">Entrada confirmada por <strong>CHoCH no TF menor</strong> após toque na VWAP — confirmação de quebra de estrutura</div>
             <span class="tag tt">Crítico</span>
           </div>
-          <div class="item" onclick="toggleItem(this)">
+          <div class="item" data-excl="vwap-choch" onclick="toggleItem(this)">
             <div class="cb"></div>
             <div class="itext">CHoCH mostra <strong>intencionalidade na quebra</strong> — candles cheios, direcionais, fechamento claro acima/abaixo</div>
             <span class="tag tt">Confirmação</span>
           </div>
-          <div class="item bonus" onclick="toggleItem(this)">
+          <div class="item bonus" data-excl="vwap-fffd" data-weight="2" onclick="toggleItem(this)">
             <div class="cb"></div>
             <div class="itext">Entrada foi <strong>direta no toque</strong> da VWAP ou por <strong>FFFD</strong> (sem CHoCH) — exige blocos 1+2+3 todos ✓ incluindo bônus</div>
             <span class="tag ty">Toque/FFFD</span>
@@ -943,6 +943,13 @@ function toggleBlock(hdr) {
 
 // ── Toggle item ──
 function toggleItem(item) {
+  if (!item.classList.contains('chk') && item.dataset.excl) {
+    if (item.dataset.excl === 'vwap-choch') {
+      document.querySelectorAll('[data-excl="vwap-fffd"]').forEach(i => i.classList.remove('chk'));
+    } else if (item.dataset.excl === 'vwap-fffd') {
+      document.querySelectorAll('[data-excl="vwap-choch"]').forEach(i => i.classList.remove('chk'));
+    }
+  }
   item.classList.toggle('chk');
   updateAll();
   saveState();
@@ -956,7 +963,12 @@ function updateAll() {
     const max = +block.dataset.max;
     const items = block.querySelectorAll('.item');
     let count = 0;
-    items.forEach(i => { if (i.classList.contains('chk')) count++; });
+    items.forEach(i => { 
+      if (i.classList.contains('chk')) {
+        count += parseInt(i.dataset.weight || '1', 10);
+      }
+    });
+    count = Math.min(count, max);
 
     // dots
     const dots = document.querySelectorAll(`#d-${id} .dot`);
@@ -1004,13 +1016,14 @@ function updateAll() {
       const isBonus = item.classList.contains('bonus');
       const isInv = item.classList.contains('inv');
       const chk = item.classList.contains('chk');
+      const weight = parseInt(item.dataset.weight || '1', 10);
 
-      if (!isBonus) total++;
+      if (!isBonus) total += weight;
 
       if (isInv) {
-        if (chk) scored++; // inv checked = condition met (not invalid)
+        if (chk) scored += weight; // inv checked = condition met (not invalid)
       } else if (chk) {
-        scored++;
+        scored += weight;
       }
     });
   });
