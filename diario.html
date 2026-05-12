@@ -2268,14 +2268,19 @@ function bindEvents() {
     $("btnCancel").addEventListener("click", closeModal);
     $("btnSave").addEventListener("click", saveFromForm);
 
-    $("btnSaveFees").addEventListener("click", () => {
+    $("btnSaveFees").addEventListener("click", async () => {
         state.fees = {
             cripto: Number($("fFeeCripto").value || 0),
             win: Number($("fFeeWin").value || 0),
             wdo: Number($("fFeeWdo").value || 0)
         };
         persistFees();
-        toast("Taxas salvas");
+        if (canUseCloud()) {
+            const result = await saveCloudSettings();
+            toast(result.ok ? "Taxas salvas · sincronizado" : `Salvo local. Nuvem falhou: ${result.message}`);
+        } else {
+            toast("Taxas salvas (local)");
+        }
         renderAll();
     });
     $("modalBackdrop").addEventListener("click", (e) => {
@@ -2373,10 +2378,16 @@ async function initCloud() {
         currentSession = session || null;
         currentUser = currentSession?.user || null;
         updateCloudUi();
-        if (currentUser) loadCloudTrades();
+        if (currentUser) {
+            loadCloudTrades();
+            loadCloudSettings();
+        }
     });
     updateCloudUi();
-    if (canUseCloud()) await loadCloudTrades();
+    if (canUseCloud()) {
+        await loadCloudTrades();
+        await loadCloudSettings();
+    }
 }
 
 async function signInCloud() {
@@ -2406,7 +2417,10 @@ async function signInCloud() {
     currentSession = data?.session || null;
     currentUser = currentSession?.user || null;
     updateCloudUi();
-    if (canUseCloud()) await loadCloudTrades();
+    if (canUseCloud()) {
+        await loadCloudTrades();
+        await loadCloudSettings();
+    }
 }
 
 async function signOutCloud() {
@@ -2466,6 +2480,43 @@ async function upsertTradeCloud(trade) {
                 user_id: currentUser.id,
                 payload: trade,
                 trade_timestamp: trade.date,
+                updated_at: new Date().toISOString()
+            });
+        if (error) return { ok: false, message: error.message };
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, message: err.message || String(err) };
+    }
+}
+
+async function loadCloudSettings() {
+    if (!canUseCloud()) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from("user_settings")
+            .select("payload")
+            .eq("user_id", currentUser.id)
+            .maybeSingle();
+        if (error) { console.warn("loadCloudSettings:", error.message); return; }
+        if (data?.payload?.fees) {
+            state.fees = { ...FEE_DEFAULTS, ...data.payload.fees };
+            persistFees();
+            if (state.view === "fees") renderFees();
+            else renderAll();
+        }
+    } catch (err) {
+        console.warn("loadCloudSettings exception:", err);
+    }
+}
+
+async function saveCloudSettings() {
+    if (!canUseCloud()) return { ok: false, message: "Sem sessão" };
+    try {
+        const { error } = await supabaseClient
+            .from("user_settings")
+            .upsert({
+                user_id: currentUser.id,
+                payload: { fees: state.fees },
                 updated_at: new Date().toISOString()
             });
         if (error) return { ok: false, message: error.message };
