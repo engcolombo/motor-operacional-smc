@@ -886,6 +886,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
         <button class="nav-item" data-view="calendar" type="button">📅 Calendário</button>
         <button class="nav-item" data-view="stats" type="button">📈 Estatísticas</button>
         <button class="nav-item" data-view="journal" type="button">📝 Diário</button>
+        <button class="nav-item" data-view="fees" type="button">💸 Taxas</button>
         <div class="nav-divider"></div>
         <a class="nav-item" href="checklist.html" style="text-decoration:none;">✓ Checklist Pré-Trade</a>
         <div class="nav-divider"></div>
@@ -1027,6 +1028,38 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                 <div id="journalList"></div>
             </div>
         </section>
+
+        <section class="view" id="view-fees">
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Taxas por categoria</h2>
+                    <p>Aplicadas automaticamente em todos os trades. Classificação por símbolo.</p>
+                </div>
+                <div class="panel-body">
+                    <div class="form-grid">
+                        <div class="field">
+                            <label>Cripto — R$ por unidade (round-trip)</label>
+                            <input type="number" step="any" id="fFeeCripto" placeholder="Ex: 0.50">
+                            <div class="field-hint">Aplica em BTC, ETH, SOL, BNB, ADA, XRP e outras. Total = qty × valor.</div>
+                        </div>
+                        <div class="field">
+                            <label>WIN — R$ por contrato (round-trip)</label>
+                            <input type="number" step="any" id="fFeeWin" placeholder="Ex: 1.00">
+                            <div class="field-hint">Padrão mercado: ~R$ 0,50/contrato × 2 lados = R$ 1,00.</div>
+                        </div>
+                        <div class="field">
+                            <label>WDO — R$ por contrato (round-trip)</label>
+                            <input type="number" step="any" id="fFeeWdo" placeholder="Ex: 2.50">
+                            <div class="field-hint">Padrão mercado: ~R$ 1,25/contrato × 2 lados = R$ 2,50.</div>
+                        </div>
+                        <div class="field full">
+                            <button class="btn btn-primary" id="btnSaveFees" type="button">Salvar taxas</button>
+                            <div class="field-hint" id="feesSummary"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 </div>
 
@@ -1146,7 +1179,8 @@ const state = {
     trades: loadTrades(),
     view: "dashboard",
     editingId: null,
-    calMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+    calMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    fees: { cripto: 0, win: 0, wdo: 0 }
 };
 
 const $ = (id) => document.getElementById(id);
@@ -1193,29 +1227,45 @@ function fmtCurrency(v) {
     return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-const FEE_RULES = [
-    { prefix: "WIN", rate: 0.5, label: "WIN R$ 0,50/contrato" },
-    { prefix: "WDO", rate: 1.25, label: "WDO R$ 1,25/contrato" }
-];
+const FEE_DEFAULTS = { cripto: 0, win: 0, wdo: 0 };
+const FEE_STORAGE_KEY = "diarioProFees_v1";
+const CRIPTO_HINTS = ["BTC","ETH","SOL","BNB","ADA","XRP","DOGE","LTC","MATIC","DOT","AVAX","LINK","UNI","ATOM","ARB","OP","SUI","APT","INJ","SHIB","TRX","NEAR","TON","PEPE","USDT","USDC","AAVE","FIL","ICP","HBAR","RNDR","FET","TIA","STX","IMX","KAS","ALGO","SAND","MANA","CRO","VET","XLM","ETC","BCH"];
 
-function feeRuleForSymbol(symbol) {
-    const normalized = String(symbol || "").trim().toUpperCase();
-    return FEE_RULES.find((rule) => normalized.startsWith(rule.prefix)) || null;
+function loadFees() {
+    try { return { ...FEE_DEFAULTS, ...JSON.parse(localStorage.getItem(FEE_STORAGE_KEY) || "{}") }; }
+    catch (e) { return { ...FEE_DEFAULTS }; }
 }
 
-function calcAutoFees(symbol, qty) {
-    const rule = feeRuleForSymbol(symbol);
-    const contracts = Math.abs(Number(qty || 0));
-    return rule ? contracts * rule.rate : 0;
+function persistFees() {
+    localStorage.setItem(FEE_STORAGE_KEY, JSON.stringify(state.fees));
 }
 
-function fmtFeesRule() {
-    return FEE_RULES.map((rule) => rule.label).join(" | ");
+function classifySymbol(symbol) {
+    const s = String(symbol || "").trim().toUpperCase();
+    if (!s) return null;
+    if (s.startsWith("WIN")) return "win";
+    if (s.startsWith("WDO")) return "wdo";
+    if (CRIPTO_HINTS.some((c) => s === c || s.startsWith(c))) return "cripto";
+    return null;
+}
+
+function feeRateFor(symbol) {
+    const cat = classifySymbol(symbol);
+    if (!cat) return 0;
+    return Number((state.fees || FEE_DEFAULTS)[cat] || 0);
 }
 
 function tradeFees(trade) {
-    const partialFees = (trade?.partials || []).reduce((sum, partial) => sum + Number(partial.fees || 0), 0);
-    return Number(trade?.fees || 0) + partialFees;
+    const manual = Number(trade?.fees || 0);
+    if (manual > 0) return manual;
+    const rate = feeRateFor(trade?.symbol);
+    if (!rate) return 0;
+    const qty = Number(trade?.qty || trade?.initQty || 0);
+    return qty * rate;
+}
+
+function tradeNetPnl(trade) {
+    return Number(trade?.pnl || 0) - tradeFees(trade);
 }
 
 function fmtPct(v) {
@@ -1243,7 +1293,8 @@ function switchView(view) {
         trades: ["Trades", `${state.trades.length} operações registradas`],
         calendar: ["Calendário", "Resultado diário"],
         stats: ["Estatísticas", "Métricas avançadas e análises"],
-        journal: ["Diário", "Notas e revisão por trade"]
+        journal: ["Diário", "Notas e revisão por trade"],
+        fees: ["Taxas", "Configuração por categoria de ativo"]
     };
     const [t, s] = titles[view] || titles.dashboard;
     $("viewTitle").textContent = t;
@@ -1484,8 +1535,8 @@ function computeStats(trades) {
     const decisive = wins.length + losses.length;
     const winrate = decisive ? (wins.length / decisive) * 100 : 0;
     const rTotal = completedR.reduce((a, t) => a + tradeRValue(t), 0);
-    const pnlTotal = sorted.reduce((a, t) => a + Number(t.pnl || 0), 0);
     const feesTotal = sorted.reduce((a, t) => a + tradeFees(t), 0);
+    const pnlTotal = sorted.reduce((a, t) => a + tradeNetPnl(t), 0);
     const avgWin = wins.length ? wins.reduce((a, t) => a + tradeRValue(t), 0) / wins.length : 0;
     const avgLoss = losses.length ? losses.reduce((a, t) => a + tradeRValue(t), 0) / losses.length : 0;
     const grossWin = wins.reduce((a, t) => a + tradeRValue(t), 0);
@@ -1500,7 +1551,7 @@ function computeStats(trades) {
         equity.push(equity[equity.length - 1] + tradeRValue(t));
     });
     sorted.forEach((t) => {
-        capitalEquity.push(capitalEquity[capitalEquity.length - 1] + Number(t.pnl || 0));
+        capitalEquity.push(capitalEquity[capitalEquity.length - 1] + tradeNetPnl(t));
     });
     let peak = 0, maxDD = 0;
     equity.forEach((v) => { peak = Math.max(peak, v); maxDD = Math.max(maxDD, peak - v); });
@@ -1726,7 +1777,7 @@ function renderRecent() {
                 <td class="muted">${escapeHtml(t.setup || "-")}</td>
                 <td class="right">${renderRBadge(t)}</td>
                 <td class="right muted">${fmtCurrency(tradeFees(t))}</td>
-                <td class="right"><strong style="color:${t.pnl > 0 ? "var(--green)" : t.pnl < 0 ? "var(--red)" : "var(--muted)"}">${fmtCurrency(t.pnl)}</strong></td>
+                <td class="right"><strong style="color:${tradeNetPnl(t) > 0 ? "var(--green)" : tradeNetPnl(t) < 0 ? "var(--red)" : "var(--muted)"}">${fmtCurrency(tradeNetPnl(t))}</strong></td>
             </tr>
         `).join("")}</tbody></table>`;
 }
@@ -1769,7 +1820,7 @@ function renderTrades() {
                 <td>${(t.tags || []).slice(0, 3).map((tg) => `<span class="tag">${escapeHtml(tg)}</span>`).join("")}</td>
                 <td class="right">${renderRBadge(t)}</td>
                 <td class="right muted">${fmtCurrency(tradeFees(t))}</td>
-                <td class="right" style="color:${t.pnl > 0 ? "var(--green)" : t.pnl < 0 ? "var(--red)" : "var(--muted)"}">${fmtCurrency(t.pnl)}</td>
+                <td class="right" style="color:${tradeNetPnl(t) > 0 ? "var(--green)" : tradeNetPnl(t) < 0 ? "var(--red)" : "var(--muted)"}">${fmtCurrency(tradeNetPnl(t))}</td>
                 <td class="right">
                     <button class="btn btn-ghost" data-edit="${t.id}" type="button">✎</button>
                     <button class="btn btn-danger" data-del="${t.id}" type="button">×</button>
@@ -1916,7 +1967,7 @@ function renderJournal() {
                 <strong>${escapeHtml(t.symbol)}</strong>
                 <span class="pill ${t.side}">${t.side}</span>
                 ${renderRBadge(t)}
-                <span class="muted">Fees ${fmtCurrency(tradeFees(t))} | P&L liq. ${fmtCurrency(t.pnl)}</span>
+                <span class="muted">Fees ${fmtCurrency(tradeFees(t))} | P&L liq. ${fmtCurrency(tradeNetPnl(t))}</span>
                 <span class="muted" style="margin-left:auto;font-size:0.78rem">${fmtDate(t.date)}</span>
             </div>
             ${(t.mistakes || []).length ? `<div style="margin:6px 0">${t.mistakes.map((m) => `<span class="tag" style="background:var(--red-soft);color:var(--red);border-color:rgba(255,93,108,0.32)">${escapeHtml(m)}</span>`).join("")}</div>` : ""}
@@ -1942,7 +1993,28 @@ function renderAll() {
         requestAnimationFrame(drawHour);
     } else if (state.view === "journal") {
         renderJournal();
+    } else if (state.view === "fees") {
+        renderFees();
     }
+}
+
+function renderFees() {
+    $("fFeeCripto").value = state.fees.cripto || "";
+    $("fFeeWin").value = state.fees.win || "";
+    $("fFeeWdo").value = state.fees.wdo || "";
+    const totalFees = state.trades.reduce((a, t) => a + tradeFees(t), 0);
+    const byCat = { cripto: 0, win: 0, wdo: 0, none: 0 };
+    state.trades.forEach((t) => {
+        const cat = classifySymbol(t.symbol) || "none";
+        byCat[cat] += tradeFees(t);
+    });
+    $("feesSummary").innerHTML = `
+        Total acumulado em fees: <strong>${fmtCurrency(totalFees)}</strong>
+        · Cripto: ${fmtCurrency(byCat.cripto)}
+        · WIN: ${fmtCurrency(byCat.win)}
+        · WDO: ${fmtCurrency(byCat.wdo)}
+        ${byCat.none ? `· Sem categoria: ${fmtCurrency(byCat.none)}` : ""}
+    `;
 }
 
 function escapeHtml(v) {
@@ -2132,9 +2204,8 @@ function parseBrokerCSV(text) {
         const sellPrice = parseBrokerNumber(cell(row, idx.sellPrice));
         const entry = side === "long" ? buyPrice : sellPrice;
         const exit = side === "long" ? sellPrice : buyPrice;
-        const fees = calcAutoFees(symbol, qty);
+        const cat = classifySymbol(symbol);
         const brokerPnl = parseBrokerNumber(cell(row, idx.pnl));
-        const feeRule = feeRuleForSymbol(symbol);
 
         return {
             id: uid(),
@@ -2148,19 +2219,17 @@ function parseBrokerCSV(text) {
             exit,
             qty,
             initQty: qty,
-            partials: exit && qty ? [{ price: exit, qty, fees: 0 }] : [],
+            partials: [],
             riskMoney: 0,
-            fees,
-            pnl: brokerPnl - fees,
+            fees: 0,
+            pnl: brokerPnl,
             brokerPnl,
             setup: "",
             tags: [],
             mistakes: [],
-            notes: `Importado da corretora. P&L liquido = resultado CSV ${fmtCurrency(brokerPnl)} - fees ${fmtCurrency(fees)} (${feeRule ? feeRule.label : "sem regra auto"}). Preencha stop/risco para calcular o R.`,
+            notes: `Importado da corretora. P&L bruto ${fmtCurrency(brokerPnl)}; taxa auto aplicada conforme config (${cat || "sem categoria"}). Preencha stop/risco para calcular o R.`,
             source: "broker_csv",
             pnlLocked: true,
-            feesAuto: Boolean(feeRule),
-            feeRule: feeRule ? feeRule.label : "",
             createdAt: new Date().toISOString()
         };
     }).filter(Boolean);
@@ -2198,6 +2267,17 @@ function bindEvents() {
     $("modalClose").addEventListener("click", closeModal);
     $("btnCancel").addEventListener("click", closeModal);
     $("btnSave").addEventListener("click", saveFromForm);
+
+    $("btnSaveFees").addEventListener("click", () => {
+        state.fees = {
+            cripto: Number($("fFeeCripto").value || 0),
+            win: Number($("fFeeWin").value || 0),
+            wdo: Number($("fFeeWdo").value || 0)
+        };
+        persistFees();
+        toast("Taxas salvas");
+        renderAll();
+    });
     $("modalBackdrop").addEventListener("click", (e) => {
         if (e.target === $("modalBackdrop")) closeModal();
     });
@@ -2416,6 +2496,7 @@ function bindCloudEvents() {
     $("cloudEmail").addEventListener("keydown", (e) => { if (e.key === "Enter") signInCloud(); });
 }
 
+state.fees = loadFees();
 bindNav();
 bindEvents();
 bindCloudEvents();
