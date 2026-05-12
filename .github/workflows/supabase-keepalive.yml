@@ -1,0 +1,22 @@
+name: Supabase Keepalive
+
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping auth health
+        run: |
+          curl -sS -o /dev/null -w "auth health: %{http_code}\n" \
+            "https://cqjmxywdhlxlsltkrrxm.supabase.co/auth/v1/health"
+
+      - name: Ping REST (touches DB)
+        run: |
+          curl -sS -o /dev/null -w "rest: %{http_code}\n" \
+            -H "apikey: sb_publishable_FdXdp5ogCGD65omUzmLjyw_kd3mGOqB" \
+            -H "Authorization: Bearer sb_publishable_FdXdp5ogCGD65omUzmLjyw_kd3mGOqB" \
+            "https://cqjmxywdhlxlsltkrrxm.supabase.co/rest/v1/trades?select=id&limit=1"

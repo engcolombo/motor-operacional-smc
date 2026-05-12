@@ -767,18 +767,106 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 
 @media (max-width: 880px) {
     .app { grid-template-columns: 1fr; }
+
     .sidebar {
-        position: relative;
+        position: sticky;
+        top: 0;
+        z-index: 50;
         height: auto;
         flex-direction: row;
+        align-items: center;
         overflow-x: auto;
-        padding: 12px;
+        overflow-y: hidden;
+        gap: 4px;
+        padding: 8px 10px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        background: var(--bg-elev);
+        scrollbar-width: none;
     }
-    .brand { border-bottom: 0; padding: 0 8px 0 0; margin: 0; border-right: 1px solid var(--line); margin-right: 8px; }
-    .nav-item { white-space: nowrap; }
-    .nav-back { margin-top: 0; margin-left: auto; }
+    .sidebar::-webkit-scrollbar { display: none; height: 0; }
+
+    .brand {
+        border-bottom: 0;
+        padding: 0;
+        margin: 0 4px 0 0;
+        flex-shrink: 0;
+        gap: 0;
+    }
+    .brand-text { display: none; }
+    .brand-mark { width: 28px; height: 28px; font-size: 0.85rem; }
+
+    .nav-item {
+        white-space: nowrap;
+        width: auto;
+        padding: 6px 10px;
+        font-size: 0.76rem;
+        gap: 4px;
+        border-radius: 999px;
+        flex-shrink: 0;
+    }
     .nav-divider { display: none; }
-    .main { padding: 16px; }
+    .nav-back {
+        margin-top: 0;
+        margin-left: 4px;
+        padding: 6px 10px;
+        font-size: 0.7rem;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .cloud-box {
+        margin: 0 0 0 6px;
+        padding: 4px 8px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+        order: 99;
+    }
+    .cloud-hint { display: none; }
+    .cloud-status-line { font-size: 0.7rem; gap: 4px; }
+    .cloud-form { flex-direction: row; gap: 4px; }
+    .cloud-inp { padding: 4px 6px; font-size: 14px; width: 100px; }
+    .cloud-btn { padding: 5px 9px; font-size: 0.72rem; width: auto; }
+
+    .main { padding: 14px; }
+
+    .topbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+    .topbar h1 { font-size: 1.2rem; }
+    .topbar p { font-size: 0.78rem; }
+    .actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 6px;
+    }
+    .actions .btn {
+        font-size: 0.74rem;
+        padding: 8px 4px;
+        white-space: nowrap;
+    }
+
+    .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+    .kpi-card { padding: 10px 12px; }
+    .kpi-card .label { font-size: 0.66rem; letter-spacing: 0.08em; }
+    .kpi-card .value { font-size: 1.2rem; margin-top: 4px; }
+    .kpi-card .meta { font-size: 0.7rem; }
+
+    .panel-head { padding: 10px 12px; }
+    .panel-head h2 { font-size: 0.92rem; }
+    .panel-head p { font-size: 0.72rem; }
+    .panel-body { padding: 12px; }
+    .equity-canvas { height: 200px; }
+
+    .cal-cell { font-size: 0.55rem; padding: 2px 3px; }
+
     .form-grid { grid-template-columns: 1fr; }
 }
 </style>
