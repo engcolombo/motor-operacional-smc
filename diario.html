@@ -348,6 +348,38 @@ canvas { width: 100%; display: block; }
 
 .equity-canvas { height: 260px; }
 
+.chart-frame {
+    position: relative;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 10px 10px 14px;
+    overflow: hidden;
+    resize: vertical;
+    min-height: 200px;
+    max-height: 720px;
+    height: 300px;
+    display: flex;
+    flex-direction: column;
+}
+
+.chart-frame canvas {
+    flex: 1 1 auto;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.chart-frame::after {
+    content: "↕";
+    position: absolute;
+    right: 6px;
+    bottom: 2px;
+    color: var(--muted);
+    font-size: 0.7rem;
+    pointer-events: none;
+    opacity: 0.5;
+}
+
 .calendar {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -864,6 +896,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     .panel-head p { font-size: 0.72rem; }
     .panel-body { padding: 12px; }
     .equity-canvas { height: 200px; }
+    .chart-frame { height: 240px; min-height: 180px; padding: 8px 8px 12px; }
 
     .cal-cell { font-size: 0.55rem; padding: 2px 3px; }
 
@@ -933,7 +966,9 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                         </div>
                     </div>
                     <div class="panel-body">
-                        <canvas class="equity-canvas" id="equityCanvas"></canvas>
+                        <div class="chart-frame" data-chart="equity">
+                            <canvas id="equityCanvas"></canvas>
+                        </div>
                     </div>
                 </div>
                 <div class="panel">
@@ -1070,7 +1105,9 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                 </div>
                 <div class="panel-body">
                     <div class="kpi-grid" id="robotKpis"></div>
-                    <canvas class="equity-canvas" id="robotEquityCanvas" style="height:220px; margin-top:12px;"></canvas>
+                    <div class="chart-frame" data-chart="robotEquity" style="margin-top:12px;">
+                        <canvas id="robotEquityCanvas"></canvas>
+                    </div>
                 </div>
             </div>
 
@@ -1554,7 +1591,7 @@ function renderRobot() {
         </div>
     `).join("");
 
-    requestAnimationFrame(() => drawRobotEquity(pnls));
+    requestAnimationFrame(() => drawRobotEquity(pnls, robos));
 
     const last30 = [...robos].reverse().slice(0, 30);
     $("robotTradesBox").innerHTML = `
@@ -1590,37 +1627,35 @@ function renderRobot() {
     `;
 }
 
-function drawRobotEquity(pnls) {
-    const c = $("robotEquityCanvas");
-    if (!c || !c.getContext) return;
-    const rect = c.getBoundingClientRect();
-    const ratio = window.devicePixelRatio || 1;
-    c.width = Math.max(1, Math.floor(rect.width * ratio));
-    c.height = Math.max(1, Math.floor(rect.height * ratio));
-    const ctx = c.getContext("2d");
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.clearRect(0, 0, rect.width, rect.height);
-
+let s_lastRobotEquity = null;
+function drawRobotEquity(pnls, robos) {
     const eq = [0];
     pnls.forEach((p) => eq.push(eq[eq.length - 1] + p));
-    const min = Math.min(...eq);
-    const max = Math.max(...eq);
-    const pad = 12;
-    const w = rect.width - pad * 2;
-    const h = rect.height - pad * 2;
-    const x = (i) => pad + (i / (eq.length - 1 || 1)) * w;
-    const y = (v) => pad + h - ((v - min) / (max - min || 1)) * h;
+    const dates = ["Início"];
+    (robos || []).forEach((t) => dates.push(fmtDateShort(t.closeDate || t.date)));
+    const color = eq[eq.length - 1] >= 0 ? "#2ddb8a" : "#ff5d6c";
+    s_lastRobotEquity = { eq, dates, color };
+    drawCapitalCurve("robotEquityCanvas", eq, dates, { color });
+}
 
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
-    ctx.beginPath();
-    const zero = y(0);
-    ctx.moveTo(pad, zero); ctx.lineTo(pad + w, zero); ctx.stroke();
+function redrawChartsForView() {
+    if (state.view === "dashboard") {
+        drawEquity();
+        drawDist();
+    } else if (state.view === "robot") {
+        if (s_lastRobotEquity)
+            drawCapitalCurve("robotEquityCanvas", s_lastRobotEquity.eq, s_lastRobotEquity.dates, { color: s_lastRobotEquity.color });
+    } else if (state.view === "stats") {
+        drawHour();
+    }
+}
 
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = eq[eq.length - 1] >= 0 ? "#2ddb8a" : "#ff5d6c";
-    ctx.beginPath();
-    eq.forEach((v, i) => { if (i === 0) ctx.moveTo(x(i), y(v)); else ctx.lineTo(x(i), y(v)); });
-    ctx.stroke();
+let s_chartResizeObserver = null;
+function setupChartResize() {
+    if (typeof ResizeObserver === "undefined") return;
+    if (s_chartResizeObserver) s_chartResizeObserver.disconnect();
+    s_chartResizeObserver = new ResizeObserver(() => requestAnimationFrame(redrawChartsForView));
+    document.querySelectorAll(".chart-frame").forEach((el) => s_chartResizeObserver.observe(el));
 }
 
 function fmtPct(v) {
@@ -1967,6 +2002,7 @@ function renderKPIs() {
 
 function setupCanvas(id) {
     const c = $(id);
+    if (!c) return null;
     const r = c.getBoundingClientRect();
     const ratio = window.devicePixelRatio || 1;
     c.width = Math.max(1, Math.floor(r.width * ratio));
@@ -1977,61 +2013,120 @@ function setupCanvas(id) {
     return { ctx, w: r.width, h: r.height };
 }
 
-function drawEquity() {
-    const { ctx, w, h } = setupCanvas("equityCanvas");
-    const mt = manualTrades();
-    const s = computeStats(mt);
-    if (!mt.length) { drawEmpty(ctx, w, h); return; }
-    const pad = { t: 18, r: 18, b: 24, l: 78 };
-    const pts = s.capitalEquity;
-    const min = Math.min(...pts, 0);
-    const max = Math.max(...pts, 0);
-    const range = max - min || 1;
+function fmtDateShort(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}`;
+}
 
-    ctx.strokeStyle = "rgba(255,255,255,0.06)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) {
-        const y = pad.t + (i / 4) * (h - pad.t - pad.b);
+function niceStep(rawStep) {
+    if (rawStep <= 0) return 1;
+    const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const norm = rawStep / mag;
+    let nice;
+    if (norm < 1.5) nice = 1;
+    else if (norm < 3) nice = 2;
+    else if (norm < 7) nice = 5;
+    else nice = 10;
+    return nice * mag;
+}
+
+function drawCapitalCurve(canvasId, points, dates, opts) {
+    const setup = setupCanvas(canvasId);
+    if (!setup) return;
+    const { ctx, w, h } = setup;
+    const color = (opts && opts.color) || "#b591ff";
+    if (!points || points.length === 0) { drawEmpty(ctx, w, h); return; }
+
+    const pad = { t: 14, r: 86, b: 28, l: 14 };
+    const innerW = Math.max(1, w - pad.l - pad.r);
+    const innerH = Math.max(1, h - pad.t - pad.b);
+
+    const dataMin = Math.min(...points, 0);
+    const dataMax = Math.max(...points, 0);
+    const span = Math.max(dataMax - dataMin, 1);
+    const target = niceStep(span / 4);
+    let lo = Math.floor(dataMin / target) * target;
+    let hi = Math.ceil(dataMax / target) * target;
+    if (lo === hi) hi = lo + target;
+    const divisors = Math.max(2, Math.round((hi - lo) / target));
+    const range = hi - lo;
+
+    const xPos = (i) => pad.l + (i / Math.max(points.length - 1, 1)) * innerW;
+    const yPos = (v) => pad.t + ((hi - v) / range) * innerH;
+
+    for (let i = 0; i <= divisors; i++) {
+        const value = hi - (i / divisors) * range;
+        const y = pad.t + (i / divisors) * innerH;
+        const isZero = Math.abs(value) < target * 0.001;
+        ctx.strokeStyle = isZero ? "rgba(255,255,255,0.32)" : "rgba(255,255,255,0.06)";
+        ctx.lineWidth = isZero ? 1.4 : 1;
         ctx.beginPath();
         ctx.moveTo(pad.l, y);
         ctx.lineTo(w - pad.r, y);
         ctx.stroke();
+
+        ctx.fillStyle = isZero ? "#e8edf7" : "#8a98b5";
+        ctx.font = isZero ? "800 11px Inter, Arial" : "700 11px Inter, Arial";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(fmtCurrency(value), w - pad.r + 6, y);
     }
 
     const grad = ctx.createLinearGradient(0, pad.t, 0, h - pad.b);
-    grad.addColorStop(0, "rgba(123, 92, 255, 0.45)");
-    grad.addColorStop(1, "rgba(123, 92, 255, 0)");
+    grad.addColorStop(0, color + "66");
+    grad.addColorStop(1, color + "00");
 
     ctx.beginPath();
-    pts.forEach((v, i) => {
-        const x = pad.l + (i / Math.max(pts.length - 1, 1)) * (w - pad.l - pad.r);
-        const y = pad.t + ((max - v) / range) * (h - pad.t - pad.b);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+    points.forEach((v, i) => {
+        const x = xPos(i), y = yPos(v);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
-    const lastX = pad.l + (w - pad.l - pad.r);
-    ctx.lineTo(lastX, h - pad.b);
-    ctx.lineTo(pad.l, h - pad.b);
+    ctx.lineTo(xPos(points.length - 1), pad.t + innerH);
+    ctx.lineTo(xPos(0), pad.t + innerH);
     ctx.closePath();
     ctx.fillStyle = grad;
     ctx.fill();
 
     ctx.beginPath();
-    pts.forEach((v, i) => {
-        const x = pad.l + (i / Math.max(pts.length - 1, 1)) * (w - pad.l - pad.r);
-        const y = pad.t + ((max - v) / range) * (h - pad.t - pad.b);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+    points.forEach((v, i) => {
+        const x = xPos(i), y = yPos(v);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
-    ctx.strokeStyle = "#b591ff";
+    ctx.strokeStyle = color;
     ctx.lineWidth = 2.4;
+    ctx.lineJoin = "round";
     ctx.stroke();
 
-    ctx.fillStyle = "#8a98b5";
-    ctx.font = "700 11px Inter, Arial";
-    ctx.textAlign = "right";
-    ctx.fillText(fmtCurrency(max), pad.l - 6, pad.t + 4);
-    ctx.fillText(fmtCurrency(min), pad.l - 6, h - pad.b + 4);
+    if (dates && dates.length === points.length) {
+        ctx.fillStyle = "#8a98b5";
+        ctx.font = "700 10px Inter, Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        const ticks = Math.min(6, points.length);
+        for (let i = 0; i < ticks; i++) {
+            const idx = Math.round((i / Math.max(ticks - 1, 1)) * (points.length - 1));
+            const label = dates[idx];
+            if (!label) continue;
+            ctx.fillText(label, xPos(idx), h - pad.b + 6);
+        }
+    }
+}
+
+function drawEquity() {
+    const c = $("equityCanvas");
+    if (!c) return;
+    const mt = manualTrades();
+    const s = computeStats(mt);
+    if (!mt.length) {
+        const { ctx, w, h } = setupCanvas("equityCanvas");
+        drawEmpty(ctx, w, h);
+        return;
+    }
+    const sortedMt = [...mt].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const dates = ["Início", ...sortedMt.map((t) => fmtDateShort(t.date))];
+    drawCapitalCurve("equityCanvas", s.capitalEquity, dates, { color: "#b591ff" });
 }
 
 function drawDist() {
@@ -2946,6 +3041,7 @@ bindNav();
 bindEvents();
 bindCloudEvents();
 renderAll();
+setupChartResize();
 initCloud();
 </script>
 </body>
