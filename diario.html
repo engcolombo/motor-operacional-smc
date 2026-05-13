@@ -1380,13 +1380,17 @@ function robotRowToTrade(r) {
     const volume = Number(r.get("volume") || 0);
     const symbol = String(r.get("symbol") || "").toUpperCase();
     const magic = Number(r.get("magic") || 0);
+    const score = Number(r.get("score") || 0);
+    const threshold = Number(r.get("threshold") || 0);
+    const obType = String(r.get("ob_type") || "").toLowerCase();
+    const obPts = Number(r.get("ob_pts") || 0);
     return {
         id: `robo-${ticket}`,
         date: parseMt5Date(r.get("time_open")),
         closeDate: parseMt5Date(r.get("time_close")),
         symbol,
         side,
-        setup: "Robô SMC",
+        setup: obType ? `Robô SMC · ${obType}` : "Robô SMC",
         initQty: volume,
         qty: volume,
         entry,
@@ -1402,9 +1406,9 @@ function robotRowToTrade(r) {
         r: null,
         rPending: true,
         fees: 0,
-        tags: ["robo"],
+        tags: ["robo", obType].filter(Boolean),
         mistakes: [],
-        notes: `Ticket ${ticket} | magic ${magic} | comm ${commission.toFixed(2)} | swap ${swap.toFixed(2)} | comment: ${r.get("comment") || "-"}`,
+        notes: `Ticket ${ticket} | magic ${magic} | score ${score.toFixed(4)} thr ${threshold.toFixed(4)} | OB ${obType || "?"}/${obPts}pts | comm ${commission.toFixed(2)} | swap ${swap.toFixed(2)} | comment: ${r.get("comment") || "-"}`,
         source: ROBOT_SOURCE,
         ticket,
         magic,
@@ -1412,6 +1416,10 @@ function robotRowToTrade(r) {
         swap,
         tp,
         sl,
+        score,
+        threshold,
+        obType,
+        obPts,
         createdAt: new Date().toISOString()
     };
 }
@@ -1519,7 +1527,26 @@ function renderRobot() {
         { label: "Melhor / pior", value: `${fmtCurrency(best)} / ${fmtCurrency(worst)}`, cls: "neutral" },
         { label: "Max DD (R$)", value: fmtCurrency(-maxDD), cls: "loss" }
     ];
-    $("robotKpis").innerHTML = kpis.map((k) => `
+    const splitStats = (subset) => {
+        if (!subset.length) return null;
+        const sp = subset.map(tradeNetPnl);
+        const sw = sp.filter((p) => p > 0).length;
+        const sl = sp.filter((p) => p < 0).length;
+        const sb = sp.filter((p) => p === 0).length;
+        const sdec = sw + sl;
+        const stot = sp.reduce((a, b) => a + b, 0);
+        const swinrate = sdec ? (sw / sdec) * 100 : 0;
+        return { count: subset.length, pnl: stot, winrate: swinrate, wins: sw, losses: sl, bes: sb };
+    };
+    const sInt = splitStats(robos.filter((t) => t.obType === "internal"));
+    const sSwg = splitStats(robos.filter((t) => t.obType === "swing"));
+
+    const obKpis = [];
+    if (sInt) obKpis.push({ label: "OB Internal", value: fmtCurrency(sInt.pnl), meta: `${sInt.count} trades · ${fmtPct(sInt.winrate)} (${sInt.wins}W/${sInt.losses}L)`, cls: cls(sInt.pnl) });
+    if (sSwg) obKpis.push({ label: "OB Swing", value: fmtCurrency(sSwg.pnl), meta: `${sSwg.count} trades · ${fmtPct(sSwg.winrate)} (${sSwg.wins}W/${sSwg.losses}L)`, cls: cls(sSwg.pnl) });
+    const allKpis = [...kpis, ...obKpis];
+
+    $("robotKpis").innerHTML = allKpis.map((k) => `
         <div class="kpi-card ${k.cls}">
             <div class="label">${k.label}</div>
             <div class="value">${k.value}</div>
@@ -1534,7 +1561,10 @@ function renderRobot() {
         <div class="panel-body" style="overflow-x:auto;">
             <table>
                 <thead><tr>
-                    <th>Data</th><th>Ticket</th><th>Ativo</th><th>Lado</th><th class="right">Volume</th>
+                    <th>Data</th><th>Ticket</th><th>Ativo</th><th>Lado</th>
+                    <th>OB</th><th class="right">OB pts</th>
+                    <th class="right">Score</th><th class="right">Thr</th>
+                    <th class="right">Vol</th>
                     <th class="right">Entrada</th><th class="right">Saída</th><th class="right">P&L liq.</th>
                 </tr></thead>
                 <tbody>
@@ -1544,6 +1574,10 @@ function renderRobot() {
                         <td>${escapeHtml(t.ticket || "")}</td>
                         <td>${escapeHtml(t.symbol)}</td>
                         <td>${t.side === "long" ? "Compra" : "Venda"}</td>
+                        <td>${escapeHtml(t.obType || "-")}</td>
+                        <td class="right">${t.obPts || "-"}</td>
+                        <td class="right">${t.score ? Number(t.score).toFixed(3) : "-"}</td>
+                        <td class="right muted">${t.threshold ? Number(t.threshold).toFixed(3) : "-"}</td>
                         <td class="right">${t.qty}</td>
                         <td class="right">${t.entry}</td>
                         <td class="right">${t.exit}</td>
