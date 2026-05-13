@@ -1633,9 +1633,8 @@ function drawRobotEquity(pnls, robos) {
     pnls.forEach((p) => eq.push(eq[eq.length - 1] + p));
     const dates = ["Início"];
     (robos || []).forEach((t) => dates.push(fmtDateShort(t.closeDate || t.date)));
-    const color = eq[eq.length - 1] >= 0 ? "#2ddb8a" : "#ff5d6c";
-    s_lastRobotEquity = { eq, dates, color };
-    drawCapitalCurve("robotEquityCanvas", eq, dates, { color });
+    s_lastRobotEquity = { eq, dates, color: "#2ddb8a" };
+    drawCapitalCurve("robotEquityCanvas", eq, dates, { color: "#2ddb8a" });
 }
 
 function redrawChartsForView() {
@@ -2036,7 +2035,8 @@ function drawCapitalCurve(canvasId, points, dates, opts) {
     const setup = setupCanvas(canvasId);
     if (!setup) return;
     const { ctx, w, h } = setup;
-    const color = (opts && opts.color) || "#b591ff";
+    const posColor = (opts && opts.color) || "#2ddb8a";
+    const negColor = (opts && opts.negativeColor) || "#ff5d6c";
     if (!points || points.length === 0) { drawEmpty(ctx, w, h); return; }
 
     const pad = { t: 14, r: 86, b: 28, l: 14 };
@@ -2055,6 +2055,7 @@ function drawCapitalCurve(canvasId, points, dates, opts) {
 
     const xPos = (i) => pad.l + (i / Math.max(points.length - 1, 1)) * innerW;
     const yPos = (v) => pad.t + ((hi - v) / range) * innerH;
+    const yZero = yPos(0);
 
     for (let i = 0; i <= divisors; i++) {
         const value = hi - (i / divisors) * range;
@@ -2067,37 +2068,83 @@ function drawCapitalCurve(canvasId, points, dates, opts) {
         ctx.lineTo(w - pad.r, y);
         ctx.stroke();
 
-        ctx.fillStyle = isZero ? "#e8edf7" : "#8a98b5";
+        if (isZero) ctx.fillStyle = "#e8edf7";
+        else if (value < 0) ctx.fillStyle = "#ff8a92";
+        else ctx.fillStyle = "#8a98b5";
         ctx.font = isZero ? "800 11px Inter, Arial" : "700 11px Inter, Arial";
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
         ctx.fillText(fmtCurrency(value), w - pad.r + 6, y);
     }
 
-    const grad = ctx.createLinearGradient(0, pad.t, 0, h - pad.b);
-    grad.addColorStop(0, color + "66");
-    grad.addColorStop(1, color + "00");
+    const buildAreaPath = () => {
+        ctx.beginPath();
+        points.forEach((v, i) => {
+            const x = xPos(i), y = yPos(v);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.lineTo(xPos(points.length - 1), yZero);
+        ctx.lineTo(xPos(0), yZero);
+        ctx.closePath();
+    };
 
-    ctx.beginPath();
-    points.forEach((v, i) => {
-        const x = xPos(i), y = yPos(v);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.lineTo(xPos(points.length - 1), pad.t + innerH);
-    ctx.lineTo(xPos(0), pad.t + innerH);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
+    if (yZero > pad.t) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(pad.l, pad.t, innerW, yZero - pad.t);
+        ctx.clip();
+        const posGrad = ctx.createLinearGradient(0, pad.t, 0, yZero);
+        posGrad.addColorStop(0, posColor + "66");
+        posGrad.addColorStop(1, posColor + "00");
+        buildAreaPath();
+        ctx.fillStyle = posGrad;
+        ctx.fill();
+        ctx.restore();
+    }
 
-    ctx.beginPath();
-    points.forEach((v, i) => {
-        const x = xPos(i), y = yPos(v);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.strokeStyle = color;
+    if (yZero < pad.t + innerH) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(pad.l, yZero, innerW, pad.t + innerH - yZero);
+        ctx.clip();
+        const negGrad = ctx.createLinearGradient(0, yZero, 0, pad.t + innerH);
+        negGrad.addColorStop(0, negColor + "00");
+        negGrad.addColorStop(1, negColor + "55");
+        buildAreaPath();
+        ctx.fillStyle = negGrad;
+        ctx.fill();
+        ctx.restore();
+    }
+
     ctx.lineWidth = 2.4;
     ctx.lineJoin = "round";
-    ctx.stroke();
+    ctx.lineCap = "round";
+    for (let i = 0; i < points.length - 1; i++) {
+        const v1 = points[i], v2 = points[i + 1];
+        const x1 = xPos(i), x2 = xPos(i + 1);
+        const y1 = yPos(v1), y2 = yPos(v2);
+        const crosses = (v1 < 0 && v2 > 0) || (v1 > 0 && v2 < 0);
+        if (!crosses) {
+            ctx.strokeStyle = (v1 < 0 || v2 < 0) ? negColor : posColor;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        } else {
+            const t = v1 / (v1 - v2);
+            const xc = x1 + t * (x2 - x1);
+            ctx.strokeStyle = v1 >= 0 ? posColor : negColor;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(xc, yZero);
+            ctx.stroke();
+            ctx.strokeStyle = v2 >= 0 ? posColor : negColor;
+            ctx.beginPath();
+            ctx.moveTo(xc, yZero);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        }
+    }
 
     if (dates && dates.length === points.length) {
         ctx.fillStyle = "#8a98b5";
