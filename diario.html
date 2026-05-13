@@ -887,6 +887,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
         <button class="nav-item" data-view="stats" type="button">📈 Estatísticas</button>
         <button class="nav-item" data-view="journal" type="button">📝 Diário</button>
         <button class="nav-item" data-view="fees" type="button">💸 Taxas</button>
+        <button class="nav-item" data-view="robot" type="button">🤖 Robô SMC</button>
         <div class="nav-divider"></div>
         <a class="nav-item" href="checklist.html" style="text-decoration:none;">✓ Checklist Pré-Trade</a>
         <div class="nav-divider"></div>
@@ -1026,6 +1027,58 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                     <p>Revisão dos últimos 30 trades com notas</p>
                 </div>
                 <div id="journalList"></div>
+            </div>
+        </section>
+
+        <section class="view" id="view-robot">
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Configuração do robô</h2>
+                    <p>MT5 V900 — exporta CSV via script e importa aqui</p>
+                </div>
+                <div class="panel-body">
+                    <div class="form-grid">
+                        <div class="field">
+                            <label>Magic Number</label>
+                            <input type="number" id="fRobotMagic" placeholder="20250321">
+                            <div class="field-hint">V900 OB/VWAP = 20250321. Trocar quando rodar versão diferente.</div>
+                        </div>
+                        <div class="field">
+                            <label>Símbolo (filtro opcional)</label>
+                            <input type="text" id="fRobotSymbol" placeholder="Ex: WINQ25 (vazio = todos)">
+                        </div>
+                        <div class="field full">
+                            <label>Arquivo CSV do MT5 (MQL5/Files/robo_smc_export.csv)</label>
+                            <input type="file" id="fRobotFile" accept=".csv,text/csv">
+                        </div>
+                        <div class="field full" style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button class="btn btn-primary" id="btnRobotImport" type="button">📥 Importar trades agora</button>
+                            <button class="btn btn-ghost" id="btnRobotSaveCfg" type="button">Salvar config</button>
+                            <button class="btn btn-ghost" id="btnRobotPurge" type="button" style="color:var(--red);">Apagar trades do robô</button>
+                        </div>
+                        <div class="field full">
+                            <div class="field-hint" id="robotImportHint">Selecione o CSV e clique Importar. Dedup por ticket — pode rodar quantas vezes quiser.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Estatísticas do robô</h2>
+                    <p id="robotSummary">Sem trades importados</p>
+                </div>
+                <div class="panel-body">
+                    <div class="kpi-grid" id="robotKpis"></div>
+                    <canvas class="equity-canvas" id="robotEquityCanvas" style="height:220px; margin-top:12px;"></canvas>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Últimos trades do robô</h2>
+                </div>
+                <div id="robotTradesBox"></div>
             </div>
         </section>
 
@@ -1180,8 +1233,26 @@ const state = {
     view: "dashboard",
     editingId: null,
     calMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-    fees: { cripto: 0, win: 0, wdo: 0 }
+    fees: { cripto: 0, win: 0, wdo: 0 },
+    robot: { magic: 20250321, symbol: "" }
 };
+
+const ROBOT_DEFAULTS = { magic: 20250321, symbol: "" };
+const ROBOT_STORAGE_KEY = "diarioProRobot_v1";
+const ROBOT_SOURCE = "robo_smc";
+
+function loadRobotConfig() {
+    try { return { ...ROBOT_DEFAULTS, ...JSON.parse(localStorage.getItem(ROBOT_STORAGE_KEY) || "{}") }; }
+    catch (e) { return { ...ROBOT_DEFAULTS }; }
+}
+
+function persistRobotConfig() {
+    localStorage.setItem(ROBOT_STORAGE_KEY, JSON.stringify(state.robot));
+}
+
+function isRobotTrade(t) { return t?.source === ROBOT_SOURCE; }
+function manualTrades() { return state.trades.filter((t) => !isRobotTrade(t)); }
+function robotTrades() { return state.trades.filter(isRobotTrade); }
 
 const $ = (id) => document.getElementById(id);
 
@@ -1268,6 +1339,256 @@ function tradeNetPnl(trade) {
     return Number(trade?.pnl || 0) - tradeFees(trade);
 }
 
+function parseRobotCsv(text) {
+    const lines = text.trim().split(/\r?\n/).filter((l) => l.trim().length > 0);
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const idx = (name) => headers.indexOf(name);
+    const rows = lines.slice(1).map((line) => {
+        const cols = line.split(",");
+        return { get: (name) => (cols[idx(name)] ?? "").trim() };
+    });
+    const magicFilter = Number(state.robot.magic || 0);
+    const symFilter = String(state.robot.symbol || "").trim().toUpperCase();
+    return rows
+        .map((r) => robotRowToTrade(r))
+        .filter(Boolean)
+        .filter((t) => !magicFilter || t.magic === magicFilter)
+        .filter((t) => !symFilter || t.symbol === symFilter);
+}
+
+function parseMt5Date(s) {
+    if (!s) return new Date().toISOString();
+    const m = s.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (!m) return new Date(s).toISOString();
+    return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0))).toISOString();
+}
+
+function robotRowToTrade(r) {
+    const ticket = r.get("ticket");
+    if (!ticket) return null;
+    const type = r.get("type");
+    const side = (type === "0" || /buy/i.test(type)) ? "long" : "short";
+    const profit = Number(r.get("profit") || 0);
+    const commission = Number(r.get("commission") || 0);
+    const swap = Number(r.get("swap") || 0);
+    const pnl = profit + commission + swap;
+    const entry = Number(r.get("price_open") || 0);
+    const exit = Number(r.get("price_close") || 0);
+    const sl = Number(r.get("sl") || 0);
+    const tp = Number(r.get("tp") || 0);
+    const volume = Number(r.get("volume") || 0);
+    const symbol = String(r.get("symbol") || "").toUpperCase();
+    const magic = Number(r.get("magic") || 0);
+    return {
+        id: `robo-${ticket}`,
+        date: parseMt5Date(r.get("time_open")),
+        closeDate: parseMt5Date(r.get("time_close")),
+        symbol,
+        side,
+        setup: "Robô SMC",
+        initQty: volume,
+        qty: volume,
+        entry,
+        stop: sl,
+        exit,
+        targetMoney: 0,
+        targetR: 0,
+        status: "manual",
+        manualR: 0,
+        partials: [],
+        riskMoney: 0,
+        pnl,
+        r: null,
+        rPending: true,
+        fees: 0,
+        tags: ["robo"],
+        mistakes: [],
+        notes: `Ticket ${ticket} | magic ${magic} | comm ${commission.toFixed(2)} | swap ${swap.toFixed(2)} | comment: ${r.get("comment") || "-"}`,
+        source: ROBOT_SOURCE,
+        ticket,
+        magic,
+        commission,
+        swap,
+        tp,
+        sl,
+        createdAt: new Date().toISOString()
+    };
+}
+
+async function importRobotFile(file) {
+    if (!file) { toast("Selecione um arquivo CSV"); return; }
+    let text;
+    try { text = await file.text(); }
+    catch (e) { alert("Falha ao ler arquivo: " + e.message); return; }
+    const parsed = parseRobotCsv(text);
+    if (!parsed.length) {
+        $("robotImportHint").innerHTML = `<span style="color:var(--red)">Nenhum trade compatível encontrado. Confira Magic Number e Símbolo.</span>`;
+        return;
+    }
+
+    const byId = new Map(state.trades.map((t) => [t.id, t]));
+    let added = 0, updated = 0;
+    const toUpsert = [];
+    for (const t of parsed) {
+        const existing = byId.get(t.id);
+        if (existing) {
+            Object.assign(existing, t);
+            updated++;
+        } else {
+            state.trades.push(t);
+            added++;
+        }
+        toUpsert.push(t);
+    }
+    saveTrades();
+
+    let cloudFailed = 0;
+    if (canUseCloud()) {
+        $("robotImportHint").textContent = `Sincronizando ${toUpsert.length} trades na nuvem...`;
+        const results = await Promise.all(toUpsert.map((t) => upsertTradeCloud(t)));
+        cloudFailed = results.filter((r) => !r.ok).length;
+    }
+
+    $("robotImportHint").innerHTML = `
+        <strong>${added}</strong> novos · <strong>${updated}</strong> atualizados${cloudFailed ? ` · <span style="color:var(--red)">${cloudFailed} falharam na nuvem</span>` : ""}
+        ${canUseCloud() ? " · sincronizado" : " · só local (faça login pra sincronizar)"}
+    `;
+    toast(`Robô: ${added}+ ${updated}↻`);
+    renderAll();
+}
+
+function purgeRobotTrades() {
+    if (!confirm("Apagar TODOS os trades importados do robô? Trades manuais não serão tocados.")) return;
+    const robos = robotTrades();
+    state.trades = manualTrades();
+    saveTrades();
+    if (canUseCloud()) {
+        Promise.all(robos.map((t) => deleteTradeCloud(t.id))).then(() => {
+            toast(`${robos.length} trades do robô removidos`);
+            renderAll();
+        });
+    } else {
+        toast(`${robos.length} trades do robô removidos (local)`);
+        renderAll();
+    }
+}
+
+function renderRobot() {
+    $("fRobotMagic").value = state.robot.magic ?? "";
+    $("fRobotSymbol").value = state.robot.symbol ?? "";
+
+    const robos = [...robotTrades()].sort((a, b) => new Date(a.date) - new Date(b.date));
+    if (!robos.length) {
+        $("robotSummary").textContent = "Sem trades importados";
+        $("robotKpis").innerHTML = "";
+        $("robotTradesBox").innerHTML = `<div class="panel-body"><span class="muted">Importe um CSV pra ver as estatísticas.</span></div>`;
+        const c = $("robotEquityCanvas");
+        if (c.getContext) { const ctx = c.getContext("2d"); ctx.clearRect(0, 0, c.width, c.height); }
+        return;
+    }
+
+    const pnls = robos.map(tradeNetPnl);
+    const totalPnl = pnls.reduce((a, b) => a + b, 0);
+    const wins = pnls.filter((p) => p > 0);
+    const losses = pnls.filter((p) => p < 0);
+    const bes = pnls.filter((p) => p === 0);
+    const decisive = wins.length + losses.length;
+    const winrate = decisive ? (wins.length / decisive) * 100 : 0;
+    const avgWin = wins.length ? wins.reduce((a, b) => a + b, 0) / wins.length : 0;
+    const avgLoss = losses.length ? losses.reduce((a, b) => a + b, 0) / losses.length : 0;
+    const grossWin = wins.reduce((a, b) => a + b, 0);
+    const grossLoss = Math.abs(losses.reduce((a, b) => a + b, 0));
+    const pf = grossLoss ? grossWin / grossLoss : grossWin ? Infinity : 0;
+    const best = Math.max(...pnls, 0);
+    const worst = Math.min(...pnls, 0);
+
+    let peak = 0, equity = 0, maxDD = 0;
+    pnls.forEach((p) => { equity += p; peak = Math.max(peak, equity); maxDD = Math.max(maxDD, peak - equity); });
+
+    const first = new Date(robos[0].date);
+    const last = new Date(robos[robos.length - 1].date);
+    $("robotSummary").textContent = `${robos.length} trades · ${first.toLocaleDateString("pt-BR")} → ${last.toLocaleDateString("pt-BR")} · magic ${state.robot.magic}`;
+
+    const cls = (v) => v > 0 ? "win" : v < 0 ? "loss" : "neutral";
+    const kpis = [
+        { label: "P&L total liq.", value: fmtCurrency(totalPnl), meta: `${robos.length} trades`, cls: cls(totalPnl) },
+        { label: "Winrate", value: fmtPct(winrate), meta: `${wins.length}W / ${losses.length}L / ${bes.length}BE`, cls: "neutral" },
+        { label: "Profit factor", value: pf === Infinity ? "∞" : pf.toFixed(2), meta: "gross win / gross loss", cls: cls(pf - 1) },
+        { label: "Avg win / loss", value: `${fmtCurrency(avgWin)} / ${fmtCurrency(avgLoss)}`, meta: avgLoss ? `R/R ${(avgWin / Math.abs(avgLoss)).toFixed(2)}` : "—", cls: "neutral" },
+        { label: "Melhor / pior", value: `${fmtCurrency(best)} / ${fmtCurrency(worst)}`, cls: "neutral" },
+        { label: "Max DD (R$)", value: fmtCurrency(-maxDD), cls: "loss" }
+    ];
+    $("robotKpis").innerHTML = kpis.map((k) => `
+        <div class="kpi-card ${k.cls}">
+            <div class="label">${k.label}</div>
+            <div class="value">${k.value}</div>
+            ${k.meta ? `<div class="meta">${k.meta}</div>` : ""}
+        </div>
+    `).join("");
+
+    requestAnimationFrame(() => drawRobotEquity(pnls));
+
+    const last30 = [...robos].reverse().slice(0, 30);
+    $("robotTradesBox").innerHTML = `
+        <div class="panel-body" style="overflow-x:auto;">
+            <table>
+                <thead><tr>
+                    <th>Data</th><th>Ticket</th><th>Ativo</th><th>Lado</th><th class="right">Volume</th>
+                    <th class="right">Entrada</th><th class="right">Saída</th><th class="right">P&L liq.</th>
+                </tr></thead>
+                <tbody>
+                ${last30.map((t) => `
+                    <tr>
+                        <td>${new Date(t.date).toLocaleString("pt-BR")}</td>
+                        <td>${escapeHtml(t.ticket || "")}</td>
+                        <td>${escapeHtml(t.symbol)}</td>
+                        <td>${t.side === "long" ? "Compra" : "Venda"}</td>
+                        <td class="right">${t.qty}</td>
+                        <td class="right">${t.entry}</td>
+                        <td class="right">${t.exit}</td>
+                        <td class="right" style="color:${tradeNetPnl(t) > 0 ? "var(--green)" : tradeNetPnl(t) < 0 ? "var(--red)" : "var(--muted)"}"><strong>${fmtCurrency(tradeNetPnl(t))}</strong></td>
+                    </tr>
+                `).join("")}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function drawRobotEquity(pnls) {
+    const c = $("robotEquityCanvas");
+    if (!c || !c.getContext) return;
+    const rect = c.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    c.width = Math.max(1, Math.floor(rect.width * ratio));
+    c.height = Math.max(1, Math.floor(rect.height * ratio));
+    const ctx = c.getContext("2d");
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    const eq = [0];
+    pnls.forEach((p) => eq.push(eq[eq.length - 1] + p));
+    const min = Math.min(...eq);
+    const max = Math.max(...eq);
+    const pad = 12;
+    const w = rect.width - pad * 2;
+    const h = rect.height - pad * 2;
+    const x = (i) => pad + (i / (eq.length - 1 || 1)) * w;
+    const y = (v) => pad + h - ((v - min) / (max - min || 1)) * h;
+
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.beginPath();
+    const zero = y(0);
+    ctx.moveTo(pad, zero); ctx.lineTo(pad + w, zero); ctx.stroke();
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = eq[eq.length - 1] >= 0 ? "#2ddb8a" : "#ff5d6c";
+    ctx.beginPath();
+    eq.forEach((v, i) => { if (i === 0) ctx.moveTo(x(i), y(v)); else ctx.lineTo(x(i), y(v)); });
+    ctx.stroke();
+}
+
 function fmtPct(v) {
     return `${Number(v || 0).toFixed(1)}%`;
 }
@@ -1290,11 +1611,12 @@ function switchView(view) {
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
     const titles = {
         dashboard: ["Dashboard", "Visão geral da performance"],
-        trades: ["Trades", `${state.trades.length} operações registradas`],
+        trades: ["Trades", `${manualTrades().length} operações registradas`],
         calendar: ["Calendário", "Resultado diário"],
         stats: ["Estatísticas", "Métricas avançadas e análises"],
         journal: ["Diário", "Notas e revisão por trade"],
-        fees: ["Taxas", "Configuração por categoria de ativo"]
+        fees: ["Taxas", "Configuração por categoria de ativo"],
+        robot: ["Robô SMC", "Import automático dos trades do MT5"]
     };
     const [t, s] = titles[view] || titles.dashboard;
     $("viewTitle").textContent = t;
@@ -1587,7 +1909,7 @@ function computeStats(trades) {
 }
 
 function renderKPIs() {
-    const s = computeStats(state.trades);
+    const s = computeStats(manualTrades());
     const rMeta = `${s.rCount} com R${s.pendingR ? ` / ${s.pendingR} pend.` : ""}`;
     const kpis = [
         { label: "Net P&L liq.", value: fmtCurrency(s.pnlTotal), meta: `fees: ${fmtCurrency(s.feesTotal)}`, cls: s.pnlTotal > 0 ? "win" : s.pnlTotal < 0 ? "loss" : "neutral" },
@@ -1623,8 +1945,9 @@ function setupCanvas(id) {
 
 function drawEquity() {
     const { ctx, w, h } = setupCanvas("equityCanvas");
-    const s = computeStats(state.trades);
-    if (!state.trades.length) { drawEmpty(ctx, w, h); return; }
+    const mt = manualTrades();
+    const s = computeStats(mt);
+    if (!mt.length) { drawEmpty(ctx, w, h); return; }
     const pad = { t: 18, r: 18, b: 24, l: 78 };
     const pts = s.capitalEquity;
     const min = Math.min(...pts, 0);
@@ -1679,7 +2002,7 @@ function drawEquity() {
 
 function drawDist() {
     const { ctx, w, h } = setupCanvas("distCanvas");
-    const s = computeStats(state.trades);
+    const s = computeStats(manualTrades());
     if (!s.rCount) { drawEmpty(ctx, w, h, s.pendingR ? "R pendente nos trades importados" : "Sem dados ainda"); return; }
     const data = [
         { l: "Wins", v: s.wins, c: "#2ddb8a" },
@@ -1722,10 +2045,11 @@ function drawDist() {
 
 function drawHour() {
     const { ctx, w, h } = setupCanvas("hourCanvas");
-    const s = computeStats(state.trades);
+    const mt = manualTrades();
+    const s = computeStats(mt);
     if (!s.rCount) { drawEmpty(ctx, w, h, s.pendingR ? "R pendente nos trades importados" : "Sem dados ainda"); return; }
     const buckets = Array.from({ length: 24 }, () => 0);
-    state.trades.forEach((t) => {
+    mt.forEach((t) => {
         if (isRPending(t)) return;
         const hr = new Date(t.date).getHours();
         buckets[hr] += tradeRValue(t);
@@ -1762,7 +2086,7 @@ function drawEmpty(ctx, w, h, text = "Sem dados ainda") {
 }
 
 function renderRecent() {
-    const recent = [...state.trades].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+    const recent = [...manualTrades()].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
     if (!recent.length) {
         $("recentTrades").innerHTML = `<div class="empty"><div class="empty-ico">∅</div>Nenhum trade ainda. Clique em <strong>+ Novo Trade</strong>.</div>`;
         return;
@@ -1786,7 +2110,8 @@ function renderTrades() {
     const text = $("filterText").value.trim().toLowerCase();
     const side = $("filterSide").value;
     const result = $("filterResult").value;
-    const filtered = state.trades.filter((t) => {
+    const base = manualTrades();
+    const filtered = base.filter((t) => {
         if (side && t.side !== side) return false;
         const r = tradeRValue(t);
         if (result === "win" && !(r > 0)) return false;
@@ -1799,7 +2124,7 @@ function renderTrades() {
         return true;
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    $("filterCount").textContent = `${filtered.length} de ${state.trades.length}`;
+    $("filterCount").textContent = `${filtered.length} de ${base.length}`;
 
     if (!filtered.length) {
         $("tradesTable").innerHTML = `<div class="empty"><div class="empty-ico">∅</div>Nenhum trade encontrado.</div>`;
@@ -1845,7 +2170,7 @@ function renderCalendar() {
     const days = last.getDate();
 
     const dayMap = {};
-    state.trades.forEach((t) => {
+    manualTrades().forEach((t) => {
         if (isRPending(t)) return;
         const d = new Date(t.date);
         if (d.getFullYear() !== month.getFullYear() || d.getMonth() !== month.getMonth()) return;
@@ -1878,7 +2203,7 @@ function renderCalendar() {
 }
 
 function renderAdvancedStats() {
-    const s = computeStats(state.trades);
+    const s = computeStats(manualTrades());
     const items = [
         ["P&L liquido", fmtCurrency(s.pnlTotal)],
         ["Fees/custos", fmtCurrency(s.feesTotal)],
@@ -1917,7 +2242,7 @@ function renderAdvancedStats() {
 
 function renderTagStats() {
     const tagAgg = {};
-    state.trades.forEach((t) => {
+    manualTrades().forEach((t) => {
         if (isRPending(t)) return;
         (t.tags || []).forEach((tag) => {
             tagAgg[tag] = tagAgg[tag] || { count: 0, r: 0, wins: 0 };
@@ -1942,7 +2267,7 @@ function renderTagStats() {
 }
 
 function renderStreaks() {
-    const s = computeStats(state.trades);
+    const s = computeStats(manualTrades());
     $("streaksBox").innerHTML = `
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
             <div class="kpi-card win"><div class="label">Maior sequência verde</div><div class="value">${s.bestWinStreak}</div></div>
@@ -1953,7 +2278,7 @@ function renderStreaks() {
 }
 
 function renderJournal() {
-    const trades = [...state.trades]
+    const trades = [...manualTrades()]
         .filter((t) => t.notes || (t.mistakes || []).length)
         .sort((a, b) => new Date(b.date) - new Date(a.date))
         .slice(0, 30);
@@ -1995,6 +2320,8 @@ function renderAll() {
         renderJournal();
     } else if (state.view === "fees") {
         renderFees();
+    } else if (state.view === "robot") {
+        renderRobot();
     }
 }
 
@@ -2283,6 +2610,34 @@ function bindEvents() {
         }
         renderAll();
     });
+
+    $("btnRobotSaveCfg").addEventListener("click", async () => {
+        state.robot = {
+            magic: Number($("fRobotMagic").value || 0),
+            symbol: String($("fRobotSymbol").value || "").trim().toUpperCase()
+        };
+        persistRobotConfig();
+        if (canUseCloud()) {
+            const result = await saveCloudSettings();
+            toast(result.ok ? "Config robô salva · sincronizado" : `Salvo local. Nuvem falhou: ${result.message}`);
+        } else {
+            toast("Config robô salva (local)");
+        }
+        renderAll();
+    });
+
+    $("btnRobotImport").addEventListener("click", async () => {
+        state.robot = {
+            magic: Number($("fRobotMagic").value || 0),
+            symbol: String($("fRobotSymbol").value || "").trim().toUpperCase()
+        };
+        persistRobotConfig();
+        const file = $("fRobotFile").files[0];
+        if (!file) { toast("Escolha o CSV antes de importar"); return; }
+        await importRobotFile(file);
+    });
+
+    $("btnRobotPurge").addEventListener("click", purgeRobotTrades);
     $("modalBackdrop").addEventListener("click", (e) => {
         if (e.target === $("modalBackdrop")) closeModal();
     });
@@ -2501,9 +2856,13 @@ async function loadCloudSettings() {
         if (data?.payload?.fees) {
             state.fees = { ...FEE_DEFAULTS, ...data.payload.fees };
             persistFees();
-            if (state.view === "fees") renderFees();
-            else renderAll();
         }
+        if (data?.payload?.robot) {
+            state.robot = { ...ROBOT_DEFAULTS, ...data.payload.robot };
+            persistRobotConfig();
+        }
+        if (state.view === "fees" || state.view === "robot") renderAll();
+        else renderAll();
     } catch (err) {
         console.warn("loadCloudSettings exception:", err);
     }
@@ -2516,7 +2875,7 @@ async function saveCloudSettings() {
             .from("user_settings")
             .upsert({
                 user_id: currentUser.id,
-                payload: { fees: state.fees },
+                payload: { fees: state.fees, robot: state.robot },
                 updated_at: new Date().toISOString()
             });
         if (error) return { ok: false, message: error.message };
@@ -2548,6 +2907,7 @@ function bindCloudEvents() {
 }
 
 state.fees = loadFees();
+state.robot = loadRobotConfig();
 bindNav();
 bindEvents();
 bindCloudEvents();
