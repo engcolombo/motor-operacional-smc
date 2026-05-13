@@ -30,7 +30,7 @@ void OnStart()
     }
 
     FileWriteString(handle,
-        "ticket,time_open,time_close,symbol,type,volume,price_open,price_close,sl,tp,profit,commission,swap,comment,magic\n");
+        "ticket,time_open,time_close,symbol,type,volume,price_open,price_close,sl,tp,profit,commission,swap,comment,magic,score,threshold,ob_type,ob_pts\n");
 
     int total_deals = HistoryDealsTotal();
     long  pos_ids[];
@@ -103,7 +103,7 @@ void OnStart()
         if(t_open == 0 || t_close == 0) continue;
 
         StringReplace(comment, ",", " ");
-        string row = StringFormat("%I64d,%s,%s,%s,%d,%.2f,%.5f,%.5f,%.5f,%.5f,%.2f,%.2f,%.2f,%s,%I64d\n",
+        string row = StringFormat("%I64d,%s,%s,%s,%d,%.2f,%.5f,%.5f,%.5f,%.5f,%.2f,%.2f,%.2f,%s,%I64d,0.0000,0.0000,,0\n",
             pos_id,
             TimeToString(t_open,  TIME_DATE|TIME_SECONDS),
             TimeToString(t_close, TIME_DATE|TIME_SECONDS),

@@ -1,6 +1,11 @@
 # Export do Robo SMC para o Diario Pro
 
-Fluxo: o **script MQL5** roda no MT5 e gera um CSV com todos os trades fechados de um robo (filtrados por Magic Number). O **Diario Pro** importa esse CSV num clique, dedupa por ticket e exibe estatisticas da estrategia.
+Dois caminhos pra alimentar o CSV:
+
+1. **EA V900 com hook embutido (recomendado)** — anexa uma linha automaticamente ao `MQL5/Files/robo_smc_export.csv` quando cada trade fecha. Inclui `score`, `threshold`, `ob_type` (internal/swing) e `ob_pts`.
+2. **Script standalone** — exporta todo o historico em uma rodada (overwrite). Util pra backfill inicial. Os 4 campos extras saem zerados (dados ML perdem-se apos o trade).
+
+Site importa qualquer um dos dois (formato igual, 19 cols).
 
 ## 1. Instalar o script no MT5
 
@@ -55,3 +60,45 @@ Script ignora posicoes abertas (`time_close == 0`). So exporta trades fechados. 
 - CSV nao traz comissoes da corretora alem das ja debitadas pelo broker. `pnl = profit + commission + swap`.
 - `R` nao e calculado automaticamente (precisaria contract spec por simbolo). Use a coluna PnL.
 - Se voce muda o Magic durante a vida do trade (raro), filtro pode pular esse trade.
+
+## 8. Hook EA dentro do V900 (live append)
+
+Para que cada trade do robo seja gravado no CSV automaticamente quando fechar:
+
+1. Coloca `ROBOSMC_V900_ML1_RoboExport.mqh` na pasta do V900 (`MQL5/Experts/.../V900/`).
+2. No `ROBOSMC_V900_ML1.mq5`:
+   - `#include "ROBOSMC_V900_ML1_RoboExport.mqh"` antes do `Signals.mqh`.
+   - Adiciona handler:
+     ```mql5
+     void OnTradeTransaction(const MqlTradeTransaction &trans,
+                             const MqlTradeRequest     &req,
+                             const MqlTradeResult      &res)
+     {
+        RoboExport_OnTransaction(trans, (long)MagicNumber);
+     }
+     ```
+3. Em `ROBOSMC_V900_ML1_Signals.mqh`, antes de cada `PlaceBuy/SellLimitEx`:
+   ```mql5
+   RoboExport_SetPending(
+      (predictedMFE > 0.0 ? predictedMFE : prob),
+      (CanUseAFTOnlyMode() ? AFTOnly2RThreshold : MLMinProbability),
+      "internal", (int)(obSize / _Point));   // ou "swing"
+   ```
+4. Compila o EA no MetaEditor (F7). Reanexa no chart.
+5. Inputs novos aparecem:
+   - `InpRoboExportEnabled` (default ON)
+   - `InpRoboExportFile` (default `robo_smc_export.csv`)
+   - `InpRoboExportPrint` (default ON — imprime no log a cada trade)
+
+Cada trade fechado do robo cai no CSV. Site importa quando voce clicar.
+
+## 9. Formato CSV (19 colunas)
+
+```
+ticket,time_open,time_close,symbol,type,volume,price_open,price_close,sl,tp,profit,commission,swap,comment,magic,score,threshold,ob_type,ob_pts
+```
+
+- `score`: probabilidade LGBM ou MFE predito AFT no momento do trade.
+- `threshold`: limiar usado (MLMinProbability ou AFTOnly2RThreshold).
+- `ob_type`: `internal` ou `swing`.
+- `ob_pts`: tamanho do OB em pontos do ativo.
