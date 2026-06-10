@@ -2900,19 +2900,17 @@ function bindEvents() {
     $("filterResult").addEventListener("change", renderTrades);
 
     $("btnDeleteAllTrades").addEventListener("click", () => {
-        if (!state.trades.length) {
-            toast("Não há trades para excluir.");
+        const manuals = manualTrades();
+        if (!manuals.length) {
+            toast("Não há trades manuais para excluir.");
             return;
         }
-        if (confirm("Tem certeza que deseja apagar TODOS os trades registrados? Esta ação não pode ser desfeita.")) {
-            // Em caso positivo, também exclui da nuvem se for suportado?
-            // "purgeRobotTrades" no codigo faz algo parecido, mas aqui vamos so limpar o local e talvez sinc nuvem?
-            // Deixar igual a limpar banco, só zerando o state
-            const idsToDelete = state.trades.map(t => t.id);
-            state.trades = [];
+        if (confirm("Tem certeza que deseja apagar TODOS os trades MANUAIS registrados? Trades do robô não serão afetados. Esta ação não pode ser desfeita.")) {
+            const idsToDelete = manuals.map(t => t.id);
+            state.trades = robotTrades();
             saveTrades();
             renderAll();
-            toast("Todos os trades foram apagados.");
+            toast("Todos os trades manuais foram apagados.");
             
             // Delete do cloud
             if (canUseCloud()) {
