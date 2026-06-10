@@ -1250,6 +1250,26 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     </div>
 </div>
 
+<div class="modal-backdrop" id="modalImportConfirm">
+    <div class="modal">
+        <div class="modal-head">
+            <h3 id="modalImportTitle">Importação de CSV</h3>
+            <button class="modal-close" onclick="document.getElementById('btnImportConfirmCancel').click()" type="button">×</button>
+        </div>
+        <div class="modal-body">
+            <p id="modalImportDesc" style="margin-bottom: 20px;">Você deseja importar os trades?</p>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="cbDedupImport" checked>
+                Ignorar trades repetidos (mesma data, ativo e direção)
+            </label>
+        </div>
+        <div class="modal-foot">
+            <button class="btn btn-ghost" id="btnImportConfirmCancel" type="button">Cancelar</button>
+            <button class="btn btn-primary" id="btnImportConfirmOk" type="button">Importar</button>
+        </div>
+    </div>
+</div>
+
 <input type="file" id="importFile" accept=".json,.csv,application/json,text/csv" hidden>
 <div class="toast" id="toast"></div>
 
@@ -2577,21 +2597,58 @@ function importJSONText(text) {
     }
 }
 
+function promptImportBroker(tradesCount) {
+    return new Promise(resolve => {
+        $("modalImportTitle").textContent = "Confirmar importação";
+        $("modalImportDesc").textContent = `Foram encontrados ${tradesCount} trades no CSV da corretora. Eles serão adicionados ao histórico atual.`;
+        $("modalImportConfirm").classList.add("open");
+        
+        $("btnImportConfirmCancel").onclick = () => {
+            $("modalImportConfirm").classList.remove("open");
+            resolve(null);
+        };
+        
+        $("btnImportConfirmOk").onclick = () => {
+            const dedup = $("cbDedupImport").checked;
+            $("modalImportConfirm").classList.remove("open");
+            resolve(dedup);
+        };
+    });
+}
+
 async function importBrokerCSVText(text) {
     try {
         const trades = parseBrokerCSV(text);
         if (!trades.length) throw new Error("Nenhum trade encontrado");
-        if (!confirm(`Importar ${trades.length} trades da corretora? Eles serao adicionados ao historico atual.`)) return;
-        state.trades = [...state.trades, ...trades];
+        
+        const dedup = await promptImportBroker(trades.length);
+        if (dedup === null) return;
+        
+        let tradesToAdd = trades;
+        if (dedup) {
+            tradesToAdd = trades.filter(t => {
+                return !state.trades.some(existing => 
+                    existing.date === t.date &&
+                    existing.symbol === t.symbol &&
+                    existing.side === t.side
+                );
+            });
+            if (!tradesToAdd.length) {
+                toast("Nenhum trade novo após remover duplicados.");
+                return;
+            }
+        }
+
+        state.trades = [...state.trades, ...tradesToAdd];
         saveTrades();
         renderAll();
-        const sync = await syncImportedTradesCloud(trades);
+        const sync = await syncImportedTradesCloud(tradesToAdd);
         if (!sync.ok) {
             alert(`Trades importados localmente, mas falha ao sincronizar na nuvem: ${sync.message}`);
-            toast(`${trades.length} trades importados localmente`);
+            toast(`${tradesToAdd.length} trades importados localmente`);
             return;
         }
-        toast(sync.synced ? `${trades.length} trades importados e sincronizados` : `${trades.length} trades da corretora importados`);
+        toast(sync.synced ? `${tradesToAdd.length} trades importados e sincronizados` : `${tradesToAdd.length} trades da corretora importados`);
     } catch (e) {
         alert(`Erro ao importar CSV: ${e.message}`);
     }
