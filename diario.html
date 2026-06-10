@@ -1005,6 +1005,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                         <option value="be">Empates</option>
                     </select>
                     <span class="muted" id="filterCount" style="margin-left:auto"></span>
+                    <button class="btn btn-ghost" id="btnDeleteAllTrades" type="button" style="color:var(--red); padding: 4px 8px; font-size: 0.85rem;" title="Apagar todos os trades desta lista">Excluir Todos</button>
                 </div>
                 <div id="tradesTable"></div>
             </div>
@@ -2897,6 +2898,29 @@ function bindEvents() {
     $("filterText").addEventListener("input", renderTrades);
     $("filterSide").addEventListener("change", renderTrades);
     $("filterResult").addEventListener("change", renderTrades);
+
+    $("btnDeleteAllTrades").addEventListener("click", () => {
+        if (!state.trades.length) {
+            toast("Não há trades para excluir.");
+            return;
+        }
+        if (confirm("Tem certeza que deseja apagar TODOS os trades registrados? Esta ação não pode ser desfeita.")) {
+            // Em caso positivo, também exclui da nuvem se for suportado?
+            // "purgeRobotTrades" no codigo faz algo parecido, mas aqui vamos so limpar o local e talvez sinc nuvem?
+            // Deixar igual a limpar banco, só zerando o state
+            const idsToDelete = state.trades.map(t => t.id);
+            state.trades = [];
+            saveTrades();
+            renderAll();
+            toast("Todos os trades foram apagados.");
+            
+            // Delete do cloud
+            if (canUseCloud()) {
+                Promise.all(idsToDelete.map(id => supabase.from(SUPABASE_TABLE).delete().eq("id", id)))
+                    .catch(e => console.error("Erro deletando na nuvem", e));
+            }
+        }
+    });
 
     $("calPrev").addEventListener("click", () => {
         state.calMonth = new Date(state.calMonth.getFullYear(), state.calMonth.getMonth() - 1, 1);
