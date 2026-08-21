@@ -937,6 +937,8 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                 <button class="btn btn-primary cloud-btn" id="btnCloudLogin" type="button">Entrar</button>
             </div>
             <button class="btn btn-ghost cloud-btn" id="btnCloudLogout" type="button" hidden>Sair</button>
+            <button class="btn btn-ghost cloud-btn" id="btnCloudApplyDeletes" type="button" hidden style="color:var(--red);" title="Aplicar no Supabase as exclusões locais pendentes">Aplicar exclusões no Supabase</button>
+            <button class="btn btn-ghost cloud-btn" id="btnCloudReload" type="button" hidden title="Recarregar os trades salvos no Supabase">↻ Atualizar da nuvem</button>
         </div>
 
         <a class="nav-back" href="index.html">← Voltar ao Motor SMC</a>
@@ -1005,7 +1007,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                         <option value="be">Empates</option>
                     </select>
                     <span class="muted" id="filterCount" style="margin-left:auto"></span>
-                    <button class="btn btn-ghost" id="btnDeleteAllTrades" type="button" style="color:var(--red); padding: 4px 8px; font-size: 0.85rem;" title="Apagar todos os trades desta lista">Excluir Todos</button>
+                    <button class="btn btn-ghost" id="btnDeleteAllTrades" type="button" style="color:var(--red); padding: 4px 8px; font-size: 0.85rem;" title="Apagar todos os trades manuais apenas deste navegador">Excluir Todos (local)</button>
                 </div>
                 <div id="tradesTable"></div>
             </div>
@@ -1280,6 +1282,7 @@ const SUPABASE_URL = "https://cqjmxywdhlxlsltkrrxm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FdXdp5ogCGD65omUzmLjyw_kd3mGOqB";
 const SUPABASE_TABLE = "trades_pro";
 const STORAGE_KEY = "diarioProTrades_v1";
+const PENDING_DELETE_STORAGE_KEY = "diarioProPendingCloudDeletes_v1";
 
 let supabaseClient = null;
 let currentUser = null;
@@ -1288,6 +1291,7 @@ let cloudBusy = false;
 
 const state = {
     trades: loadTrades(),
+    pendingCloudDeletes: loadPendingCloudDeletes(),
     view: "dashboard",
     editingId: null,
     calMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -1324,6 +1328,32 @@ function loadTrades() {
 
 function saveTrades() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.trades));
+}
+
+function loadPendingCloudDeletes() {
+    try {
+        const ids = JSON.parse(localStorage.getItem(PENDING_DELETE_STORAGE_KEY) || "[]");
+        return Array.isArray(ids) ? [...new Set(ids.map(String).filter(Boolean))] : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function savePendingCloudDeletes() {
+    localStorage.setItem(PENDING_DELETE_STORAGE_KEY, JSON.stringify(state.pendingCloudDeletes));
+}
+
+function queuePendingCloudDeletes(ids) {
+    const queued = new Set(state.pendingCloudDeletes || []);
+    ids.forEach((id) => queued.add(String(id)));
+    state.pendingCloudDeletes = [...queued];
+    savePendingCloudDeletes();
+    updateCloudUi();
+}
+
+function clearPendingCloudDeletes() {
+    state.pendingCloudDeletes = [];
+    savePendingCloudDeletes();
 }
 
 function uid() {
@@ -2905,18 +2935,12 @@ function bindEvents() {
             toast("Não há trades manuais para excluir.");
             return;
         }
-        if (confirm("Tem certeza que deseja apagar TODOS os trades MANUAIS registrados? Trades do robô não serão afetados. Esta ação não pode ser desfeita.")) {
-            const idsToDelete = manuals.map(t => t.id);
+        if (confirm("Tem certeza que deseja apagar TODOS os trades MANUAIS deste navegador? Trades do robô não serão afetados. O Supabase não será alterado e os trades podem voltar ao atualizar da nuvem.")) {
+            queuePendingCloudDeletes(manuals.map((trade) => trade.id));
             state.trades = robotTrades();
             saveTrades();
             renderAll();
-            toast("Todos os trades manuais foram apagados.");
-            
-            // Delete do cloud
-            if (canUseCloud()) {
-                Promise.all(idsToDelete.map(id => supabase.from(SUPABASE_TABLE).delete().eq("id", id)))
-                    .catch(e => console.error("Erro deletando na nuvem", e));
-            }
+            toast("Todos os trades manuais foram removidos localmente. O Supabase não foi alterado.");
         }
     });
 
@@ -2951,8 +2975,13 @@ function setCloudUi(stateName, label) {
 
 function updateCloudUi() {
     const logged = canUseCloud();
+    const hasPendingDeletes = Boolean(state.pendingCloudDeletes?.length);
     $("cloudFormBox").hidden = logged;
     $("btnCloudLogout").hidden = !logged;
+    $("btnCloudApplyDeletes").hidden = !logged || !hasPendingDeletes;
+    $("btnCloudApplyDeletes").disabled = !logged || cloudBusy || !hasPendingDeletes;
+    $("btnCloudReload").hidden = !logged;
+    $("btnCloudReload").disabled = !logged || cloudBusy;
     if (cloudBusy) {
         setCloudUi("busy", "Sincronizando...");
         $("cloudHint").textContent = "Aguarde, falando com Supabase.";
@@ -3073,6 +3102,7 @@ async function loadCloudTrades() {
         alert(`Falha ao carregar nuvem: ${error.message || error}`);
         return;
     }
+    clearPendingCloudDeletes();
     state.trades = (data || []).map((row) => ({ ...(row.payload || {}), id: row.id }));
     saveTrades();
     updateCloudUi();
@@ -3154,9 +3184,52 @@ async function deleteTradeCloud(id) {
     }
 }
 
+async function applyPendingCloudDeletes() {
+    if (!canUseCloud()) {
+        alert("Faça login para aplicar as exclusões no Supabase.");
+        return;
+    }
+
+    const ids = [...(state.pendingCloudDeletes || [])];
+    if (!ids.length) {
+        toast("Não há exclusões locais pendentes.");
+        return;
+    }
+
+    if (!confirm(`Aplicar ${ids.length} exclusão(ões) no Supabase? Esta ação não poderá ser desfeita pela nuvem.`)) return;
+
+    cloudBusy = true;
+    updateCloudUi();
+    try {
+        const results = await Promise.all(ids.map((id) => deleteTradeCloud(id)));
+        const failedIds = ids.filter((id, index) => !results[index].ok);
+        state.pendingCloudDeletes = failedIds;
+        savePendingCloudDeletes();
+
+        if (failedIds.length) {
+            const firstFailure = results.find((result) => !result.ok);
+            alert(`${failedIds.length} exclusão(ões) falharam. Elas continuam pendentes para nova tentativa.\n\n${firstFailure?.message || "Erro desconhecido"}`);
+            return;
+        }
+
+        toast(`${ids.length} exclusão(ões) aplicadas no Supabase.`);
+    } finally {
+        cloudBusy = false;
+        updateCloudUi();
+    }
+}
+
 function bindCloudEvents() {
     $("btnCloudLogin").addEventListener("click", signInCloud);
     $("btnCloudLogout").addEventListener("click", signOutCloud);
+    $("btnCloudApplyDeletes").addEventListener("click", applyPendingCloudDeletes);
+    $("btnCloudReload").addEventListener("click", async () => {
+        if (!canUseCloud()) {
+            alert("Faça login para atualizar os dados da nuvem.");
+            return;
+        }
+        await loadCloudTrades();
+    });
     $("cloudPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") signInCloud(); });
     $("cloudEmail").addEventListener("keydown", (e) => { if (e.key === "Enter") signInCloud(); });
 }
