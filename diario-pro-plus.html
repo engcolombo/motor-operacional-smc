@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Diário Pro · Trading Journal</title>
+<title>Diário Pro+ · Performance</title>
 <style>
 :root {
     color-scheme: dark;
@@ -906,29 +906,31 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     .form-grid { grid-template-columns: 1fr; }
 }
 </style>
+<link rel="stylesheet" href="diario-pro-plus.css">
 </head>
-<body>
+<body class="pro-plus">
 <div class="app">
     <aside class="sidebar">
         <div class="brand">
-            <div class="brand-mark">D</div>
+            <div class="brand-mark">D<span>+</span></div>
             <div class="brand-text">
-                <strong>Diário Pro</strong>
-                <span>Trading Journal</span>
+                <strong>Diário <span class="pro-label">Pro+</span></strong>
+                <span>Trading workspace</span>
             </div>
         </div>
-        <button class="nav-item active" data-view="dashboard" type="button">📊 Dashboard</button>
-        <button class="nav-item" data-view="trades" type="button">📋 Trades</button>
-        <button class="nav-item" data-view="calendar" type="button">📅 Calendário</button>
-        <button class="nav-item" data-view="stats" type="button">📈 Estatísticas</button>
-        <button class="nav-item" data-view="journal" type="button">📝 Diário</button>
-        <button class="nav-item" data-view="fees" type="button">💸 Taxas</button>
-        <button class="nav-item" data-view="robot" type="button">🤖 Robô SMC</button>
-        <button class="nav-item" data-view="backtests" type="button">🧪 Backtests</button>
+        <button class="nav-item active" data-view="dashboard" type="button">Visão geral</button>
+        <button class="nav-item" data-view="trades" type="button">Operações</button>
+        <button class="nav-item" data-view="calendar" type="button">Calendário</button>
+        <button class="nav-item" data-view="stats" type="button">Estatísticas</button>
+        <button class="nav-item" data-view="journal" type="button">Diário</button>
+        <button class="nav-item" data-view="fees" type="button">Taxas</button>
+        <button class="nav-item" data-view="robot" type="button">Robô SMC</button>
+        <button class="nav-item" data-view="backtests" type="button">Backtests</button>
         <div class="nav-divider"></div>
-        <a class="nav-item" href="checklist.html" style="text-decoration:none;">✓ Checklist Pré-Trade</a>
+        <a class="nav-item" href="checklist.html" style="text-decoration:none;">Checklist pré-trade</a>
         <div class="nav-divider"></div>
 
+        <details class="pro-cloud"><summary>Conta e sincronização</summary>
         <div class="cloud-box" id="cloudBox">
             <div class="cloud-status-line">
                 <span class="cloud-dot" id="cloudDot"></span>
@@ -945,20 +947,22 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
             <button class="btn btn-ghost cloud-btn" id="btnCloudReload" type="button" hidden title="Recarregar os trades salvos no Supabase">↻ Atualizar da nuvem</button>
         </div>
 
-        <a class="nav-item" href="diario-pro-plus.html">Diário Pro+</a>
+        </details>
+        <nav class="edition-switch" aria-label="Versão do diário"><a href="index.html">SMC</a><a href="diario.html">Pro</a><a href="diario-pro-plus.html" aria-current="page">Pro+</a></nav>
         <a class="nav-back" href="index.html">← Voltar ao Motor SMC</a>
     </aside>
 
     <main class="main">
         <div class="topbar">
             <div>
+                <p class="workspace-label">DIÁRIO PRO+ <span>/</span> PERFORMANCE</p>
                 <h1 id="viewTitle">Dashboard</h1>
                 <p id="viewSubtitle">Visão geral da performance</p>
             </div>
             <div class="actions">
-                <button class="btn btn-ghost" id="btnExport" type="button">⬇ Exportar</button>
-                <button class="btn btn-ghost" id="btnImport" type="button">⬆ Importar</button>
-                <button class="btn btn-primary" id="btnAddTrade" type="button">+ Novo Trade</button>
+                <button class="btn btn-ghost" id="btnExport" type="button">Exportar</button>
+                <button class="btn btn-ghost" id="btnImport" type="button">Importar</button>
+                <button class="btn btn-primary" id="btnAddTrade" type="button">+ Nova operação</button>
             </div>
         </div>
 

@@ -1,0 +1,1968 @@
+const SUPABASE_URL = "https://cqjmxywdhlxlsltkrrxm.supabase.co";
+const SUPABASE_KEY = "sb_publishable_FdXdp5ogCGD65omUzmLjyw_kd3mGOqB";
+const SUPABASE_TABLE = "trades_pro";
+const STORAGE_KEY = "diarioProTrades_v1";
+const PENDING_DELETE_STORAGE_KEY = "diarioProPendingCloudDeletes_v1";
+
+let supabaseClient = null;
+let currentUser = null;
+let currentSession = null;
+let cloudBusy = false;
+
+const state = {
+    trades: loadTrades(),
+    pendingCloudDeletes: loadPendingCloudDeletes(),
+    view: "dashboard",
+    editingId: null,
+    calMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    fees: { cripto: 0, win: 0, wdo: 0 },
+    robot: { magic: 20250321, symbol: "" }
+};
+
+const ROBOT_DEFAULTS = { magic: 20250321, symbol: "" };
+const ROBOT_STORAGE_KEY = "diarioProRobot_v1";
+const ROBOT_SOURCE = "robo_smc";
+
+function loadRobotConfig() {
+    try { return { ...ROBOT_DEFAULTS, ...JSON.parse(localStorage.getItem(ROBOT_STORAGE_KEY) || "{}") }; }
+    catch (e) { return { ...ROBOT_DEFAULTS }; }
+}
+
+function persistRobotConfig() {
+    localStorage.setItem(ROBOT_STORAGE_KEY, JSON.stringify(state.robot));
+}
+
+function isRobotTrade(t) { return t?.source === ROBOT_SOURCE; }
+function manualTrades() { return state.trades.filter((t) => !isRobotTrade(t)); }
+function robotTrades() { return state.trades.filter(isRobotTrade); }
+
+const $ = (id) => document.getElementById(id);
+
+function loadTrades() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveTrades() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.trades));
+}
+
+function loadPendingCloudDeletes() {
+    try {
+        const ids = JSON.parse(localStorage.getItem(PENDING_DELETE_STORAGE_KEY) || "[]");
+        return Array.isArray(ids) ? [...new Set(ids.map(String).filter(Boolean))] : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function savePendingCloudDeletes() {
+    localStorage.setItem(PENDING_DELETE_STORAGE_KEY, JSON.stringify(state.pendingCloudDeletes));
+}
+
+function queuePendingCloudDeletes(ids) {
+    const queued = new Set(state.pendingCloudDeletes || []);
+    ids.forEach((id) => queued.add(String(id)));
+    state.pendingCloudDeletes = [...queued];
+    savePendingCloudDeletes();
+    updateCloudUi();
+}
+
+function clearPendingCloudDeletes() {
+    state.pendingCloudDeletes = [];
+    savePendingCloudDeletes();
+}
+
+function uid() {
+    return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function fmtR(v) {
+    const n = Number(v || 0);
+    const sign = n > 0 ? "+" : "";
+    return `${sign}${n.toFixed(Number.isInteger(n) ? 0 : 2)}R`;
+}
+
+function isRPending(trade) {
+    if (trade?.rCompleted) return false;
+    if (trade?.source === "broker_csv" && Number(trade?.r || 0) === 0 && !Number(trade?.riskMoney || 0) && (trade?.stop === "" || trade?.stop === null || trade?.stop === undefined)) return true;
+    return Boolean(trade?.rPending) || trade?.r === null || trade?.r === "";
+}
+
+function tradeRValue(trade) {
+    return isRPending(trade) ? null : Number(trade?.r || 0);
+}
+
+function renderRBadge(trade) {
+    if (isRPending(trade)) return `<span class="pill be" title="Preencha stop/risco para calcular o R">R pendente</span>`;
+    const r = tradeRValue(trade);
+    return `<span class="pill ${r > 0 ? "win" : r < 0 ? "loss" : "be"}">${fmtR(r)}</span>`;
+}
+
+function fmtCurrency(v) {
+    return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+const FEE_DEFAULTS = { cripto: 0, win: 0, wdo: 0 };
+const FEE_STORAGE_KEY = "diarioProFees_v1";
+const CRIPTO_HINTS = ["BTC","ETH","SOL","BNB","ADA","XRP","DOGE","LTC","MATIC","DOT","AVAX","LINK","UNI","ATOM","ARB","OP","SUI","APT","INJ","SHIB","TRX","NEAR","TON","PEPE","USDT","USDC","AAVE","FIL","ICP","HBAR","RNDR","FET","TIA","STX","IMX","KAS","ALGO","SAND","MANA","CRO","VET","XLM","ETC","BCH"];
+
+function loadFees() {
+    try { return { ...FEE_DEFAULTS, ...JSON.parse(localStorage.getItem(FEE_STORAGE_KEY) || "{}") }; }
+    catch (e) { return { ...FEE_DEFAULTS }; }
+}
+
+function persistFees() {
+    localStorage.setItem(FEE_STORAGE_KEY, JSON.stringify(state.fees));
+}
+
+function classifySymbol(symbol) {
+    const s = String(symbol || "").trim().toUpperCase();
+    if (!s) return null;
+    if (s.startsWith("WIN")) return "win";
+    if (s.startsWith("WDO")) return "wdo";
+    if (CRIPTO_HINTS.some((c) => s === c || s.startsWith(c))) return "cripto";
+    return null;
+}
+
+function feeRateFor(symbol) {
+    const cat = classifySymbol(symbol);
+    if (!cat) return 0;
+    return Number((state.fees || FEE_DEFAULTS)[cat] || 0);
+}
+
+function tradeFees(trade) {
+    const manual = Number(trade?.fees || 0);
+    if (manual > 0) return manual;
+    const rate = feeRateFor(trade?.symbol);
+    if (!rate) return 0;
+    const qty = Number(trade?.qty || trade?.initQty || 0);
+    return qty * rate;
+}
+
+function tradeNetPnl(trade) {
+    return Number(trade?.pnl || 0) - tradeFees(trade);
+}
+
+function parseRobotCsv(text) {
+    const lines = text.trim().split(/\r?\n/).filter((l) => l.trim().length > 0);
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const idx = (name) => headers.indexOf(name);
+    const rows = lines.slice(1).map((line) => {
+        const cols = line.split(",");
+        return { get: (name) => (cols[idx(name)] ?? "").trim() };
+    });
+    const magicFilter = Number(state.robot.magic || 0);
+    const symFilter = String(state.robot.symbol || "").trim().toUpperCase();
+    return rows
+        .map((r) => robotRowToTrade(r))
+        .filter(Boolean)
+        .filter((t) => !magicFilter || t.magic === magicFilter)
+        .filter((t) => !symFilter || t.symbol === symFilter);
+}
+
+function parseMt5Date(s) {
+    if (!s) return new Date().toISOString();
+    const m = s.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (!m) return new Date(s).toISOString();
+    return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0))).toISOString();
+}
+
+function robotRowToTrade(r) {
+    const ticket = r.get("ticket");
+    if (!ticket) return null;
+    const type = r.get("type");
+    const side = (type === "0" || /buy/i.test(type)) ? "long" : "short";
+    const profit = Number(r.get("profit") || 0);
+    const commission = Number(r.get("commission") || 0);
+    const swap = Number(r.get("swap") || 0);
+    const pnl = profit + commission + swap;
+    const entry = Number(r.get("price_open") || 0);
+    const exit = Number(r.get("price_close") || 0);
+    const sl = Number(r.get("sl") || 0);
+    const tp = Number(r.get("tp") || 0);
+    const volume = Number(r.get("volume") || 0);
+    const symbol = String(r.get("symbol") || "").toUpperCase();
+    const magic = Number(r.get("magic") || 0);
+    const score = Number(r.get("score") || 0);
+    const threshold = Number(r.get("threshold") || 0);
+    const obType = String(r.get("ob_type") || "").toLowerCase();
+    const obPts = Number(r.get("ob_pts") || 0);
+    return {
+        id: `robo-${ticket}`,
+        date: parseMt5Date(r.get("time_open")),
+        closeDate: parseMt5Date(r.get("time_close")),
+        symbol,
+        side,
+        setup: obType ? `Robô SMC · ${obType}` : "Robô SMC",
+        initQty: volume,
+        qty: volume,
+        entry,
+        stop: sl,
+        exit,
+        targetMoney: 0,
+        targetR: 0,
+        status: "manual",
+        manualR: 0,
+        partials: [],
+        riskMoney: 0,
+        pnl,
+        r: null,
+        rPending: true,
+        fees: 0,
+        tags: ["robo", obType].filter(Boolean),
+        mistakes: [],
+        notes: `Ticket ${ticket} | magic ${magic} | score ${score.toFixed(4)} thr ${threshold.toFixed(4)} | OB ${obType || "?"}/${obPts}pts | comm ${commission.toFixed(2)} | swap ${swap.toFixed(2)} | comment: ${r.get("comment") || "-"}`,
+        source: ROBOT_SOURCE,
+        ticket,
+        magic,
+        commission,
+        swap,
+        tp,
+        sl,
+        score,
+        threshold,
+        obType,
+        obPts,
+        createdAt: new Date().toISOString()
+    };
+}
+
+async function importRobotFile(file) {
+    if (!file) { toast("Selecione um arquivo CSV"); return; }
+    let text;
+    try { text = await file.text(); }
+    catch (e) { alert("Falha ao ler arquivo: " + e.message); return; }
+    const parsed = parseRobotCsv(text);
+    if (!parsed.length) {
+        $("robotImportHint").innerHTML = `<span style="color:var(--red)">Nenhum trade compatível encontrado. Confira Magic Number e Símbolo.</span>`;
+        return;
+    }
+
+    const byId = new Map(state.trades.map((t) => [t.id, t]));
+    let added = 0, updated = 0;
+    const toUpsert = [];
+    for (const t of parsed) {
+        const existing = byId.get(t.id);
+        if (existing) {
+            Object.assign(existing, t);
+            updated++;
+        } else {
+            state.trades.push(t);
+            added++;
+        }
+        toUpsert.push(t);
+    }
+    saveTrades();
+
+    let cloudFailed = 0;
+    if (canUseCloud()) {
+        $("robotImportHint").textContent = `Sincronizando ${toUpsert.length} trades na nuvem...`;
+        const results = await Promise.all(toUpsert.map((t) => upsertTradeCloud(t)));
+        cloudFailed = results.filter((r) => !r.ok).length;
+    }
+
+    $("robotImportHint").innerHTML = `
+        <strong>${added}</strong> novos · <strong>${updated}</strong> atualizados${cloudFailed ? ` · <span style="color:var(--red)">${cloudFailed} falharam na nuvem</span>` : ""}
+        ${canUseCloud() ? " · sincronizado" : " · só local (faça login pra sincronizar)"}
+    `;
+    toast(`Robô: ${added}+ ${updated}↻`);
+    renderAll();
+}
+
+function purgeRobotTrades() {
+    if (!confirm("Apagar TODOS os trades importados do robô? Trades manuais não serão tocados.")) return;
+    const robos = robotTrades();
+    state.trades = manualTrades();
+    saveTrades();
+    if (canUseCloud()) {
+        Promise.all(robos.map((t) => deleteTradeCloud(t.id))).then(() => {
+            toast(`${robos.length} trades do robô removidos`);
+            renderAll();
+        });
+    } else {
+        toast(`${robos.length} trades do robô removidos (local)`);
+        renderAll();
+    }
+}
+
+function renderRobot() {
+    $("fRobotMagic").value = state.robot.magic ?? "";
+    $("fRobotSymbol").value = state.robot.symbol ?? "";
+
+    const robos = [...robotTrades()].sort((a, b) => new Date(a.date) - new Date(b.date));
+    if (!robos.length) {
+        $("robotSummary").textContent = "Sem trades importados";
+        $("robotKpis").innerHTML = "";
+        $("robotTradesBox").innerHTML = `<div class="panel-body"><span class="muted">Importe um CSV pra ver as estatísticas.</span></div>`;
+        const c = $("robotEquityCanvas");
+        if (c.getContext) { const ctx = c.getContext("2d"); ctx.clearRect(0, 0, c.width, c.height); }
+        return;
+    }
+
+    const pnls = robos.map(tradeNetPnl);
+    const totalPnl = pnls.reduce((a, b) => a + b, 0);
+    const wins = pnls.filter((p) => p > 0);
+    const losses = pnls.filter((p) => p < 0);
+    const bes = pnls.filter((p) => p === 0);
+    const decisive = wins.length + losses.length;
+    const winrate = decisive ? (wins.length / decisive) * 100 : 0;
+    const avgWin = wins.length ? wins.reduce((a, b) => a + b, 0) / wins.length : 0;
+    const avgLoss = losses.length ? losses.reduce((a, b) => a + b, 0) / losses.length : 0;
+    const grossWin = wins.reduce((a, b) => a + b, 0);
+    const grossLoss = Math.abs(losses.reduce((a, b) => a + b, 0));
+    const pf = grossLoss ? grossWin / grossLoss : grossWin ? Infinity : 0;
+    const best = Math.max(...pnls, 0);
+    const worst = Math.min(...pnls, 0);
+
+    let peak = 0, equity = 0, maxDD = 0;
+    pnls.forEach((p) => { equity += p; peak = Math.max(peak, equity); maxDD = Math.max(maxDD, peak - equity); });
+
+    const first = new Date(robos[0].date);
+    const last = new Date(robos[robos.length - 1].date);
+    $("robotSummary").textContent = `${robos.length} trades · ${first.toLocaleDateString("pt-BR")} → ${last.toLocaleDateString("pt-BR")} · magic ${state.robot.magic}`;
+
+    const cls = (v) => v > 0 ? "win" : v < 0 ? "loss" : "neutral";
+    const kpis = [
+        { label: "P&L total liq.", value: fmtCurrency(totalPnl), meta: `${robos.length} trades`, cls: cls(totalPnl) },
+        { label: "Winrate", value: fmtPct(winrate), meta: `${wins.length}W / ${losses.length}L / ${bes.length}BE`, cls: "neutral" },
+        { label: "Profit factor", value: pf === Infinity ? "∞" : pf.toFixed(2), meta: "gross win / gross loss", cls: cls(pf - 1) },
+        { label: "Avg win / loss", value: `${fmtCurrency(avgWin)} / ${fmtCurrency(avgLoss)}`, meta: avgLoss ? `R/R ${(avgWin / Math.abs(avgLoss)).toFixed(2)}` : "—", cls: "neutral" },
+        { label: "Melhor / pior", value: `${fmtCurrency(best)} / ${fmtCurrency(worst)}`, cls: "neutral" },
+        { label: "Max DD (R$)", value: fmtCurrency(-maxDD), cls: "loss" }
+    ];
+    const splitStats = (subset) => {
+        if (!subset.length) return null;
+        const sp = subset.map(tradeNetPnl);
+        const sw = sp.filter((p) => p > 0).length;
+        const sl = sp.filter((p) => p < 0).length;
+        const sb = sp.filter((p) => p === 0).length;
+        const sdec = sw + sl;
+        const stot = sp.reduce((a, b) => a + b, 0);
+        const swinrate = sdec ? (sw / sdec) * 100 : 0;
+        return { count: subset.length, pnl: stot, winrate: swinrate, wins: sw, losses: sl, bes: sb };
+    };
+    const sInt = splitStats(robos.filter((t) => t.obType === "internal"));
+    const sSwg = splitStats(robos.filter((t) => t.obType === "swing"));
+
+    const obKpis = [];
+    if (sInt) obKpis.push({ label: "OB Internal", value: fmtCurrency(sInt.pnl), meta: `${sInt.count} trades · ${fmtPct(sInt.winrate)} (${sInt.wins}W/${sInt.losses}L)`, cls: cls(sInt.pnl) });
+    if (sSwg) obKpis.push({ label: "OB Swing", value: fmtCurrency(sSwg.pnl), meta: `${sSwg.count} trades · ${fmtPct(sSwg.winrate)} (${sSwg.wins}W/${sSwg.losses}L)`, cls: cls(sSwg.pnl) });
+    const allKpis = [...kpis, ...obKpis];
+
+    $("robotKpis").innerHTML = allKpis.map((k) => `
+        <div class="kpi-card ${k.cls}">
+            <div class="label">${k.label}</div>
+            <div class="value">${k.value}</div>
+            ${k.meta ? `<div class="meta">${k.meta}</div>` : ""}
+        </div>
+    `).join("");
+
+    requestAnimationFrame(() => drawRobotEquity(pnls, robos));
+
+    const last30 = [...robos].reverse().slice(0, 30);
+    $("robotTradesBox").innerHTML = `
+        <div class="panel-body" style="overflow-x:auto;">
+            <table>
+                <thead><tr>
+                    <th>Data</th><th>Ticket</th><th>Ativo</th><th>Lado</th>
+                    <th>OB</th><th class="right">OB pts</th>
+                    <th class="right">Score</th><th class="right">Thr</th>
+                    <th class="right">Vol</th>
+                    <th class="right">Entrada</th><th class="right">Saída</th><th class="right">P&L liq.</th>
+                </tr></thead>
+                <tbody>
+                ${last30.map((t) => `
+                    <tr>
+                        <td>${new Date(t.date).toLocaleString("pt-BR")}</td>
+                        <td>${escapeHtml(t.ticket || "")}</td>
+                        <td>${escapeHtml(t.symbol)}</td>
+                        <td>${t.side === "long" ? "Compra" : "Venda"}</td>
+                        <td>${escapeHtml(t.obType || "-")}</td>
+                        <td class="right">${t.obPts || "-"}</td>
+                        <td class="right">${t.score ? Number(t.score).toFixed(3) : "-"}</td>
+                        <td class="right muted">${t.threshold ? Number(t.threshold).toFixed(3) : "-"}</td>
+                        <td class="right">${t.qty}</td>
+                        <td class="right">${t.entry}</td>
+                        <td class="right">${t.exit}</td>
+                        <td class="right" style="color:${tradeNetPnl(t) > 0 ? "var(--green)" : tradeNetPnl(t) < 0 ? "var(--red)" : "var(--muted)"}"><strong>${fmtCurrency(tradeNetPnl(t))}</strong></td>
+                    </tr>
+                `).join("")}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+let s_lastRobotEquity = null;
+function drawRobotEquity(pnls, robos) {
+    const eq = [0];
+    pnls.forEach((p) => eq.push(eq[eq.length - 1] + p));
+    const dates = ["Início"];
+    (robos || []).forEach((t) => dates.push(fmtDateShort(t.closeDate || t.date)));
+    s_lastRobotEquity = { eq, dates, color: "#2ddb8a" };
+    drawCapitalCurve("robotEquityCanvas", eq, dates, { color: "#2ddb8a" });
+}
+
+function redrawChartsForView() {
+    if (state.view === "dashboard") {
+        drawEquity();
+        drawDist();
+    } else if (state.view === "robot") {
+        if (s_lastRobotEquity)
+            drawCapitalCurve("robotEquityCanvas", s_lastRobotEquity.eq, s_lastRobotEquity.dates, { color: s_lastRobotEquity.color });
+    } else if (state.view === "stats") {
+        drawHour();
+    }
+}
+
+let s_chartResizeObserver = null;
+function setupChartResize() {
+    if (typeof ResizeObserver === "undefined") return;
+    if (s_chartResizeObserver) s_chartResizeObserver.disconnect();
+    s_chartResizeObserver = new ResizeObserver(() => requestAnimationFrame(redrawChartsForView));
+    document.querySelectorAll(".chart-frame").forEach((el) => s_chartResizeObserver.observe(el));
+}
+
+function fmtPct(v) {
+    return `${Number(v || 0).toFixed(1)}%`;
+}
+
+function fmtDate(iso) {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function bindNav() {
+    document.querySelectorAll(".nav-item").forEach((btn) => {
+        btn.addEventListener("click", () => switchView(btn.dataset.view));
+    });
+}
+
+function switchView(view) {
+    state.view = view;
+    document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+    document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
+    const titles = {
+        backtests: ["Backtests", "Teste manual por estratégia · resultado em R"],
+        dashboard: ["Dashboard", "Visão geral da performance"],
+        trades: ["Trades", `${manualTrades().length} operações registradas`],
+        calendar: ["Calendário", "Resultado diário"],
+        stats: ["Estatísticas", "Métricas avançadas e análises"],
+        journal: ["Diário", "Notas e revisão por trade"],
+        fees: ["Taxas", "Configuração por categoria de ativo"],
+        robot: ["Robô SMC", "Import automático dos trades do MT5"]
+    };
+    const [t, s] = titles[view] || titles.dashboard;
+    $("viewTitle").textContent = t;
+    $("viewSubtitle").textContent = s;
+    renderAll();
+}
+
+function openModal(trade) {
+    state.editingId = trade ? trade.id : null;
+    $("modalTitle").textContent = trade ? "Editar trade" : "Novo trade";
+    $("fDate").value = trade ? trade.date.slice(0, 16) : new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    $("fSymbol").value = trade?.symbol || "";
+    $("fSide").value = trade?.side || "long";
+    $("fSetup").value = trade?.setup || "";
+    $("fInitQty").value = trade?.initQty ?? trade?.qty ?? "";
+
+    const legacyRisk = trade?.riskMoney || (Number(trade?.entry || 0) && Number(trade?.stop || 0) && Number(trade?.qty || 0)
+        ? Math.abs(Number(trade.entry) - Number(trade.stop)) * Number(trade.qty) : 0);
+    $("fStopMoney").value = trade?.stopMoney ?? (legacyRisk || "");
+    $("fTargetMoney").value = trade?.targetMoney ?? "";
+    $("fStatus").value = trade?.status || (trade && trade.r != null ? "manual" : "open");
+    $("fManualR").value = trade?.manualR ?? (trade?.status ? "" : (trade?.r ?? ""));
+
+    $("fTags").value = (trade?.tags || []).join(", ");
+    $("fMistakes").value = (trade?.mistakes || []).join(", ");
+    $("fNotes").value = trade?.notes || "";
+
+    let partials = [];
+    if (trade?.partials?.length && trade.partials[0].r !== undefined) {
+        partials = trade.partials.map((p) => ({ qty: p.qty ?? "", r: p.r ?? "" }));
+    }
+    state.editPartials = partials;
+    renderPartials();
+    $("modalBackdrop").classList.add("open");
+    recomputeFromInputs();
+}
+
+function renderPartials() {
+    const box = $("partialsBox");
+    if (!state.editPartials.length) {
+        box.innerHTML = `<div class="partials-empty">Nenhuma saída. Clique <strong>+ Parcial</strong>.</div><div class="partial-summary" id="partialSummary"></div>`;
+        recomputeFromInputs();
+        return;
+    }
+    box.innerHTML = state.editPartials.map((p, i) => `
+        <div class="partial-row">
+            <div class="field">
+                <label>Qtd parcial ${i + 1}</label>
+                <input type="number" step="any" data-pi="${i}" data-pk="qty" value="${p.qty ?? ""}">
+            </div>
+            <div class="field">
+                <label>R alcançado</label>
+                <input type="number" step="any" data-pi="${i}" data-pk="r" value="${p.r ?? ""}" placeholder="Ex: 2">
+            </div>
+            <button class="partial-del" type="button" data-pdel="${i}" title="Remover">×</button>
+        </div>
+    `).join("") + `<div class="partial-summary" id="partialSummary"></div>`;
+
+    box.querySelectorAll("[data-pi]").forEach((inp) => {
+        inp.addEventListener("input", () => {
+            const i = Number(inp.dataset.pi);
+            state.editPartials[i][inp.dataset.pk] = inp.value === "" ? "" : Number(inp.value);
+            recomputeFromInputs();
+        });
+    });
+    box.querySelectorAll("[data-pdel]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            state.editPartials.splice(Number(btn.dataset.pdel), 1);
+            renderPartials();
+        });
+    });
+    recomputeFromInputs();
+}
+
+function computeTradeMath() {
+    const initQty = Number($("fInitQty").value || 0);
+    const stopMoney = Number($("fStopMoney").value || 0);
+    const targetMoney = Number($("fTargetMoney").value || 0);
+    const status = $("fStatus").value;
+    const manualR = Number($("fManualR").value || 0);
+
+    const targetR = stopMoney > 0 ? targetMoney / stopMoney : 0;
+
+    const partials = (state.editPartials || []).filter((p) => Number(p.qty) > 0);
+    let pnlPartials = 0;
+    let qtyDone = 0;
+    partials.forEach((p) => {
+        const q = Number(p.qty);
+        const r = Number(p.r || 0);
+        qtyDone += q;
+        if (initQty > 0 && stopMoney > 0) {
+            pnlPartials += (q / initQty) * r * stopMoney;
+        }
+    });
+
+    const qtyRemaining = Math.max(0, initQty - qtyDone);
+    let finalR = 0;
+    if (status === "target") finalR = targetR;
+    else if (status === "stop") finalR = -1;
+    else if (status === "manual") finalR = manualR;
+
+    let pnlFinal = 0;
+    if (status !== "open" && initQty > 0 && stopMoney > 0) {
+        pnlFinal = (qtyRemaining / initQty) * finalR * stopMoney;
+    }
+
+    const pnl = pnlPartials + pnlFinal;
+    const totalR = stopMoney > 0 ? pnl / stopMoney : 0;
+
+    return { stopMoney, targetMoney, targetR, qtyDone, qtyRemaining, pnlPartials, pnlFinal, pnl, totalR, finalR, status, initQty };
+}
+
+function recomputeFromInputs() {
+    const m = computeTradeMath();
+    $("fTargetR").value = m.targetR ? `${m.targetR.toFixed(2)}R` : "";
+    $("fPnl").value = m.stopMoney > 0 ? m.pnl.toFixed(2) : "";
+    $("fR").value = m.stopMoney > 0 ? `${m.totalR >= 0 ? "+" : ""}${m.totalR.toFixed(2)}R` : "";
+    $("fManualR").disabled = m.status !== "manual";
+
+    const sum = $("partialSummary");
+    if (sum) {
+        if (m.stopMoney > 0 && m.initQty > 0) {
+            const color = (v) => v > 0 ? "var(--green)" : v < 0 ? "var(--red)" : "var(--accent-2)";
+            const statusLabel = { open: "Em aberto", target: "Alvo", stop: "Stop", manual: `Manual ${m.finalR >= 0 ? "+" : ""}${m.finalR}R` }[m.status];
+            sum.innerHTML = `
+                <span>Executado: <strong>${m.qtyDone} de ${m.initQty}</strong></span>
+                <span>Restante: <strong>${m.qtyRemaining}</strong></span>
+                <span>Alvo: <strong>${m.targetR ? m.targetR.toFixed(2) + "R" : "—"}</strong></span>
+                <span>P&L parciais: <strong style="color:${color(m.pnlPartials)}">${fmtCurrency(m.pnlPartials)}</strong></span>
+                <span>P&L fechamento: <strong style="color:${color(m.pnlFinal)}">${fmtCurrency(m.pnlFinal)}</strong></span>
+                <span>Status: <strong>${statusLabel}</strong></span>
+                <span>P&L total: <strong style="color:${color(m.pnl)}">${fmtCurrency(m.pnl)}</strong></span>
+                <span>R total: <strong style="color:${color(m.totalR)}">${m.totalR >= 0 ? "+" : ""}${m.totalR.toFixed(2)}R</strong></span>
+            `;
+        } else {
+            sum.innerHTML = `<span class="muted">Preencha quantidade, stop (R$) e parciais pra ver os cálculos.</span>`;
+        }
+    }
+}
+
+function closeModal() {
+    $("modalBackdrop").classList.remove("open");
+    state.editingId = null;
+}
+
+async function saveFromForm() {
+    const m = computeTradeMath();
+    const initQty = Number($("fInitQty").value || 0);
+    const status = $("fStatus").value;
+    const manualR = Number($("fManualR").value || 0);
+    const partials = (state.editPartials || []).filter((p) => Number(p.qty) > 0)
+        .map((p) => ({ qty: Number(p.qty), r: Number(p.r || 0) }));
+
+    const isEdit = Boolean(state.editingId);
+    const existingTrade = isEdit ? state.trades.find((t) => t.id === state.editingId) : null;
+    const trade = {
+        id: state.editingId || uid(),
+        date: new Date($("fDate").value || new Date()).toISOString(),
+        symbol: $("fSymbol").value.trim().toUpperCase(),
+        side: $("fSide").value,
+        setup: $("fSetup").value.trim(),
+        initQty,
+        qty: initQty,
+        stopMoney: m.stopMoney,
+        targetMoney: m.targetMoney,
+        targetR: m.targetR,
+        status,
+        manualR: status === "manual" ? manualR : 0,
+        partials,
+        riskMoney: m.stopMoney,
+        pnl: m.pnl,
+        r: m.totalR,
+        fees: 0,
+        entry: 0,
+        stop: 0,
+        exit: 0,
+        tags: $("fTags").value.split(",").map((t) => t.trim()).filter(Boolean),
+        mistakes: $("fMistakes").value.split(",").map((t) => t.trim()).filter(Boolean),
+        notes: $("fNotes").value.trim(),
+        createdAt: isEdit ? existingTrade?.createdAt : new Date().toISOString()
+    };
+    if (existingTrade?.source) trade.source = existingTrade.source;
+
+    if (!trade.symbol) {
+        toast("Informe o ativo");
+        return;
+    }
+
+    $("btnSave").disabled = true;
+    if (canUseCloud()) {
+        const result = await upsertTradeCloud(trade);
+        $("btnSave").disabled = false;
+        if (!result.ok) {
+            alert(`Falha ao salvar na nuvem: ${result.message}`);
+            return;
+        }
+    }
+    $("btnSave").disabled = false;
+
+    if (isEdit) {
+        const idx = state.trades.findIndex((t) => t.id === state.editingId);
+        if (idx >= 0) state.trades[idx] = trade;
+        toast(canUseCloud() ? "Trade atualizado · sincronizado" : "Trade atualizado (local)");
+    } else {
+        state.trades.push(trade);
+        toast(canUseCloud() ? "Trade salvo · sincronizado" : "Trade salvo (local)");
+    }
+
+    saveTrades();
+    closeModal();
+    renderAll();
+}
+
+async function deleteTrade(id) {
+    if (!confirm("Excluir este trade?")) return;
+    if (canUseCloud()) {
+        const result = await deleteTradeCloud(id);
+        if (!result.ok) {
+            alert(`Falha ao excluir na nuvem: ${result.message}`);
+            return;
+        }
+    }
+    state.trades = state.trades.filter((t) => t.id !== id);
+    saveTrades();
+    toast(canUseCloud() ? "Trade excluído · sincronizado" : "Trade excluído (local)");
+    renderAll();
+}
+
+function computeStats(trades) {
+    const sorted = [...trades].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const total = sorted.length;
+    const completedR = sorted.filter((t) => !isRPending(t));
+    const rCount = completedR.length;
+    const pendingR = total - rCount;
+    const wins = completedR.filter((t) => tradeRValue(t) > 0);
+    const losses = completedR.filter((t) => tradeRValue(t) < 0);
+    const bes = completedR.filter((t) => tradeRValue(t) === 0);
+    const decisive = wins.length + losses.length;
+    const winrate = decisive ? (wins.length / decisive) * 100 : 0;
+    const rTotal = completedR.reduce((a, t) => a + tradeRValue(t), 0);
+    const feesTotal = sorted.reduce((a, t) => a + tradeFees(t), 0);
+    const pnlTotal = sorted.reduce((a, t) => a + tradeNetPnl(t), 0);
+    const avgWin = wins.length ? wins.reduce((a, t) => a + tradeRValue(t), 0) / wins.length : 0;
+    const avgLoss = losses.length ? losses.reduce((a, t) => a + tradeRValue(t), 0) / losses.length : 0;
+    const grossWin = wins.reduce((a, t) => a + tradeRValue(t), 0);
+    const grossLoss = Math.abs(losses.reduce((a, t) => a + tradeRValue(t), 0));
+    const pf = grossLoss ? grossWin / grossLoss : grossWin ? Infinity : 0;
+    const expectancy = rCount ? rTotal / rCount : 0;
+    const largestWin = wins.length ? Math.max(...wins.map(tradeRValue)) : 0;
+    const largestLoss = losses.length ? Math.min(...losses.map(tradeRValue)) : 0;
+    const equity = [0];
+    const capitalEquity = [0];
+    completedR.forEach((t) => {
+        equity.push(equity[equity.length - 1] + tradeRValue(t));
+    });
+    sorted.forEach((t) => {
+        capitalEquity.push(capitalEquity[capitalEquity.length - 1] + tradeNetPnl(t));
+    });
+    let peak = 0, maxDD = 0;
+    equity.forEach((v) => { peak = Math.max(peak, v); maxDD = Math.max(maxDD, peak - v); });
+
+    let curStreak = 0, bestWin = 0, bestLoss = 0;
+    let lastSign = 0;
+    completedR.forEach((t) => {
+        const r = tradeRValue(t);
+        const sign = r > 0 ? 1 : r < 0 ? -1 : 0;
+        if (sign === 0) { curStreak = 0; lastSign = 0; return; }
+        if (sign === lastSign) curStreak++;
+        else { curStreak = 1; lastSign = sign; }
+        if (sign > 0) bestWin = Math.max(bestWin, curStreak);
+        else bestLoss = Math.max(bestLoss, curStreak);
+    });
+
+    const lastDir = completedR.length ? (tradeRValue(completedR[completedR.length - 1]) > 0 ? 1 : tradeRValue(completedR[completedR.length - 1]) < 0 ? -1 : 0) : 0;
+    let curRunLen = 0;
+    for (let i = completedR.length - 1; i >= 0; i--) {
+        const r = tradeRValue(completedR[i]);
+        const s = r > 0 ? 1 : r < 0 ? -1 : 0;
+        if (s === lastDir && s !== 0) curRunLen++;
+        else break;
+    }
+
+    return {
+        total, rCount, pendingR, wins: wins.length, losses: losses.length, bes: bes.length,
+        winrate, rTotal, pnlTotal, feesTotal, avgWin, avgLoss, pf, expectancy,
+        largestWin, largestLoss, maxDD, equity, capitalEquity,
+        bestWinStreak: bestWin, bestLossStreak: bestLoss,
+        currentStreak: curRunLen, currentStreakDir: lastDir
+    };
+}
+
+function renderKPIs() {
+    const s = computeStats(manualTrades());
+    const rMeta = `${s.rCount} com R${s.pendingR ? ` / ${s.pendingR} pend.` : ""}`;
+    const kpis = [
+        { label: "Net P&L liq.", value: fmtCurrency(s.pnlTotal), meta: `fees: ${fmtCurrency(s.feesTotal)}`, cls: s.pnlTotal > 0 ? "win" : s.pnlTotal < 0 ? "loss" : "neutral" },
+        { label: "R Total", value: s.rCount ? fmtR(s.rTotal) : "pendente", meta: rMeta, cls: s.rTotal > 0 ? "win" : s.rTotal < 0 ? "loss" : "neutral" },
+        { label: "Winrate", value: s.rCount ? fmtPct(s.winrate) : "pendente", meta: `${s.wins}W / ${s.losses}L / ${s.bes}BE${s.pendingR ? ` / ${s.pendingR} pend.` : ""}`, cls: "neutral" },
+        { label: "Expectancy", value: fmtR(s.expectancy), meta: "média por trade", cls: s.expectancy > 0 ? "win" : "loss" },
+        { label: "Max Drawdown", value: fmtR(-s.maxDD), cls: "loss" },
+        { label: "Trades", value: s.total, meta: s.currentStreakDir ? `Streak ${s.currentStreakDir > 0 ? "🟢" : "🔴"} ${s.currentStreak}` : "", cls: "neutral" }
+    ];
+    kpis[3] = { label: "Expectancy", value: s.rCount ? fmtR(s.expectancy) : "pendente", meta: "media por trade com R", cls: s.rCount && s.expectancy > 0 ? "win" : s.rCount && s.expectancy < 0 ? "loss" : "neutral" };
+    kpis[4] = { label: "Max Drawdown", value: s.rCount ? fmtR(-s.maxDD) : "pendente", cls: s.rCount ? "loss" : "neutral" };
+    kpis[5] = { label: "Trades", value: s.total, meta: s.pendingR ? `${s.pendingR} com R pendente` : (s.currentStreakDir ? `Streak ${s.currentStreakDir > 0 ? "up" : "down"} ${s.currentStreak}` : ""), cls: "neutral" };
+    $("kpiGrid").innerHTML = kpis.map((k) => `
+        <div class="kpi-card ${k.cls}">
+            <div class="label">${k.label}</div>
+            <div class="value">${k.value}</div>
+            ${k.meta ? `<div class="meta">${k.meta}</div>` : ""}
+        </div>
+    `).join("");
+}
+
+function setupCanvas(id) {
+    const c = $(id);
+    if (!c) return null;
+    const r = c.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    c.width = Math.max(1, Math.floor(r.width * ratio));
+    c.height = Math.max(1, Math.floor(r.height * ratio));
+    const ctx = c.getContext("2d");
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, r.width, r.height);
+    return { ctx, w: r.width, h: r.height };
+}
+
+function fmtDateShort(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+
+function niceStep(rawStep) {
+    if (rawStep <= 0) return 1;
+    const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const norm = rawStep / mag;
+    let nice;
+    if (norm < 1.5) nice = 1;
+    else if (norm < 3) nice = 2;
+    else if (norm < 7) nice = 5;
+    else nice = 10;
+    return nice * mag;
+}
+
+function drawCapitalCurve(canvasId, points, dates, opts) {
+    const setup = setupCanvas(canvasId);
+    if (!setup) return;
+    const { ctx, w, h } = setup;
+    const posColor = (opts && opts.color) || "#2ddb8a";
+    const negColor = (opts && opts.negativeColor) || "#ff5d6c";
+    if (!points || points.length === 0) { drawEmpty(ctx, w, h); return; }
+
+    const pad = { t: 14, r: 86, b: 28, l: 14 };
+    const innerW = Math.max(1, w - pad.l - pad.r);
+    const innerH = Math.max(1, h - pad.t - pad.b);
+
+    const dataMin = Math.min(...points, 0);
+    const dataMax = Math.max(...points, 0);
+    const span = Math.max(dataMax - dataMin, 1);
+    const target = niceStep(span / 4);
+    let lo = Math.floor(dataMin / target) * target;
+    let hi = Math.ceil(dataMax / target) * target;
+    if (lo === hi) hi = lo + target;
+    const divisors = Math.max(2, Math.round((hi - lo) / target));
+    const range = hi - lo;
+
+    const xPos = (i) => pad.l + (i / Math.max(points.length - 1, 1)) * innerW;
+    const yPos = (v) => pad.t + ((hi - v) / range) * innerH;
+    const yZero = yPos(0);
+
+    for (let i = 0; i <= divisors; i++) {
+        const value = hi - (i / divisors) * range;
+        const y = pad.t + (i / divisors) * innerH;
+        const isZero = Math.abs(value) < target * 0.001;
+        ctx.strokeStyle = isZero ? "rgba(255,255,255,0.32)" : "rgba(255,255,255,0.06)";
+        ctx.lineWidth = isZero ? 1.4 : 1;
+        ctx.beginPath();
+        ctx.moveTo(pad.l, y);
+        ctx.lineTo(w - pad.r, y);
+        ctx.stroke();
+
+        if (isZero) ctx.fillStyle = "#e8edf7";
+        else if (value < 0) ctx.fillStyle = "#ff8a92";
+        else ctx.fillStyle = "#8a98b5";
+        ctx.font = isZero ? "800 11px Inter, Arial" : "700 11px Inter, Arial";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(fmtCurrency(value), w - pad.r + 6, y);
+    }
+
+    const buildAreaPath = () => {
+        ctx.beginPath();
+        points.forEach((v, i) => {
+            const x = xPos(i), y = yPos(v);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.lineTo(xPos(points.length - 1), yZero);
+        ctx.lineTo(xPos(0), yZero);
+        ctx.closePath();
+    };
+
+    if (yZero > pad.t) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(pad.l, pad.t, innerW, yZero - pad.t);
+        ctx.clip();
+        const posGrad = ctx.createLinearGradient(0, pad.t, 0, yZero);
+        posGrad.addColorStop(0, posColor + "66");
+        posGrad.addColorStop(1, posColor + "00");
+        buildAreaPath();
+        ctx.fillStyle = posGrad;
+        ctx.fill();
+        ctx.restore();
+    }
+
+    if (yZero < pad.t + innerH) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(pad.l, yZero, innerW, pad.t + innerH - yZero);
+        ctx.clip();
+        const negGrad = ctx.createLinearGradient(0, yZero, 0, pad.t + innerH);
+        negGrad.addColorStop(0, negColor + "00");
+        negGrad.addColorStop(1, negColor + "55");
+        buildAreaPath();
+        ctx.fillStyle = negGrad;
+        ctx.fill();
+        ctx.restore();
+    }
+
+    ctx.lineWidth = 2.4;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    for (let i = 0; i < points.length - 1; i++) {
+        const v1 = points[i], v2 = points[i + 1];
+        const x1 = xPos(i), x2 = xPos(i + 1);
+        const y1 = yPos(v1), y2 = yPos(v2);
+        const crosses = (v1 < 0 && v2 > 0) || (v1 > 0 && v2 < 0);
+        if (!crosses) {
+            ctx.strokeStyle = (v1 < 0 || v2 < 0) ? negColor : posColor;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        } else {
+            const t = v1 / (v1 - v2);
+            const xc = x1 + t * (x2 - x1);
+            ctx.strokeStyle = v1 >= 0 ? posColor : negColor;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(xc, yZero);
+            ctx.stroke();
+            ctx.strokeStyle = v2 >= 0 ? posColor : negColor;
+            ctx.beginPath();
+            ctx.moveTo(xc, yZero);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        }
+    }
+
+    if (dates && dates.length === points.length) {
+        ctx.fillStyle = "#8a98b5";
+        ctx.font = "700 10px Inter, Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        const ticks = Math.min(6, points.length);
+        for (let i = 0; i < ticks; i++) {
+            const idx = Math.round((i / Math.max(ticks - 1, 1)) * (points.length - 1));
+            const label = dates[idx];
+            if (!label) continue;
+            ctx.fillText(label, xPos(idx), h - pad.b + 6);
+        }
+    }
+}
+
+function drawEquity() {
+    const c = $("equityCanvas");
+    if (!c) return;
+    const mt = manualTrades();
+    const s = computeStats(mt);
+    if (!mt.length) {
+        const { ctx, w, h } = setupCanvas("equityCanvas");
+        drawEmpty(ctx, w, h);
+        return;
+    }
+    const sortedMt = [...mt].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const dates = ["Início", ...sortedMt.map((t) => fmtDateShort(t.date))];
+    drawCapitalCurve("equityCanvas", s.capitalEquity, dates, { color: "#b591ff" });
+}
+
+function drawDist() {
+    const { ctx, w, h } = setupCanvas("distCanvas");
+    const s = computeStats(manualTrades());
+    if (!s.rCount) { drawEmpty(ctx, w, h, s.pendingR ? "R pendente nos trades importados" : "Sem dados ainda"); return; }
+    const data = [
+        { l: "Wins", v: s.wins, c: "#2ddb8a" },
+        { l: "Stops", v: s.losses, c: "#ff5d6c" },
+        { l: "Empates", v: s.bes, c: "#f5c542" }
+    ].filter((d) => d.v > 0);
+    const total = data.reduce((a, d) => a + d.v, 0);
+    const cx = w / 2, cy = h / 2 - 14;
+    const radius = Math.min(w, h) * 0.28;
+    let start = -Math.PI / 2;
+    data.forEach((d) => {
+        const ang = (d.v / total) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, start, start + ang);
+        ctx.lineWidth = radius * 0.42;
+        ctx.strokeStyle = d.c;
+        ctx.stroke();
+        start += ang;
+    });
+    ctx.fillStyle = "#e8edf7";
+    ctx.font = "900 22px Inter, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(s.total, cx, cy + 6);
+    ctx.font = "700 11px Inter, Arial";
+    ctx.fillStyle = "#8a98b5";
+    ctx.fillText("trades", cx, cy + 22);
+
+    const ly = h - 22;
+    const startX = Math.max(10, w / 2 - data.length * 56);
+    data.forEach((d, i) => {
+        const x = startX + i * 112;
+        ctx.fillStyle = d.c;
+        ctx.fillRect(x, ly, 10, 10);
+        ctx.fillStyle = "#8a98b5";
+        ctx.font = "700 11px Inter, Arial";
+        ctx.textAlign = "left";
+        ctx.fillText(`${d.l}: ${d.v}`, x + 14, ly + 9);
+    });
+}
+
+function drawHour() {
+    const { ctx, w, h } = setupCanvas("hourCanvas");
+    const mt = manualTrades();
+    const s = computeStats(mt);
+    if (!s.rCount) { drawEmpty(ctx, w, h, s.pendingR ? "R pendente nos trades importados" : "Sem dados ainda"); return; }
+    const buckets = Array.from({ length: 24 }, () => 0);
+    mt.forEach((t) => {
+        if (isRPending(t)) return;
+        const hr = new Date(t.date).getHours();
+        buckets[hr] += tradeRValue(t);
+    });
+    const pad = { t: 12, r: 10, b: 24, l: 32 };
+    const maxAbs = Math.max(1, ...buckets.map(Math.abs));
+    const zero = pad.t + (h - pad.t - pad.b) / 2;
+    const bw = (w - pad.l - pad.r) / 24;
+    ctx.strokeStyle = "rgba(255,255,255,0.06)";
+    ctx.beginPath();
+    ctx.moveTo(pad.l, zero);
+    ctx.lineTo(w - pad.r, zero);
+    ctx.stroke();
+    buckets.forEach((v, i) => {
+        const x = pad.l + i * bw + 2;
+        const bh = (Math.abs(v) / maxAbs) * ((h - pad.t - pad.b) / 2 - 4);
+        const y = v >= 0 ? zero - bh : zero;
+        ctx.fillStyle = v >= 0 ? "#2ddb8a" : "#ff5d6c";
+        ctx.fillRect(x, y, bw - 4, Math.max(1, bh));
+    });
+    ctx.fillStyle = "#8a98b5";
+    ctx.font = "700 9px Inter, Arial";
+    ctx.textAlign = "center";
+    for (let i = 0; i < 24; i += 3) {
+        ctx.fillText(`${i}h`, pad.l + i * bw + bw / 2, h - 6);
+    }
+}
+
+function drawEmpty(ctx, w, h, text = "Sem dados ainda") {
+    ctx.fillStyle = "#5a6a8a";
+    ctx.font = "700 13px Inter, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(text, w / 2, h / 2);
+}
+
+function renderRecent() {
+    const recent = [...manualTrades()].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+    if (!recent.length) {
+        $("recentTrades").innerHTML = `<div class="empty"><div class="empty-ico">∅</div>Nenhum trade ainda. Clique em <strong>+ Novo Trade</strong>.</div>`;
+        return;
+    }
+    $("recentTrades").innerHTML = `<table>
+        <thead><tr><th>Data</th><th>Ativo</th><th>Lado</th><th>Setup</th><th class="right">R</th><th class="right">Fees</th><th class="right">P&L liq.</th></tr></thead>
+        <tbody>${recent.map((t) => `
+            <tr>
+                <td class="muted">${fmtDate(t.date)}</td>
+                <td><strong>${escapeHtml(t.symbol)}</strong></td>
+                <td><span class="pill ${t.side}">${t.side === "long" ? "Long" : "Short"}</span></td>
+                <td class="muted">${escapeHtml(t.setup || "-")}</td>
+                <td class="right">${renderRBadge(t)}</td>
+                <td class="right muted">${fmtCurrency(tradeFees(t))}</td>
+                <td class="right"><strong style="color:${tradeNetPnl(t) > 0 ? "var(--green)" : tradeNetPnl(t) < 0 ? "var(--red)" : "var(--muted)"}">${fmtCurrency(tradeNetPnl(t))}</strong></td>
+            </tr>
+        `).join("")}</tbody></table>`;
+}
+
+function renderTrades() {
+    const text = $("filterText").value.trim().toLowerCase();
+    const side = $("filterSide").value;
+    const result = $("filterResult").value;
+    const base = manualTrades();
+    const filtered = base.filter((t) => {
+        if (side && t.side !== side) return false;
+        const r = tradeRValue(t);
+        if (result === "win" && !(r > 0)) return false;
+        if (result === "loss" && !(r < 0)) return false;
+        if (result === "be" && !(r === 0)) return false;
+        if (text) {
+            const blob = `${t.symbol} ${t.setup} ${t.notes} ${(t.tags || []).join(" ")} ${(t.mistakes || []).join(" ")}`.toLowerCase();
+            if (!blob.includes(text)) return false;
+        }
+        return true;
+    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    $("filterCount").textContent = `${filtered.length} de ${base.length}`;
+
+    if (!filtered.length) {
+        $("tradesTable").innerHTML = `<div class="empty"><div class="empty-ico">∅</div>Nenhum trade encontrado.</div>`;
+        return;
+    }
+
+    $("tradesTable").innerHTML = `<table>
+        <thead><tr>
+            <th>Data</th><th>Ativo</th><th>Lado</th><th>Setup</th><th>Tags</th>
+            <th class="right">R</th><th class="right">Fees</th><th class="right">P&L liq.</th><th></th>
+        </tr></thead>
+        <tbody>${filtered.map((t) => `
+            <tr>
+                <td class="muted">${fmtDate(t.date)}</td>
+                <td><strong>${escapeHtml(t.symbol)}</strong></td>
+                <td><span class="pill ${t.side}">${t.side === "long" ? "Long" : "Short"}</span></td>
+                <td class="muted">${escapeHtml(t.setup || "-")}</td>
+                <td>${(t.tags || []).slice(0, 3).map((tg) => `<span class="tag">${escapeHtml(tg)}</span>`).join("")}</td>
+                <td class="right">${renderRBadge(t)}</td>
+                <td class="right muted">${fmtCurrency(tradeFees(t))}</td>
+                <td class="right" style="color:${tradeNetPnl(t) > 0 ? "var(--green)" : tradeNetPnl(t) < 0 ? "var(--red)" : "var(--muted)"}">${fmtCurrency(tradeNetPnl(t))}</td>
+                <td class="right">
+                    <button class="btn btn-ghost" data-edit="${t.id}" type="button">✎</button>
+                    <button class="btn btn-danger" data-del="${t.id}" type="button">×</button>
+                </td>
+            </tr>
+        `).join("")}</tbody></table>`;
+
+    $("tradesTable").querySelectorAll("[data-edit]").forEach((b) => {
+        b.addEventListener("click", () => openModal(state.trades.find((t) => t.id === b.dataset.edit)));
+    });
+    $("tradesTable").querySelectorAll("[data-del]").forEach((b) => {
+        b.addEventListener("click", () => deleteTrade(b.dataset.del));
+    });
+}
+
+function renderCalendar() {
+    const month = state.calMonth;
+    $("calLabel").textContent = month.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    const first = new Date(month.getFullYear(), month.getMonth(), 1);
+    const last = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+    const startDow = first.getDay();
+    const days = last.getDate();
+
+    const dayMap = {};
+    manualTrades().forEach((t) => {
+        if (isRPending(t)) return;
+        const d = new Date(t.date);
+        if (d.getFullYear() !== month.getFullYear() || d.getMonth() !== month.getMonth()) return;
+        const k = d.getDate();
+        dayMap[k] = (dayMap[k] || 0) + tradeRValue(t);
+    });
+
+    const allVals = Object.values(dayMap);
+    const maxAbs = Math.max(1, ...allVals.map(Math.abs));
+
+    let html = "";
+    for (let i = 0; i < startDow; i++) html += `<div class="cal-cell empty"></div>`;
+    for (let d = 1; d <= days; d++) {
+        const v = dayMap[d];
+        let cls = "";
+        if (v !== undefined) {
+            const ratio = Math.abs(v) / maxAbs;
+            const intensity = ratio > 0.66 ? 3 : ratio > 0.33 ? 2 : 1;
+            cls = v > 0 ? `win-${intensity}` : v < 0 ? `loss-${intensity}` : "";
+        }
+        const tip = v !== undefined ? `${fmtR(v)} em ${d}` : `${d}`;
+        html += `<div class="cal-cell ${cls}" title="${tip}">${d}</div>`;
+    }
+    $("calendarGrid").innerHTML = html;
+
+    const monthTotal = allVals.reduce((a, b) => a + b, 0);
+    $("calMonthSummary").textContent = allVals.length
+        ? `Mês: ${fmtR(monthTotal)} em ${allVals.length} dias operados`
+        : "";
+}
+
+function renderAdvancedStats() {
+    const s = computeStats(manualTrades());
+    const items = [
+        ["P&L liquido", fmtCurrency(s.pnlTotal)],
+        ["Fees/custos", fmtCurrency(s.feesTotal)],
+        ["Trades com R", s.rCount],
+        ["R pendente", s.pendingR],
+        ["Profit factor", s.pf === Infinity ? "∞" : s.pf.toFixed(2)],
+        ["Expectancy (R)", s.expectancy.toFixed(2)],
+        ["Avg win", fmtR(s.avgWin)],
+        ["Avg loss", fmtR(s.avgLoss)],
+        ["Largest win", fmtR(s.largestWin)],
+        ["Largest loss", fmtR(s.largestLoss)],
+        ["Max drawdown", fmtR(-s.maxDD)],
+        ["Best win streak", `${s.bestWinStreak}`],
+        ["Worst loss streak", `${s.bestLossStreak}`],
+        ["Total trades", s.total],
+        ["Wins", s.wins],
+        ["Stops", s.losses],
+        ["Empates", s.bes]
+    ];
+    if (!s.rCount) {
+        items[4] = ["Profit factor", "pendente"];
+        items[5] = ["Expectancy (R)", "pendente"];
+        items[6] = ["Avg win", "pendente"];
+        items[7] = ["Avg loss", "pendente"];
+        items[8] = ["Largest win", "pendente"];
+        items[9] = ["Largest loss", "pendente"];
+        items[10] = ["Max drawdown", "pendente"];
+    }
+    $("advancedStats").innerHTML = items.map(([l, v]) => `
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line-soft)">
+            <span class="muted">${l}</span>
+            <strong>${v}</strong>
+        </div>
+    `).join("");
+}
+
+function renderTagStats() {
+    const tagAgg = {};
+    manualTrades().forEach((t) => {
+        if (isRPending(t)) return;
+        (t.tags || []).forEach((tag) => {
+            tagAgg[tag] = tagAgg[tag] || { count: 0, r: 0, wins: 0 };
+            tagAgg[tag].count++;
+            tagAgg[tag].r += tradeRValue(t);
+            if (tradeRValue(t) > 0) tagAgg[tag].wins++;
+        });
+    });
+    const arr = Object.entries(tagAgg).sort((a, b) => b[1].count - a[1].count);
+    if (!arr.length) {
+        $("tagStats").innerHTML = `<div class="empty muted">Sem tags ainda. Adicione tags no formulário de trade.</div>`;
+        return;
+    }
+    const max = Math.max(...arr.map(([, v]) => v.count));
+    $("tagStats").innerHTML = arr.map(([tag, v]) => `
+        <div class="bar-row">
+            <span class="lbl">${escapeHtml(tag)}</span>
+            <div class="bar"><div class="bar-fill" style="width:${(v.count / max) * 100}%"></div></div>
+            <span class="val">${v.count} · ${fmtR(v.r)}</span>
+        </div>
+    `).join("");
+}
+
+function renderStreaks() {
+    const s = computeStats(manualTrades());
+    $("streaksBox").innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+            <div class="kpi-card win"><div class="label">Maior sequência verde</div><div class="value">${s.bestWinStreak}</div></div>
+            <div class="kpi-card loss"><div class="label">Maior sequência vermelha</div><div class="value">${s.bestLossStreak}</div></div>
+            <div class="kpi-card neutral"><div class="label">Sequência atual</div><div class="value">${s.currentStreak}</div><div class="meta">${s.currentStreakDir > 0 ? "🟢 wins seguidos" : s.currentStreakDir < 0 ? "🔴 stops seguidos" : "—"}</div></div>
+        </div>
+    `;
+}
+
+function renderJournal() {
+    const trades = [...manualTrades()]
+        .filter((t) => t.notes || (t.mistakes || []).length)
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 30);
+    if (!trades.length) {
+        $("journalList").innerHTML = `<div class="empty"><div class="empty-ico">📝</div>Nenhuma anotação ainda.</div>`;
+        return;
+    }
+    $("journalList").innerHTML = trades.map((t) => `
+        <div style="padding:14px 18px;border-bottom:1px solid var(--line-soft)">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+                <strong>${escapeHtml(t.symbol)}</strong>
+                <span class="pill ${t.side}">${t.side}</span>
+                ${renderRBadge(t)}
+                <span class="muted">Fees ${fmtCurrency(tradeFees(t))} | P&L liq. ${fmtCurrency(tradeNetPnl(t))}</span>
+                <span class="muted" style="margin-left:auto;font-size:0.78rem">${fmtDate(t.date)}</span>
+            </div>
+            ${(t.mistakes || []).length ? `<div style="margin:6px 0">${t.mistakes.map((m) => `<span class="tag" style="background:var(--red-soft);color:var(--red);border-color:rgba(255,93,108,0.32)">${escapeHtml(m)}</span>`).join("")}</div>` : ""}
+            ${(t.tags || []).length ? `<div style="margin:6px 0">${t.tags.map((tg) => `<span class="tag">${escapeHtml(tg)}</span>`).join("")}</div>` : ""}
+            ${t.notes ? `<p class="muted" style="margin:6px 0 0;white-space:pre-wrap">${escapeHtml(t.notes)}</p>` : ""}
+        </div>
+    `).join("");
+}
+
+function renderAll() {
+    if (state.view === "backtests") Backtests.render();
+    if (state.view === "dashboard") {
+        renderKPIs();
+        requestAnimationFrame(() => { drawEquity(); drawDist(); });
+        renderRecent();
+    } else if (state.view === "trades") {
+        renderTrades();
+    } else if (state.view === "calendar") {
+        renderCalendar();
+    } else if (state.view === "stats") {
+        renderAdvancedStats();
+        renderTagStats();
+        renderStreaks();
+        requestAnimationFrame(drawHour);
+    } else if (state.view === "journal") {
+        renderJournal();
+    } else if (state.view === "fees") {
+        renderFees();
+    } else if (state.view === "robot") {
+        renderRobot();
+    }
+}
+
+function renderFees() {
+    $("fFeeCripto").value = state.fees.cripto || "";
+    $("fFeeWin").value = state.fees.win || "";
+    $("fFeeWdo").value = state.fees.wdo || "";
+    const totalFees = state.trades.reduce((a, t) => a + tradeFees(t), 0);
+    const byCat = { cripto: 0, win: 0, wdo: 0, none: 0 };
+    state.trades.forEach((t) => {
+        const cat = classifySymbol(t.symbol) || "none";
+        byCat[cat] += tradeFees(t);
+    });
+    $("feesSummary").innerHTML = `
+        Total acumulado em fees: <strong>${fmtCurrency(totalFees)}</strong>
+        · Cripto: ${fmtCurrency(byCat.cripto)}
+        · WIN: ${fmtCurrency(byCat.win)}
+        · WDO: ${fmtCurrency(byCat.wdo)}
+        ${byCat.none ? `· Sem categoria: ${fmtCurrency(byCat.none)}` : ""}
+    `;
+}
+
+function escapeHtml(v) {
+    return String(v ?? "")
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+function exportJSON() {
+    const blob = new Blob([JSON.stringify(state.trades, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `diario-pro-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast("Exportado");
+}
+
+function importFile(file) {
+    const name = (file.name || "").toLowerCase();
+    if (name.endsWith(".json")) {
+        importJSON(file);
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        const text = decodeImportBuffer(reader.result);
+        const trimmed = text.trim();
+        if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+            importJSONText(trimmed);
+            return;
+        }
+        importBrokerCSVText(text);
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function decodeImportBuffer(buffer) {
+    const utf8 = new TextDecoder("utf-8").decode(buffer);
+    if (!utf8.includes("\uFFFD")) return utf8;
+    return new TextDecoder("windows-1252").decode(buffer);
+}
+
+function importJSONText(text) {
+    try {
+        const data = JSON.parse(text);
+        if (!Array.isArray(data)) throw new Error("Formato invalido");
+        if (!confirm(`Importar ${data.length} trades? Isso substitui os atuais.`)) return;
+        state.trades = data;
+        saveTrades();
+        toast(`${data.length} trades importados`);
+        renderAll();
+    } catch (e) {
+        alert(`Erro ao importar: ${e.message}`);
+    }
+}
+
+function promptImportBroker(tradesCount) {
+    return new Promise(resolve => {
+        $("modalImportTitle").textContent = "Confirmar importação";
+        $("modalImportDesc").textContent = `Foram encontrados ${tradesCount} trades no CSV da corretora. Eles serão adicionados ao histórico atual.`;
+        $("modalImportConfirm").classList.add("open");
+        
+        $("btnImportConfirmCancel").onclick = () => {
+            $("modalImportConfirm").classList.remove("open");
+            resolve(null);
+        };
+        
+        $("btnImportConfirmOk").onclick = () => {
+            const dedup = $("cbDedupImport").checked;
+            $("modalImportConfirm").classList.remove("open");
+            resolve(dedup);
+        };
+    });
+}
+
+async function importBrokerCSVText(text) {
+    try {
+        const trades = parseBrokerCSV(text);
+        if (!trades.length) throw new Error("Nenhum trade encontrado");
+        
+        const dedup = await promptImportBroker(trades.length);
+        if (dedup === null) return;
+        
+        let tradesToAdd = trades;
+        if (dedup) {
+            tradesToAdd = trades.filter(t => {
+                return !state.trades.some(existing => 
+                    existing.date === t.date &&
+                    existing.symbol === t.symbol &&
+                    existing.side === t.side
+                );
+            });
+            if (!tradesToAdd.length) {
+                toast("Nenhum trade novo após remover duplicados.");
+                return;
+            }
+        }
+
+        state.trades = [...state.trades, ...tradesToAdd];
+        saveTrades();
+        renderAll();
+        const sync = await syncImportedTradesCloud(tradesToAdd);
+        if (!sync.ok) {
+            alert(`Trades importados localmente, mas falha ao sincronizar na nuvem: ${sync.message}`);
+            toast(`${tradesToAdd.length} trades importados localmente`);
+            return;
+        }
+        toast(sync.synced ? `${tradesToAdd.length} trades importados e sincronizados` : `${tradesToAdd.length} trades da corretora importados`);
+    } catch (e) {
+        alert(`Erro ao importar CSV: ${e.message}`);
+    }
+}
+
+async function syncImportedTradesCloud(trades) {
+    if (!canUseCloud()) return { ok: true, synced: false };
+    cloudBusy = true;
+    updateCloudUi();
+    try {
+        const results = await Promise.all(trades.map((trade) => upsertTradeCloud(trade)));
+        const failed = results.find((result) => !result.ok);
+        if (failed) return { ok: false, synced: true, message: failed.message };
+        return { ok: true, synced: true };
+    } catch (err) {
+        return { ok: false, synced: true, message: err.message || String(err) };
+    } finally {
+        cloudBusy = false;
+        updateCloudUi();
+    }
+}
+
+function splitCsvLine(line) {
+    const cells = [];
+    let current = "";
+    let quoted = false;
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === "\"") {
+            if (quoted && line[i + 1] === "\"") {
+                current += "\"";
+                i++;
+            } else {
+                quoted = !quoted;
+            }
+        } else if (ch === ";" && !quoted) {
+            cells.push(current.trim());
+            current = "";
+        } else {
+            current += ch;
+        }
+    }
+    cells.push(current.trim());
+    return cells;
+}
+
+function normalizeCsvHeader(value) {
+    return String(value ?? "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\uFFFD/g, "")
+        .replace(/[^a-z0-9%]+/g, " ")
+        .trim();
+}
+
+function findHeaderIndex(headers, matcher) {
+    return headers.findIndex((header) => matcher(normalizeCsvHeader(header)));
+}
+
+function parseBrokerNumber(value) {
+    const raw = String(value ?? "").trim();
+    if (!raw || raw === "-") return 0;
+    const cleaned = raw.replace(/\s/g, "").replace(/[^\d,.\-]/g, "");
+    if (!cleaned || cleaned === "-") return 0;
+    const normalized = cleaned.includes(",")
+        ? cleaned.replace(/\./g, "").replace(",", ".")
+        : cleaned;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseBrokerDate(value) {
+    const match = String(value ?? "").match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (!match) return new Date().toISOString();
+    const [, day, month, year, hour = "0", minute = "0", second = "0"] = match;
+    const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+    return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
+function parseBrokerCSV(text) {
+    const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const headerLine = lines.findIndex((line) => normalizeCsvHeader(splitCsvLine(line)[0]) === "ativo");
+    if (headerLine < 0) throw new Error("Cabecalho 'Ativo' nao encontrado");
+
+    const headers = splitCsvLine(lines[headerLine]);
+    const idx = {
+        symbol: findHeaderIndex(headers, (h) => h === "ativo"),
+        opened: findHeaderIndex(headers, (h) => h === "abertura"),
+        side: findHeaderIndex(headers, (h) => h === "lado"),
+        qtyBuy: findHeaderIndex(headers, (h) => h.includes("qtd") && h.includes("compra")),
+        qtySell: findHeaderIndex(headers, (h) => h.includes("qtd") && h.includes("venda")),
+        buyPrice: findHeaderIndex(headers, (h) => h.includes("pre") && h.includes("compra")),
+        sellPrice: findHeaderIndex(headers, (h) => h.includes("pre") && h.includes("venda")),
+        pnl: findHeaderIndex(headers, (h) => h.includes("res") && h.includes("opera") && !h.includes("%"))
+    };
+    const required = ["symbol", "opened", "side", "buyPrice", "sellPrice", "pnl"];
+    const missing = required.filter((key) => idx[key] < 0);
+    if (missing.length) throw new Error(`Colunas obrigatorias ausentes: ${missing.join(", ")}`);
+
+    const cell = (row, index) => index >= 0 ? row[index] || "" : "";
+    return lines.slice(headerLine + 1).map((line) => {
+        const row = splitCsvLine(line);
+        const symbol = cell(row, idx.symbol).trim().toUpperCase();
+        if (!symbol) return null;
+
+        const sideRaw = cell(row, idx.side).trim().toUpperCase();
+        const side = sideRaw.startsWith("V") ? "short" : "long";
+        const qtyBuy = parseBrokerNumber(cell(row, idx.qtyBuy));
+        const qtySell = parseBrokerNumber(cell(row, idx.qtySell));
+        const qty = side === "long" ? (qtyBuy || qtySell) : (qtySell || qtyBuy);
+        const buyPrice = parseBrokerNumber(cell(row, idx.buyPrice));
+        const sellPrice = parseBrokerNumber(cell(row, idx.sellPrice));
+        const entry = side === "long" ? buyPrice : sellPrice;
+        const exit = side === "long" ? sellPrice : buyPrice;
+        const cat = classifySymbol(symbol);
+        const brokerPnl = parseBrokerNumber(cell(row, idx.pnl));
+
+        return {
+            id: uid(),
+            date: parseBrokerDate(cell(row, idx.opened)),
+            symbol,
+            side,
+            r: null,
+            rPending: true,
+            entry,
+            stop: "",
+            exit,
+            qty,
+            initQty: qty,
+            partials: [],
+            riskMoney: 0,
+            fees: 0,
+            pnl: brokerPnl,
+            brokerPnl,
+            setup: "",
+            tags: [],
+            mistakes: [],
+            notes: `Importado da corretora. P&L bruto ${fmtCurrency(brokerPnl)}; taxa auto aplicada conforme config (${cat || "sem categoria"}). Preencha stop/risco para calcular o R.`,
+            source: "broker_csv",
+            pnlLocked: true,
+            createdAt: new Date().toISOString()
+        };
+    }).filter(Boolean);
+}
+
+function importJSON(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+        try {
+            const data = JSON.parse(reader.result);
+            if (!Array.isArray(data)) throw new Error("Formato inválido");
+            if (!confirm(`Importar ${data.length} trades? Isso substitui os atuais.`)) return;
+            state.trades = data;
+            saveTrades();
+            toast(`${data.length} trades importados`);
+            renderAll();
+        } catch (e) {
+            alert(`Erro ao importar: ${e.message}`);
+        }
+    };
+    reader.readAsText(file);
+}
+
+let toastTimer;
+function toast(msg) {
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+function bindEvents() {
+    $("btnAddTrade").addEventListener("click", () => openModal());
+    $("modalClose").addEventListener("click", closeModal);
+    $("btnCancel").addEventListener("click", closeModal);
+    $("btnSave").addEventListener("click", saveFromForm);
+
+    $("btnSaveFees").addEventListener("click", async () => {
+        state.fees = {
+            cripto: Number($("fFeeCripto").value || 0),
+            win: Number($("fFeeWin").value || 0),
+            wdo: Number($("fFeeWdo").value || 0)
+        };
+        persistFees();
+        if (canUseCloud()) {
+            const result = await saveCloudSettings();
+            toast(result.ok ? "Taxas salvas · sincronizado" : `Salvo local. Nuvem falhou: ${result.message}`);
+        } else {
+            toast("Taxas salvas (local)");
+        }
+        renderAll();
+    });
+
+    $("btnRobotSaveCfg").addEventListener("click", async () => {
+        state.robot = {
+            magic: Number($("fRobotMagic").value || 0),
+            symbol: String($("fRobotSymbol").value || "").trim().toUpperCase()
+        };
+        persistRobotConfig();
+        if (canUseCloud()) {
+            const result = await saveCloudSettings();
+            toast(result.ok ? "Config robô salva · sincronizado" : `Salvo local. Nuvem falhou: ${result.message}`);
+        } else {
+            toast("Config robô salva (local)");
+        }
+        renderAll();
+    });
+
+    $("btnRobotImport").addEventListener("click", async () => {
+        state.robot = {
+            magic: Number($("fRobotMagic").value || 0),
+            symbol: String($("fRobotSymbol").value || "").trim().toUpperCase()
+        };
+        persistRobotConfig();
+        const file = $("fRobotFile").files[0];
+        if (!file) { toast("Escolha o CSV antes de importar"); return; }
+        await importRobotFile(file);
+    });
+
+    $("btnRobotPurge").addEventListener("click", purgeRobotTrades);
+    $("modalBackdrop").addEventListener("click", (e) => {
+        if (e.target === $("modalBackdrop")) closeModal();
+    });
+
+    $("btnAddPartial").addEventListener("click", () => {
+        if (!state.editPartials) state.editPartials = [];
+        state.editPartials.push({ qty: "", r: "" });
+        renderPartials();
+    });
+
+    ["fInitQty", "fStopMoney", "fTargetMoney", "fManualR"].forEach((id) => {
+        $(id).addEventListener("input", recomputeFromInputs);
+    });
+    $("fStatus").addEventListener("change", recomputeFromInputs);
+    $("fSide").addEventListener("change", recomputeFromInputs);
+
+    $("btnExport").addEventListener("click", exportJSON);
+    $("btnImport").addEventListener("click", () => $("importFile").click());
+    $("importFile").addEventListener("change", (e) => {
+        if (e.target.files[0]) importFile(e.target.files[0]);
+        e.target.value = "";
+    });
+
+    $("filterText").addEventListener("input", renderTrades);
+    $("filterSide").addEventListener("change", renderTrades);
+    $("filterResult").addEventListener("change", renderTrades);
+
+    $("btnDeleteAllTrades").addEventListener("click", () => {
+        const manuals = manualTrades();
+        if (!manuals.length) {
+            toast("Não há trades manuais para excluir.");
+            return;
+        }
+        if (confirm("Tem certeza que deseja apagar TODOS os trades MANUAIS deste navegador? Trades do robô não serão afetados. O Supabase não será alterado e os trades podem voltar ao atualizar da nuvem.")) {
+            queuePendingCloudDeletes(manuals.map((trade) => trade.id));
+            state.trades = robotTrades();
+            saveTrades();
+            renderAll();
+            toast("Todos os trades manuais foram removidos localmente. O Supabase não foi alterado.");
+        }
+    });
+
+    $("calPrev").addEventListener("click", () => {
+        state.calMonth = new Date(state.calMonth.getFullYear(), state.calMonth.getMonth() - 1, 1);
+        renderCalendar();
+    });
+    $("calNext").addEventListener("click", () => {
+        state.calMonth = new Date(state.calMonth.getFullYear(), state.calMonth.getMonth() + 1, 1);
+        renderCalendar();
+    });
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeModal();
+        if (e.key === "n" && !e.target.matches("input, textarea, select")) openModal();
+    });
+
+    window.addEventListener("resize", () => requestAnimationFrame(renderAll));
+}
+
+function canUseCloud() {
+    return Boolean(supabaseClient && currentUser && currentSession);
+}
+
+function setCloudUi(stateName, label) {
+    const dot = $("cloudDot");
+    const lbl = $("cloudLabel");
+    dot.classList.remove("on", "off", "busy");
+    if (stateName) dot.classList.add(stateName);
+    lbl.textContent = label;
+}
+
+function updateCloudUi() {
+    Backtests.authChanged();
+    const logged = canUseCloud();
+    const hasPendingDeletes = Boolean(state.pendingCloudDeletes?.length);
+    $("cloudFormBox").hidden = logged;
+    $("btnCloudLogout").hidden = !logged;
+    $("btnCloudApplyDeletes").hidden = !logged || !hasPendingDeletes;
+    $("btnCloudApplyDeletes").disabled = !logged || cloudBusy || !hasPendingDeletes;
+    $("btnCloudReload").hidden = !logged;
+    $("btnCloudReload").disabled = !logged || cloudBusy;
+    if (cloudBusy) {
+        setCloudUi("busy", "Sincronizando...");
+        $("cloudHint").textContent = "Aguarde, falando com Supabase.";
+    } else if (logged) {
+        setCloudUi("on", currentUser.email);
+        $("cloudHint").innerHTML = `Login ativo, dados em <code>trades_pro</code>. Compartilhado com Motor SMC.`;
+    } else if (!supabaseClient) {
+        setCloudUi("off", "Supabase offline");
+        $("cloudHint").innerHTML = `Sem conexão. Dados salvos só neste navegador.`;
+    } else {
+        setCloudUi("off", "Não logado");
+        $("cloudHint").innerHTML = `Faça login para sincronizar. Mesmo email/senha do <strong>Motor SMC</strong>.`;
+    }
+}
+
+async function initCloud() {
+    if (!window.supabase || !window.supabase.createClient) {
+        setCloudUi("off", "Lib Supabase não carregou");
+        return;
+    }
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+    try {
+        const { data } = await supabaseClient.auth.getSession();
+        currentSession = data.session || null;
+        currentUser = currentSession?.user || null;
+    } catch (err) {
+        console.warn("getSession falhou:", err);
+    }
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (event === "INITIAL_SESSION") return;
+        currentSession = session || null;
+        currentUser = currentSession?.user || null;
+        updateCloudUi();
+        if (currentUser) {
+            loadCloudTrades();
+            loadCloudSettings();
+        }
+    });
+    updateCloudUi();
+    if (canUseCloud()) {
+        await loadCloudTrades();
+        await loadCloudSettings();
+    }
+}
+
+async function signInCloud() {
+    if (!supabaseClient) return;
+    const email = $("cloudEmail").value.trim();
+    const password = $("cloudPassword").value;
+    if (!email || !password) { alert("Email e senha obrigatórios."); return; }
+    cloudBusy = true;
+    updateCloudUi();
+    let error = null;
+    let data = null;
+    try {
+        const result = await supabaseClient.auth.signInWithPassword({ email, password });
+        data = result.data;
+        error = result.error;
+    } catch (err) {
+        error = err;
+    } finally {
+        cloudBusy = false;
+    }
+    if (error) {
+        updateCloudUi();
+        $("cloudPassword").value = "";
+        alert(`Não foi possível entrar: ${error.message || error}`);
+        return;
+    }
+    currentSession = data?.session || null;
+    currentUser = currentSession?.user || null;
+    updateCloudUi();
+    if (canUseCloud()) {
+        await loadCloudTrades();
+        await loadCloudSettings();
+    }
+}
+
+async function signOutCloud() {
+    if (!supabaseClient) return;
+    cloudBusy = true;
+    updateCloudUi();
+    try {
+        await supabaseClient.auth.signOut();
+    } catch (err) {
+        console.warn("signOut falhou:", err);
+    } finally {
+        cloudBusy = false;
+    }
+    currentUser = null;
+    currentSession = null;
+    updateCloudUi();
+    toast("Sessão encerrada");
+}
+
+async function loadCloudTrades() {
+    if (!canUseCloud()) return;
+    cloudBusy = true;
+    updateCloudUi();
+    let data = null;
+    let error = null;
+    try {
+        const result = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .select("id,payload,trade_timestamp")
+            .order("trade_timestamp", { ascending: true });
+        data = result.data;
+        error = result.error;
+    } catch (err) {
+        error = err;
+    } finally {
+        cloudBusy = false;
+    }
+    if (error) {
+        updateCloudUi();
+        alert(`Falha ao carregar nuvem: ${error.message || error}`);
+        return;
+    }
+    clearPendingCloudDeletes();
+    state.trades = (data || []).map((row) => ({ ...(row.payload || {}), id: row.id }));
+    saveTrades();
+    updateCloudUi();
+    renderAll();
+    toast(`${state.trades.length} trades sincronizados`);
+}
+
+async function upsertTradeCloud(trade) {
+    if (!canUseCloud()) return { ok: false, message: "Sem sessão" };
+    try {
+        const { error } = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .upsert({
+                id: trade.id,
+                user_id: currentUser.id,
+                payload: trade,
+                trade_timestamp: trade.date,
+                updated_at: new Date().toISOString()
+            });
+        if (error) return { ok: false, message: error.message };
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, message: err.message || String(err) };
+    }
+}
+
+async function loadCloudSettings() {
+    if (!canUseCloud()) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from("user_settings")
+            .select("payload")
+            .eq("user_id", currentUser.id)
+            .maybeSingle();
+        if (error) { console.warn("loadCloudSettings:", error.message); return; }
+        if (data?.payload?.fees) {
+            state.fees = { ...FEE_DEFAULTS, ...data.payload.fees };
+            persistFees();
+        }
+        if (data?.payload?.robot) {
+            state.robot = { ...ROBOT_DEFAULTS, ...data.payload.robot };
+            persistRobotConfig();
+        }
+        if (state.view === "fees" || state.view === "robot") renderAll();
+        else renderAll();
+    } catch (err) {
+        console.warn("loadCloudSettings exception:", err);
+    }
+}
+
+async function saveCloudSettings() {
+    if (!canUseCloud()) return { ok: false, message: "Sem sessão" };
+    try {
+        const { error } = await supabaseClient
+            .from("user_settings")
+            .upsert({
+                user_id: currentUser.id,
+                payload: { fees: state.fees, robot: state.robot },
+                updated_at: new Date().toISOString()
+            });
+        if (error) return { ok: false, message: error.message };
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, message: err.message || String(err) };
+    }
+}
+
+async function deleteTradeCloud(id) {
+    if (!canUseCloud()) return { ok: false, message: "Sem sessão" };
+    try {
+        const { error } = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .delete()
+            .eq("id", id);
+        if (error) return { ok: false, message: error.message };
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, message: err.message || String(err) };
+    }
+}
+
+async function applyPendingCloudDeletes() {
+    if (!canUseCloud()) {
+        alert("Faça login para aplicar as exclusões no Supabase.");
+        return;
+    }
+
+    const ids = [...(state.pendingCloudDeletes || [])];
+    if (!ids.length) {
+        toast("Não há exclusões locais pendentes.");
+        return;
+    }
+
+    if (!confirm(`Aplicar ${ids.length} exclusão(ões) no Supabase? Esta ação não poderá ser desfeita pela nuvem.`)) return;
+
+    cloudBusy = true;
+    updateCloudUi();
+    try {
+        const results = await Promise.all(ids.map((id) => deleteTradeCloud(id)));
+        const failedIds = ids.filter((id, index) => !results[index].ok);
+        state.pendingCloudDeletes = failedIds;
+        savePendingCloudDeletes();
+
+        if (failedIds.length) {
+            const firstFailure = results.find((result) => !result.ok);
+            alert(`${failedIds.length} exclusão(ões) falharam. Elas continuam pendentes para nova tentativa.\n\n${firstFailure?.message || "Erro desconhecido"}`);
+            return;
+        }
+
+        toast(`${ids.length} exclusão(ões) aplicadas no Supabase.`);
+    } finally {
+        cloudBusy = false;
+        updateCloudUi();
+    }
+}
+
+function bindCloudEvents() {
+    $("btnCloudLogin").addEventListener("click", signInCloud);
+    $("btnCloudLogout").addEventListener("click", signOutCloud);
+    $("btnCloudApplyDeletes").addEventListener("click", applyPendingCloudDeletes);
+    $("btnCloudReload").addEventListener("click", async () => {
+        if (!canUseCloud()) {
+            alert("Faça login para atualizar os dados da nuvem.");
+            return;
+        }
+        await loadCloudTrades();
+    });
+    $("cloudPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") signInCloud(); });
+    $("cloudEmail").addEventListener("keydown", (e) => { if (e.key === "Enter") signInCloud(); });
+}
+
+Backtests.init();
+state.fees = loadFees();
+state.robot = loadRobotConfig();
+bindNav();
+bindEvents();
+bindCloudEvents();
+renderAll();
+setupChartResize();
+initCloud();

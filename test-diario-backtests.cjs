@@ -1,4 +1,4 @@
-﻿const fs = require('node:fs');
+const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const source = fs.readFileSync(__dirname + '/diario-backtests.js','utf8');
@@ -55,6 +55,7 @@ function boot(storage = new Map()) {
     assert.match(node('btList').innerHTML,/primeiro backtest/);
     const corrupt=boot(new Map([['diarioBacktests_v1_guest','broken']]));corrupt.node('btStrategy').value='test';corrupt.submit('btCreate');
     assert.equal(corrupt.storage.get('diarioBacktests_v1_guest'),'broken');
+    new vm.Script(fs.readFileSync(__dirname+'/diario-core.js','utf8'));
     const html=fs.readFileSync(__dirname+'/diario.html','utf8');
     for(const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);
     assert.equal((html.match(/data-view="backtests"/g)||[]).length,1);
