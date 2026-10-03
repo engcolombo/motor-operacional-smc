@@ -924,6 +924,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
         <button class="nav-item" data-view="journal" type="button">📝 Diário</button>
         <button class="nav-item" data-view="fees" type="button">💸 Taxas</button>
         <button class="nav-item" data-view="robot" type="button">🤖 Robô SMC</button>
+        <button class="nav-item" data-view="backtests" type="button">🧪 Backtests</button>
         <div class="nav-divider"></div>
         <a class="nav-item" href="checklist.html" style="text-decoration:none;">✓ Checklist Pré-Trade</a>
         <div class="nav-divider"></div>
@@ -1279,6 +1280,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 <input type="file" id="importFile" accept=".json,.csv,application/json,text/csv" hidden>
 <div class="toast" id="toast"></div>
 
+<script src="diario-backtests.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SUPABASE_URL = "https://cqjmxywdhlxlsltkrrxm.supabase.co";
@@ -1732,6 +1734,7 @@ function switchView(view) {
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
     const titles = {
+        backtests: ["Backtests", "Teste manual por estratégia · resultado em R"],
         dashboard: ["Dashboard", "Visão geral da performance"],
         trades: ["Trades", `${manualTrades().length} operações registradas`],
         calendar: ["Calendário", "Resultado diário"],
@@ -2533,6 +2536,7 @@ function renderJournal() {
 }
 
 function renderAll() {
+    if (state.view === "backtests") Backtests.render();
     if (state.view === "dashboard") {
         renderKPIs();
         requestAnimationFrame(() => { drawEquity(); drawDist(); });
@@ -2977,6 +2981,7 @@ function setCloudUi(stateName, label) {
 }
 
 function updateCloudUi() {
+    Backtests.authChanged();
     const logged = canUseCloud();
     const hasPendingDeletes = Boolean(state.pendingCloudDeletes?.length);
     $("cloudFormBox").hidden = logged;
@@ -3237,6 +3242,7 @@ function bindCloudEvents() {
     $("cloudEmail").addEventListener("keydown", (e) => { if (e.key === "Enter") signInCloud(); });
 }
 
+Backtests.init();
 state.fees = loadFees();
 state.robot = loadRobotConfig();
 bindNav();
