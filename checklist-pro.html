@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Checklist Pré-Trade</title>
+<title>Checklist Pro · Pré-trade</title>
 <style>
 :root {
   --bg:        #080e1a;
@@ -313,23 +313,25 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
 @keyframes pulse{0%{transform:scale(1);}40%{transform:scale(1.07);}100%{transform:scale(1);}}
 .pulse{animation:pulse .32s ease;}
 </style>
+<link rel="stylesheet" href="checklist-pro.css">
 </head>
-<body>
-<div class="shell">
+<body class="checklist-pro">
+<aside class="cp-sidebar"><a class="cp-brand" href="diario-pro-plus.html"><span class="cp-mark">D+</span><span>Diário Pro+<small>Trading workspace</small></span></a><nav aria-label="Navegação principal"><a href="diario-pro-plus.html">Diário Pro+</a><a href="diario.html">Diário Pro</a><a href="checklist.html">Checklist original</a><a href="checklist-pro.html" aria-current="page">Checklist Pro</a></nav><p class="cp-side-note">PRÉ-TRADE<span>Plano. Contexto. Execução.</span></p><a class="cp-back" href="index.html">← Motor SMC</a></aside>
+<main class="shell" id="checklistMain">
 
   <!-- Header -->
   <div class="hdr">
     <div class="brand">
-      <p class="eye">Checklist Operacional</p>
-      <h1>Excelência Trading</h1>
+      <p class="eye">CHECKLIST PRO / PRÉ-TRADE</p>
+      <h1>Checklist Pro</h1><p class="hdr-sub">Confirme o plano. Avalie o modelo. Decida.</p>
     </div>
     <div class="hdr-btns">
-      <button class="btn btn-ghost" id="btnReset">↺ Resetar</button>
+      <button class="btn btn-ghost" id="btnReset">Limpar marcações</button>
     </div>
   </div>
 
   <!-- Verdict -->
-  <div class="verdict" id="vcard">
+  <div class="verdict" id="vcard" role="status" aria-live="polite">
     <div class="v-ring">
       <svg viewBox="0 0 64 64">
         <circle class="rg-bg" cx="32" cy="32" r="27"/>
@@ -346,7 +348,7 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
     <div class="v-icon" id="vicon">📋</div>
   </div>
   <div class="veto-bar" id="vetoBar">
-    🚫 &nbsp;Gate de gestão não confirmado — <strong>NÃO OPERA</strong> independente do score.
+    Gate de gestão não confirmado — <strong>NÃO OPERA</strong> independente do score.
   </div>
 
   <!-- Plano warning banner -->
@@ -885,12 +887,13 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
 
   <div class="foot">
     <a class="foot-btn" href="index.html">← Motor SMC</a>
-    <a class="foot-btn" href="checklist-pro.html">Checklist Pro →</a>
+    <a class="foot-btn" href="checklist.html">Checklist original</a>
     <a class="foot-btn" href="diario.html">Diário Pro →</a>
     <span class="foot-label">Modelos #1 · #2 · #3 · #4</span>
   </div>
-</div>
+</main>
 
 <script src="checklist-core.js"></script>
+<script src="checklist-pro.js"></script>
 </body>
 </html>
