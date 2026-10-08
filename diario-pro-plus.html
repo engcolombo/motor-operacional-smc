@@ -1032,8 +1032,8 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                         <button class="btn btn-ghost" id="calNext" type="button">→</button>
                     </div>
                     <div class="cal-periods" aria-live="polite">
-                        <div><span>Últimos 7 dias</span><strong class="cal-period-value" id="calLast7"></strong></div>
-                        <div><span>Últimos 30 dias</span><strong class="cal-period-value" id="calLast30"></strong></div>
+                        <div><span>Últimos 7 dias</span><strong class="cal-period-value" id="calLast7"></strong><small id="calRange7"></small></div>
+                        <div><span>Últimos 30 dias</span><strong class="cal-period-value" id="calLast30"></strong><small id="calRange30"></small></div>
                         <p>Resultado líquido · dias corridos, incluindo hoje</p>
                     </div>
                 </div>
@@ -1050,6 +1050,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                         <span id="calMonthSummary" aria-live="polite"></span>
                     </div>
                     <p class="cal-explanation">Quanto mais forte a cor, maior o lucro ou prejuízo em R$ em relação aos outros dias do mês. Valores líquidos após taxas.</p>
+                    <p class="cal-future-notice" id="calFutureNotice" aria-live="polite" hidden></p>
                 </div>
             </div>
         </section>

@@ -96,29 +96,32 @@
 .pro-plus .modal-backdrop { background: #080b0ed9; backdrop-filter: blur(3px); }
 .pro-plus .modal-head h3 { font-weight: 600; }
 .pro-plus .tab-btn { font-weight: 500; font-size: 12px; }
-.pro-plus #view-calendar > .panel { max-width: 1000px; }
+.pro-plus #view-calendar > .panel { max-width: 1280px; }
 .pro-plus .cal-panel-head { flex-wrap: wrap; gap: 12px 24px; padding: 12px 16px; }
 .pro-plus #view-calendar .panel-body { padding: 14px 16px; }
 .pro-plus .cal-month-bar { margin: 0; flex: 1 1 260px; max-width: 370px; }
 .pro-plus .cal-periods { margin-left: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 30px; }
 .pro-plus .cal-periods > div { display: flex; flex-direction: column; gap: 5px; }
 .pro-plus .cal-periods span { color: var(--muted); font-size: 11px; }
-.pro-plus .cal-period-value { font-size: 18px; font-weight: 600; white-space: nowrap; }
+.pro-plus .cal-period-value { font-size: 21px; font-weight: 600; white-space: nowrap; }
+.pro-plus .cal-periods small { color: var(--muted); font-size: 10px; }
 .pro-plus .cal-period-value.positive { color: var(--green); }
 .pro-plus .cal-period-value.negative { color: var(--red); }
 .pro-plus .cal-periods p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 10px; }
 .pro-plus .cal-scroll { overflow-x: auto; padding: 2px; }
 .pro-plus .calendar, .pro-plus .cal-head { min-width: 630px; }
-.pro-plus .cal-cell { aspect-ratio: auto; min-height: 54px; min-width: 0; padding: 6px 8px; flex-direction: column; align-items: stretch; justify-content: space-between; gap: 5px; color: var(--text); transition: none; }
-.pro-plus .cal-cell.empty { min-height: 54px; }
-.pro-plus .cal-day { align-self: flex-end; font-size: 11px; font-weight: 500; opacity: .8; }
-.pro-plus .cal-pnl { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.pro-plus .cal-cell { aspect-ratio: auto; min-height: clamp(58px, 7.5vh, 72px); min-width: 0; padding: 7px 9px; flex-direction: column; align-items: stretch; justify-content: space-between; gap: 5px; color: var(--text); transition: none; }
+.pro-plus .cal-day { align-self: flex-end; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; opacity: .8; }
+.pro-plus .cal-today-label { font-size: 9px; }
+.pro-plus .cal-cell.today { box-shadow: inset 0 0 0 1px currentColor; }
+.pro-plus .cal-pnl { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .pro-plus .cal-legend { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--muted); font-size: 11px; }
 .pro-plus .cal-key { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
 .pro-plus .cal-key.positive { background: var(--green); }
 .pro-plus .cal-key.negative { background: var(--red); }
 .pro-plus #calMonthSummary { margin-left: auto; color: var(--text); font-weight: 600; }
 .pro-plus .cal-explanation { margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.pro-plus .cal-future-notice { margin: 8px 0 0; color: var(--yellow); font-size: 11px; line-height: 1.6; }
 .pro-plus .cal-cell:hover { transform: none; outline: 1px solid #a5b2c1; }
 .pro-plus .cal-cell.win-1 { background: #253a32; border-color: #355347; }
 .pro-plus .cal-cell.win-2 { background: #395c4d; border-color: #507360; }

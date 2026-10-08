@@ -598,11 +598,18 @@ function switchView(view) {
     renderAll();
 }
 
+function localDateTimeValue(value = new Date()) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function openModal(trade) {
     if ($("btnSave").disabled) return;
     state.editingId = trade ? trade.id : null;
     $("modalTitle").textContent = trade ? "Editar trade" : "Novo trade";
-    $("fDate").value = trade ? trade.date.slice(0, 16) : new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    $("fDate").value = localDateTimeValue(trade ? trade.date : new Date());
     $("fSymbol").value = trade?.symbol || "";
     $("fSide").value = trade?.side || "long";
     $("fSetup").value = trade?.setup || "";
@@ -758,7 +765,9 @@ async function saveFromForm() {
     const attachmentRemoved = Boolean(state.editAttachment?.removeExisting);
     const trade = {
         id: state.editingId || uid(),
-        date: new Date($("fDate").value || new Date()).toISOString(),
+        date: existingTrade?.date && $("fDate").value === localDateTimeValue(existingTrade.date)
+            ? existingTrade.date
+            : new Date($("fDate").value || new Date()).toISOString(),
         symbol: $("fSymbol").value.trim().toUpperCase(),
         side: $("fSide").value,
         setup: $("fSetup").value.trim(),
@@ -1301,7 +1310,7 @@ function calendarResults(trades, month, now = new Date()) {
     const start30 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     const dayMap = {};
-    let cents7 = 0, cents30 = 0;
+    let cents7 = 0, cents30 = 0, futureCount = 0;
     trades.forEach((trade) => {
         if (isRobotTrade(trade)) return;
         const date = new Date(trade.date);
@@ -1311,14 +1320,14 @@ function calendarResults(trades, month, now = new Date()) {
         if (date < end) {
             if (date >= start7) cents7 += cents;
             if (date >= start30) cents30 += cents;
-        }
+        } else futureCount++;
         if (date.getFullYear() !== month.getFullYear() || date.getMonth() !== month.getMonth()) return;
         const day = date.getDate();
         if (!dayMap[day]) dayMap[day] = { cents: 0, count: 0 };
         dayMap[day].cents += cents;
         dayMap[day].count++;
     });
-    return { dayMap, last7: cents7 / 100, last30: cents30 / 100, start7, start30, now };
+    return { dayMap, last7: cents7 / 100, last30: cents30 / 100, start7, start30, now, futureCount };
 }
 
 function renderCalendar() {
@@ -1333,15 +1342,21 @@ function renderCalendar() {
     const { dayMap } = results;
     const allVals = Object.values(dayMap).map((day) => day.cents / 100);
     const maxAbs = Math.max(0.01, ...allVals.map(Math.abs));
-    for (const [id, value, start] of [
-        ["calLast7", results.last7, results.start7],
-        ["calLast30", results.last30, results.start30]
+    for (const [id, value, start, rangeId] of [
+        ["calLast7", results.last7, results.start7, "calRange7"],
+        ["calLast30", results.last30, results.start30, "calRange30"]
     ]) {
         const el = $(id);
         el.textContent = fmtCurrency(value);
         el.className = `cal-period-value ${value > 0 ? "positive" : value < 0 ? "negative" : ""}`;
         el.title = `${start.toLocaleDateString("pt-BR")} a ${results.now.toLocaleDateString("pt-BR")} · líquido após taxas`;
+        const shortDate = (date) => date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+        $(rangeId).textContent = `${shortDate(start)} a ${shortDate(results.now)}`;
     }
+    $("calFutureNotice").hidden = !results.futureCount;
+    $("calFutureNotice").textContent = results.futureCount
+        ? `${results.futureCount} ${results.futureCount === 1 ? "trade com data futura não entra" : "trades com data futura não entram"} nesses totais. Confira Data e hora em Operações → Editar.`
+        : "";
 
     let html = "";
     for (let i = 0; i < startDow; i++) html += `<div class="cal-cell empty"></div>`;
@@ -1355,10 +1370,11 @@ function renderCalendar() {
             cls = v > 0 ? `win-${intensity}` : v < 0 ? `loss-${intensity}` : "";
         }
         const dateLabel = new Date(month.getFullYear(), month.getMonth(), d).toLocaleDateString("pt-BR");
+        const isToday = dateLabel === results.now.toLocaleDateString("pt-BR");
         const tip = entry
             ? `${dateLabel}: ${fmtCurrency(v)} líquido · ${entry.count} ${entry.count === 1 ? "trade" : "trades"}`
             : `${dateLabel}: sem operações`;
-        html += `<div class="cal-cell ${cls}" title="${tip}" aria-label="${tip}"><span class="cal-day">${d}</span><span class="cal-pnl">${entry ? fmtCurrency(v) : "—"}</span></div>`;
+        html += `<div class="cal-cell ${cls}${isToday ? " today" : ""}"${isToday ? ' aria-current="date"' : ""} title="${tip}" aria-label="${tip}"><span class="cal-day">${isToday ? '<span class="cal-today-label">Hoje</span>' : ""}${d}</span><span class="cal-pnl">${entry ? fmtCurrency(v) : "—"}</span></div>`;
     }
     $("calendarGrid").innerHTML = html;
 

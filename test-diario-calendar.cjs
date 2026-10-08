@@ -61,6 +61,11 @@ assert.match(html, /04\/10\/2026: sem operações/);
 assert.equal(node("calLast7").className, "cal-period-value negative");
 assert.match(node("calLast7").textContent, /-R\$\s*72,70/);
 assert.match(node("calLast30").title, /09\/09\/2026 a 08\/10\/2026/);
+assert.equal(node("calRange7").textContent, "02/10 a 08/10");
+assert.equal(node("calRange30").textContent, "09/09 a 08/10");
+assert.equal(node("calFutureNotice").hidden, false);
+assert.match(node("calFutureNotice").textContent, /1 trade com data futura/);
+assert.match(html, /aria-current="date"/);
 assert.match(node("calMonthSummary").textContent, /956,30 líquido · 7 dias operados/);
 assert.equal((html.match(/class="cal-day"/g) || []).length, 31);
 
@@ -83,4 +88,5 @@ renderCalendar();
 assert.match(node("calLast7").textContent, /R\$\s*0,00/);
 assert.equal(node("calLast7").className.trim(), "cal-period-value");
 assert.equal(node("calMonthSummary").textContent, "Mês sem operações");
+assert.equal(node("calFutureNotice").hidden, true);
 console.log("Calendar: daily net BRL, rolling periods, boundaries, month navigation and empty state passed.");

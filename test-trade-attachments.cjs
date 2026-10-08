@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const vm = require("node:vm");
 const assert = require("node:assert/strict");
+process.env.TZ = "America/Sao_Paulo";
 
 const core = fs.readFileSync(`${__dirname}/diario-core.js`, "utf8");
 const initAt = core.indexOf("\nBacktests.init();");
@@ -61,6 +62,8 @@ this.attachments = {
   uploadTradeAttachment,
   removeTradeAttachment,
   saveFromForm,
+  openModal,
+  calendarResults,
   state,
   prepare: (existing, file, remove) => {
     state.trades = existing ? [existing] : [];
@@ -142,6 +145,28 @@ renderAll = () => {};`, context);
     assert.deepEqual(calls.events, ["save"]);
     assert.equal(api.state.trades[0].attachment.path, old.attachment.path);
 
+    // Editing a UTC timestamp must display local time without shifting the trade each save.
+    // This UTC date is already the 9th, but the trade occurred on the 8th in São Paulo.
+    const timestamp = "2026-10-09T01:12:34.567Z";
+    api.prepare({ id:"date-trade", date:timestamp, symbol:"WIN", side:"long", initQty:1,
+        stopMoney:100, targetMoney:507, status:"target", pnl:507 }, null, false);
+    for (let edit = 0; edit < 5; edit++) {
+        api.openModal(api.state.trades[0]);
+        assert.equal(node("fDate").value, "2026-10-08T22:12", "UTC must be converted to local time in the editor");
+        await api.saveFromForm();
+        assert.equal(api.state.trades[0].date, timestamp, "Repeated edits preserve the exact original timestamp");
+        const totals = api.calendarResults(api.state.trades, new Date(2026, 9, 1), new Date(2026, 9, 8, 23));
+        assert.equal(totals.dayMap[8].cents, 50700);
+        assert.equal(totals.last7, 507, "Today's local trade enters the rolling total even when its UTC date is tomorrow");
+        assert.equal(totals.last30, 507);
+    }
+    api.openModal(api.state.trades[0]);
+    node("fDate").value = "2026-10-08T13:06";
+    await api.saveFromForm();
+    assert.equal(api.state.trades[0].date, "2026-10-08T16:06:00.000Z", "Intentional local date changes convert to UTC exactly once");
+    api.openModal(api.state.trades[0]);
+    assert.equal(node("fDate").value, "2026-10-08T13:06");
+
     const sql = fs.readFileSync(`${__dirname}/supabase-attachments.sql`, "utf8");
     assert.match(sql, /'trade-attachments'/);
     assert.match(sql, /false/);
@@ -166,7 +191,7 @@ renderAll = () => {};`, context);
     ["index.html", "diario-pro-plus.html", "checklist.html", "checklist-pro.html"].forEach(page => {
         assert.doesNotMatch(fs.readFileSync(`${__dirname}/${page}`, "utf8"), /href="diario\.html"/);
     });
-    console.log("PASS: validação, upload privado, remoção, RLS e formulários de anexos.");
+    console.log("PASS: validação, upload privado, remoção, RLS, anexos e cinco edições sem deslocamento de fuso/data.");
 })().catch((error) => {
     console.error(error);
     process.exitCode = 1;
