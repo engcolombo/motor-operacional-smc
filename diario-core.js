@@ -1355,6 +1355,7 @@ function tradeChartTooltipHtml(bar) {
             <div class="trade-tooltip-result"><span>${local.slice(11)} · ${escapeHtml(trade.symbol || "Sem ativo")}</span><strong class="${r > 0 ? "gain" : r < 0 ? "loss" : ""}">${r === null ? "R pendente" : fmtR(r)}</strong></div>
             <div class="trade-tooltip-setup">${escapeHtml(trade.setup || "Sem setup")}</div>
             <div class="trade-tooltip-tags">${(trade.tags || []).length ? trade.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("") : "Sem tags"}</div>
+            ${(trade.mistakes || []).length ? `<div class="trade-tooltip-mistakes"><strong>Erros / Mistakes</strong><p>${escapeHtml(trade.mistakes.join(", "))}</p></div>` : ""}
         </div>`).join("")}
         ${bar.kind === "day" ? '<button type="button" class="btn trade-tooltip-open" data-chart-open>Abrir trades deste dia →</button>' : ""}`;
 }
@@ -1508,7 +1509,7 @@ function drawHour() {
         const local = bar.rows[0].local;
         const label = bar.kind === "day" ? chartDayLabel(bar.day).slice(0, 5) : local.slice(11);
         const sublabel = bar.kind === "day" ? `${bar.rows.length} ${bar.rows.length === 1 ? "trade" : "trades"} ↗` : `${day ? "" : bar.day === today ? "Hoje · " : `${chartDayLabel(bar.day).slice(0, 5)} · `}#${bar.ordinal}`;
-        const details = bar.kind === "day" ? "Clique para ver os trades." : `${bar.rows[0].trade.setup || "Sem setup"}. Tags: ${(bar.rows[0].trade.tags || []).join(", ") || "Sem tags"}.`;
+        const details = bar.kind === "day" ? "Clique para ver os trades." : `${bar.rows[0].trade.setup || "Sem setup"}. Tags: ${(bar.rows[0].trade.tags || []).join(", ") || "Sem tags"}.${(bar.rows[0].trade.mistakes || []).length ? ` Mistakes: ${bar.rows[0].trade.mistakes.join(", ")}.` : ""}`;
         const description = `${bar.kind === "day" ? chartDayLabel(bar.day) : fmtDate(bar.rows[0].trade)}: ${chartResultLabel(bar)}. ${details}`;
         descriptions.push(description);
         const color = r > 0 ? "gain" : r < 0 ? "loss" : "neutral";
