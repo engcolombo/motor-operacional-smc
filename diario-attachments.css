@@ -62,3 +62,16 @@
 }
 
 .pro-plus .attachment-meta { font-size: 11px; }
+
+.attachment-link { color: var(--text); font: inherit; font-size: 10px; cursor: pointer; vertical-align: middle; }
+.attachment-link:hover { border-color: var(--accent); background: var(--accent-soft); }
+.attachment-viewer { width: min(1100px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); padding: 0; margin: auto; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--bg-elev); box-shadow: var(--shadow); }
+.attachment-viewer[open] { display: flex; flex-direction: column; }
+.attachment-viewer::backdrop { background: #080b0ee6; }
+.attachment-viewer-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.attachment-viewer-head h3 { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.attachment-viewer-head .actions { display: flex; gap: 8px; }
+.attachment-viewer-body { display: flex; align-items: center; justify-content: center; min-height: 180px; min-width: 0; overflow: auto; padding: 16px; }
+.attachment-viewer-body p { color: var(--muted); font-size: 12px; text-align: center; }
+.attachment-viewer-body img { display: block; max-width: 100%; max-height: calc(100dvh - 170px); object-fit: contain; }
+.attachment-viewer [hidden] { display: none !important; }

@@ -7,13 +7,18 @@ const core = fs.readFileSync(`${__dirname}/diario-core.js`, "utf8");
 const initAt = core.indexOf("\nBacktests.init();");
 assert.ok(initAt > 0, "Diário core deve manter a inicialização identificável");
 
-const calls = { uploads: [], removals: [], events: [], saves: [], alerts: [] };
+const calls = { uploads: [], removals: [], events: [], saves: [], alerts: [], signedUrls: [] };
 let failSave = false, failUpload = false;
+let signedResult = () => ({ data: { signedUrl: "https://example.test/private-image?token=private" }, error: null });
 const client = {
     storage: {
         from(bucket) {
             assert.equal(bucket, "trade-attachments");
             return {
+                async createSignedUrl(path, expires) {
+                    calls.signedUrls.push({path, expires});
+                    return signedResult();
+                },
                 async upload(path, file, options) {
                     calls.uploads.push({ path, file, options });
                     calls.events.push("upload");
@@ -34,8 +39,10 @@ const nodes = new Map();
 const node = id => {
     if (!nodes.has(id)) nodes.set(id, {
         value:"", files:[], disabled:false, textContent:"", innerHTML:"",
-        classList:{add(){},remove(){}},
-        querySelectorAll(){return [];}, removeAttribute(){}, addEventListener(){}
+        classList:{add(){},remove(){}}, listeners:{}, open:false,
+        querySelectorAll(){return [];}, removeAttribute(name){delete this[name];}, getAttribute(name){return this[name] ?? null;},
+        addEventListener(name, listener){this.listeners[name]=listener;},
+        showModal(){this.open=true;}, close(){this.open=false;this.listeners.close?.();}
     });
     return nodes.get(id);
 };
@@ -53,7 +60,7 @@ const context = {
     alert: message => calls.alerts.push(message),
     setTimeout: () => 1, clearTimeout() {},
     localStorage: { getItem: () => null, setItem() {} },
-    document: { getElementById: node }
+    document: { getElementById: node, addEventListener() {} }
 };
 vm.createContext(context);
 vm.runInContext(`${core.slice(0, initAt)}
@@ -61,6 +68,9 @@ this.attachments = {
   validateAttachmentFile,
   uploadTradeAttachment,
   removeTradeAttachment,
+  openTradeAttachment,
+  bindAttachmentViewer,
+  tradeAttachmentButton,
   saveFromForm,
   openModal,
   calendarResults,
@@ -167,6 +177,68 @@ renderAll = () => {};`, context);
     api.openModal(api.state.trades[0]);
     assert.equal(node("fDate").value, "2026-10-08T13:06");
 
+    // Direct viewing authenticates a private signed URL without opening or changing the editor.
+    const imageTrade = {id:"image-trade", dateLocal:"2026-10-08T13:06", date:"2026-10-08T16:06:00Z", symbol:"WIN", attachment:{path:"user-a/image-trade/chart.png", name:"Gráfico.png"}};
+    api.prepare(imageTrade, null, false);
+    api.state.editingId = null;
+    api.bindAttachmentViewer();
+    calls.signedUrls.length = 0;
+    const formBefore = node("fDate").value;
+    await api.openTradeAttachment("image-trade");
+    assert.equal(node("attachmentViewer").open, true);
+    assert.equal(api.state.editingId, null);
+    assert.equal(node("fDate").value, formBefore);
+    assert.deepEqual(calls.signedUrls, [{path:imageTrade.attachment.path, expires:600}]);
+    assert.equal(node("attachmentViewerImage").src, "https://example.test/private-image?token=private");
+    assert.equal(node("attachmentViewerOriginal").href, node("attachmentViewerImage").src);
+    node("attachmentViewerImage").listeners.load();
+    assert.equal(node("attachmentViewerImage").hidden, false);
+    assert.equal(node("attachmentViewerStatus").hidden, true);
+    node("attachmentViewerImage").listeners.error();
+    assert.equal(node("attachmentViewerStatus").hidden, false);
+    assert.match(node("attachmentViewerStatus").textContent, /Não foi possível carregar/);
+    node("attachmentViewer").close();
+    assert.equal(node("attachmentViewerImage").src, undefined);
+    assert.equal(node("attachmentViewerOriginal").href, undefined);
+    await api.openTradeAttachment("nonexistent");
+    assert.equal(calls.signedUrls.length, 1);
+
+    api.configure(client, null);
+    await api.openTradeAttachment("image-trade");
+    assert.match(node("attachmentViewerStatus").textContent, /Entre na sua conta/);
+    assert.equal(calls.signedUrls.length, 1, "Signed URLs are never requested without login");
+    api.configure(client, {id:"user-a"});
+    signedResult = () => ({error:{message:"Storage indisponível"}});
+    await api.openTradeAttachment("image-trade");
+    assert.match(node("attachmentViewerStatus").textContent, /Storage indisponível/);
+    assert.equal(node("attachmentViewerOriginal").hidden, true);
+
+    let resolveSigned;
+    signedResult = () => new Promise(resolve => {resolveSigned = resolve;});
+    const accountChanged = api.openTradeAttachment("image-trade");
+    api.configure(client, {id:"user-b"});
+    resolveSigned({data:{signedUrl:"https://example.test/user-a"}});
+    await accountChanged;
+    assert.equal(node("attachmentViewerImage").src, undefined, "A changed account cannot receive a stale image response");
+    assert.match(node("attachmentViewerStatus").textContent, /A conta mudou/);
+    api.configure(client, {id:"user-a"});
+    const closed = api.openTradeAttachment("image-trade");
+    node("attachmentViewer").close();
+    resolveSigned({data:{signedUrl:"https://example.test/closed"}});
+    await closed;
+    assert.equal(node("attachmentViewerImage").src, undefined, "Closing during loading cancels the response");
+
+    const oldResponse = api.openTradeAttachment("image-trade");
+    const resolveOld = resolveSigned;
+    signedResult = () => ({data:{signedUrl:"https://example.test/latest"}});
+    await api.openTradeAttachment("image-trade");
+    resolveOld({data:{signedUrl:"https://example.test/old"}});
+    await oldResponse;
+    assert.equal(node("attachmentViewerImage").src, "https://example.test/latest", "Late responses never replace the currently opened image");
+    assert.match(api.tradeAttachmentButton(imageTrade), /data-open-attachment="image-trade"/);
+    assert.equal(api.tradeAttachmentButton({id:"no-image"}), "");
+    node("attachmentViewer").close();
+
     const sql = fs.readFileSync(`${__dirname}/supabase-attachments.sql`, "utf8");
     assert.match(sql, /'trade-attachments'/);
     assert.match(sql, /false/);
@@ -191,7 +263,7 @@ renderAll = () => {};`, context);
     ["index.html", "diario-pro-plus.html", "checklist.html", "checklist-pro.html"].forEach(page => {
         assert.doesNotMatch(fs.readFileSync(`${__dirname}/${page}`, "utf8"), /href="diario\.html"/);
     });
-    console.log("PASS: validação, upload privado, remoção, RLS, anexos e cinco edições sem deslocamento de fuso/data.");
+    console.log("PASS: private attachments, direct viewing without editing, signed URL errors/account changes/stale responses, removal, RLS, and unchanged trade dates.");
 })().catch((error) => {
     console.error(error);
     process.exitCode = 1;

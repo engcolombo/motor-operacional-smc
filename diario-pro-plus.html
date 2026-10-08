@@ -907,7 +907,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 }
 </style>
 <link rel="stylesheet" href="diario-pro-plus.css?v=20261008-trade-chart">
-<link rel="stylesheet" href="diario-attachments.css">
+<link rel="stylesheet" href="diario-attachments.css?v=20261008-image-viewer">
 </head>
 <body class="pro-plus">
 <div class="app">
@@ -1320,11 +1320,25 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     </div>
 </div>
 
+<dialog class="attachment-viewer" id="attachmentViewer" aria-labelledby="attachmentViewerTitle">
+    <div class="attachment-viewer-head">
+        <h3 id="attachmentViewerTitle">Imagem do trade</h3>
+        <div class="actions">
+            <a class="btn btn-ghost" id="attachmentViewerOriginal" target="_blank" rel="noopener noreferrer" hidden>Abrir original ↗</a>
+            <button class="btn btn-ghost" id="attachmentViewerClose" type="button" autofocus>Fechar</button>
+        </div>
+    </div>
+    <div class="attachment-viewer-body">
+        <p id="attachmentViewerStatus" role="status" aria-live="polite"></p>
+        <img id="attachmentViewerImage" alt="Imagem do trade" hidden>
+    </div>
+</dialog>
+
 <input type="file" id="importFile" accept=".json,.csv,application/json,text/csv" hidden>
 <div class="toast" id="toast"></div>
 
 <script src="diario-backtests.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="diario-core.js?v=20261008-trade-chart"></script>
+<script src="diario-core.js?v=20261008-image-viewer"></script>
 </body>
 </html>

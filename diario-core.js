@@ -186,6 +186,84 @@ async function loadAttachmentPreview(attachment) {
     }
 }
 
+function tradeAttachmentButton(trade) {
+    return trade.attachment?.path ? ` <button class="tag attachment-link" type="button" data-open-attachment="${escapeHtml(trade.id)}" title="Abrir imagem anexada" aria-label="Abrir imagem do trade ${escapeHtml(trade.symbol || "")}, ${fmtDate(trade)}">imagem</button>` : "";
+}
+
+let attachmentViewerRequest = 0;
+
+async function openTradeAttachment(tradeId) {
+    const trade = state.trades.find((item) => item.id === tradeId);
+    if (!trade?.attachment?.path) return;
+    const viewer = $("attachmentViewer"), image = $("attachmentViewerImage"), link = $("attachmentViewerOriginal"), status = $("attachmentViewerStatus");
+    const request = ++attachmentViewerRequest, path = trade.attachment.path;
+    hideTradeChartTooltip();
+    $("attachmentViewerTitle").textContent = `${trade.symbol || "Trade"} · ${fmtDate(trade)}`;
+    image.alt = attachmentName(trade.attachment);
+    image.hidden = true;
+    image.removeAttribute("src");
+    link.hidden = true;
+    link.removeAttribute("href");
+    status.hidden = false;
+    status.textContent = canUseCloud() ? "Carregando imagem…" : "Entre na sua conta do Supabase para abrir este anexo privado.";
+    if (!viewer.open) viewer.showModal();
+    if (!canUseCloud()) return;
+    const userId = currentUser.id;
+    try {
+        const { data, error } = await supabaseClient.storage.from(ATTACHMENTS_BUCKET).createSignedUrl(path, 600);
+        if (request !== attachmentViewerRequest || !viewer.open) return;
+        if (currentUser?.id !== userId || !canUseCloud()) {
+            status.textContent = "A conta mudou. Feche e abra a imagem novamente.";
+            return;
+        }
+        if (error) throw error;
+        if (!data?.signedUrl) throw new Error("O link da imagem não está disponível.");
+        if (state.trades.find((item) => item.id === tradeId)?.attachment?.path !== path) {
+            status.textContent = "O anexo foi alterado. Feche e abra a imagem novamente.";
+            return;
+        }
+        image.src = data.signedUrl;
+        link.href = data.signedUrl;
+        link.hidden = false;
+    } catch (err) {
+        if (request === attachmentViewerRequest && viewer.open) status.textContent = `Não foi possível abrir a imagem: ${err.message || err}`;
+    }
+}
+
+function bindAttachmentViewer() {
+    const viewer = $("attachmentViewer"), image = $("attachmentViewerImage");
+    document.addEventListener("click", (event) => {
+        const button = event.target.closest?.("[data-open-attachment]");
+        if (button) openTradeAttachment(button.dataset.openAttachment);
+    });
+    $("attachmentViewerClose").addEventListener("click", () => viewer.close());
+    viewer.addEventListener("keydown", (event) => event.stopPropagation());
+    viewer.addEventListener("click", (event) => {
+        if (event.target !== viewer) return;
+        const rect = viewer.getBoundingClientRect();
+        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) viewer.close();
+    });
+    viewer.addEventListener("close", () => {
+        if (viewer.open) return;
+        attachmentViewerRequest++;
+        image.removeAttribute("src");
+        image.hidden = true;
+        $("attachmentViewerOriginal").removeAttribute("href");
+        $("attachmentViewerOriginal").hidden = true;
+    });
+    image.addEventListener("load", () => {
+        if (!viewer.open || !image.getAttribute("src")) return;
+        image.hidden = false;
+        $("attachmentViewerStatus").hidden = true;
+    });
+    image.addEventListener("error", () => {
+        if (!viewer.open || !image.getAttribute("src")) return;
+        image.hidden = true;
+        $("attachmentViewerStatus").hidden = false;
+        $("attachmentViewerStatus").textContent = "Não foi possível carregar a imagem. Tente abrir novamente.";
+    });
+}
+
 async function uploadTradeAttachment(tradeId, file) {
     const check = validateAttachmentFile(file);
     if (!check.ok) return check;
@@ -1467,7 +1545,7 @@ function renderRecent() {
                 <td class="muted">${fmtDate(t)}</td>
                 <td><strong>${escapeHtml(t.symbol)}</strong></td>
                 <td><span class="pill ${t.side}">${t.side === "long" ? "Long" : "Short"}</span></td>
-                <td class="muted">${escapeHtml(t.setup || "-")}${t.attachment?.path ? ` <span class="tag" title="Imagem anexada">imagem</span>` : ""}</td>
+                <td class="muted">${escapeHtml(t.setup || "-")}${tradeAttachmentButton(t)}</td>
                 <td class="right">${renderRBadge(t)}</td>
                 <td class="right muted">${fmtCurrency(tradeFees(t))}</td>
                 <td class="right"><strong style="color:${tradeNetPnl(t) > 0 ? "var(--green)" : tradeNetPnl(t) < 0 ? "var(--red)" : "var(--muted)"}">${fmtCurrency(tradeNetPnl(t))}</strong></td>
@@ -1514,7 +1592,7 @@ function renderTrades() {
                 <td class="muted">${fmtDate(t)}</td>
                 <td><strong>${escapeHtml(t.symbol)}</strong></td>
                 <td><span class="pill ${t.side}">${t.side === "long" ? "Long" : "Short"}</span></td>
-                <td class="muted">${escapeHtml(t.setup || "-")}</td>
+                <td class="muted">${escapeHtml(t.setup || "-")}${tradeAttachmentButton(t)}</td>
                 <td>${(t.tags || []).slice(0, 3).map((tg) => `<span class="tag">${escapeHtml(tg)}</span>`).join("")}</td>
                 <td class="right">${renderRBadge(t)}</td>
                 <td class="right muted">${fmtCurrency(tradeFees(t))}</td>
@@ -2039,6 +2117,7 @@ function toast(msg) {
 }
 
 function bindEvents() {
+    bindAttachmentViewer();
     bindTradeChartEvents();
     $("btnAddTrade").addEventListener("click", () => openModal());
     $("modalClose").addEventListener("click", closeModal);
