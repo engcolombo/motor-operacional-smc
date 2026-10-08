@@ -906,7 +906,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     .form-grid { grid-template-columns: 1fr; }
 }
 </style>
-<link rel="stylesheet" href="diario-pro-plus.css?v=20261008-currency-chart">
+<link rel="stylesheet" href="diario-pro-plus.css?v=20261008-breakeven">
 <link rel="stylesheet" href="diario-attachments.css?v=20261008-image-viewer">
 </head>
 <body class="pro-plus">
@@ -1017,6 +1017,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                         <option value="win">Wins</option>
                         <option value="loss">Stops</option>
                         <option value="be">Empates</option>
+                        <option value="open">Em aberto</option>
                     </select>
                     <span class="muted" id="filterCount" style="margin-left:auto"></span>
                     <button class="btn btn-ghost" id="btnDeleteAllTrades" type="button" style="color:var(--red); padding: 4px 8px; font-size: 0.85rem;" title="Apagar todos os trades manuais apenas deste navegador">Excluir Todos (local)</button>
@@ -1070,7 +1071,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                     </div>
                     <div class="panel-body">
                         <div class="trade-chart-context"><button class="btn btn-ghost" id="tradeChartBack" type="button" hidden>← Voltar ao mês</button><span id="tradeChartPeriod" aria-live="polite"></span></div>
-                        <div class="hour-legend"><span><i class="hour-key gain"></i>Ganhos</span><span><i class="hour-key loss"></i>Perdas</span><span><i class="hour-key breakeven"></i>Empate · R$ 0,00</span></div>
+                        <div class="hour-legend"><span><i class="hour-key gain"></i>Ganhos</span><span><i class="hour-key loss"></i>Perdas</span><span><i class="hour-key breakeven"></i>Empate / 0x0</span><span><i class="hour-key open"></i>Em aberto</span></div>
                         <div class="hour-chart-scroll" tabindex="0" role="region" aria-label="Resultados por trade e dia com rolagem horizontal">
                             <svg id="hourChart" role="group" aria-label="Resultados líquidos por trade e dia, em reais" height="310"></svg>
                         </div>
@@ -1246,8 +1247,10 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                         <option value="open">Em aberto</option>
                         <option value="target">Alvo atingido</option>
                         <option value="stop">Stop atingido</option>
+                        <option value="breakeven">Empate / 0x0</option>
                         <option value="manual">Manual em XR</option>
                     </select>
+                    <p class="field-hint" id="breakevenHint" hidden>Fecha o restante em 0R. Parciais realizadas são preservadas e o resultado total pode ser positivo ou negativo. Taxas continuam no líquido.</p>
                 </div>
                 <div class="field">
                     <label>R manual (se status = Manual)</label>
@@ -1339,6 +1342,6 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 
 <script src="diario-backtests.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="diario-core.js?v=20261008-journal-images"></script>
+<script src="diario-core.js?v=20261008-breakeven"></script>
 </body>
 </html>

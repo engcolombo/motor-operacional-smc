@@ -312,8 +312,18 @@ function tradeRValue(trade) {
     return isRPending(trade) ? null : Number(trade?.r || 0);
 }
 
+function tradeOutcome(trade) {
+    if (trade?.status === "open") return "open";
+    const r = tradeRValue(trade);
+    if (r === null || !Number.isFinite(r)) return "pending";
+    return r > 0 ? "win" : r < 0 ? "loss" : "be";
+}
+
 function renderRBadge(trade) {
-    if (isRPending(trade)) return `<span class="pill be" title="Preencha stop/risco para calcular o R">R pendente</span>`;
+    const outcome = tradeOutcome(trade);
+    if (outcome === "open") return '<span class="pill be">Em aberto</span>';
+    if (outcome === "be") return '<span class="pill be" title="Resultado bruto zero; taxas são descontadas do líquido">Empate · 0R</span>';
+    if (outcome === "pending") return `<span class="pill be" title="Preencha stop/risco para calcular o R">R pendente</span>`;
     const r = tradeRValue(trade);
     return `<span class="pill ${r > 0 ? "win" : r < 0 ? "loss" : "be"}">${fmtR(r)}</span>`;
 }
@@ -803,6 +813,7 @@ function computeTradeMath() {
     let finalR = 0;
     if (status === "target") finalR = targetR;
     else if (status === "stop") finalR = -1;
+    else if (status === "breakeven") finalR = 0;
     else if (status === "manual") finalR = manualR;
 
     let pnlFinal = 0;
@@ -822,12 +833,14 @@ function recomputeFromInputs() {
     $("fPnl").value = m.stopMoney > 0 ? m.pnl.toFixed(2) : "";
     $("fR").value = m.stopMoney > 0 ? `${m.totalR >= 0 ? "+" : ""}${m.totalR.toFixed(2)}R` : "";
     $("fManualR").disabled = m.status !== "manual";
+    const breakevenHint = $("breakevenHint");
+    if (breakevenHint) breakevenHint.hidden = m.status !== "breakeven";
 
     const sum = $("partialSummary");
     if (sum) {
         if (m.stopMoney > 0 && m.initQty > 0) {
             const color = (v) => v > 0 ? "var(--green)" : v < 0 ? "var(--red)" : "var(--accent-2)";
-            const statusLabel = { open: "Em aberto", target: "Alvo", stop: "Stop", manual: `Manual ${m.finalR >= 0 ? "+" : ""}${m.finalR}R` }[m.status];
+            const statusLabel = { open: "Em aberto", target: "Alvo", stop: "Stop", breakeven: "Empate / 0x0", manual: `Manual ${m.finalR >= 0 ? "+" : ""}${m.finalR}R` }[m.status];
             sum.innerHTML = `
                 <span>Executado: <strong>${m.qtyDone} de ${m.initQty}</strong></span>
                 <span>Restante: <strong>${m.qtyRemaining}</strong></span>
@@ -993,9 +1006,10 @@ async function deleteTrade(id) {
 function computeStats(trades) {
     const sorted = [...trades].sort((a, b) => tradeDisplayDate(a) - tradeDisplayDate(b));
     const total = sorted.length;
-    const completedR = sorted.filter((t) => !isRPending(t));
+    const openCount = sorted.filter((t) => tradeOutcome(t) === "open").length;
+    const completedR = sorted.filter((t) => ["win", "loss", "be"].includes(tradeOutcome(t)));
     const rCount = completedR.length;
-    const pendingR = total - rCount;
+    const pendingR = total - rCount - openCount;
     const wins = completedR.filter((t) => tradeRValue(t) > 0);
     const losses = completedR.filter((t) => tradeRValue(t) < 0);
     const bes = completedR.filter((t) => tradeRValue(t) === 0);
@@ -1045,7 +1059,7 @@ function computeStats(trades) {
     }
 
     return {
-        total, rCount, pendingR, wins: wins.length, losses: losses.length, bes: bes.length,
+        total, rCount, pendingR, openCount, wins: wins.length, losses: losses.length, bes: bes.length,
         winrate, rTotal, pnlTotal, feesTotal, avgWin, avgLoss, pf, expectancy,
         largestWin, largestLoss, maxDD, equity, capitalEquity,
         bestWinStreak: bestWin, bestLossStreak: bestLoss,
@@ -1055,18 +1069,18 @@ function computeStats(trades) {
 
 function renderKPIs() {
     const s = computeStats(manualTrades());
-    const rMeta = `${s.rCount} com R${s.pendingR ? ` / ${s.pendingR} pend.` : ""}`;
+    const rMeta = `${s.rCount} fechados com R${s.pendingR ? ` / ${s.pendingR} pend.` : ""}${s.openCount ? ` / ${s.openCount} em aberto` : ""}`;
     const kpis = [
         { label: "Net P&L liq.", value: fmtCurrency(s.pnlTotal), meta: `fees: ${fmtCurrency(s.feesTotal)}`, cls: s.pnlTotal > 0 ? "win" : s.pnlTotal < 0 ? "loss" : "neutral" },
         { label: "R Total", value: s.rCount ? fmtR(s.rTotal) : "pendente", meta: rMeta, cls: s.rTotal > 0 ? "win" : s.rTotal < 0 ? "loss" : "neutral" },
-        { label: "Winrate", value: s.rCount ? fmtPct(s.winrate) : "pendente", meta: `${s.wins}W / ${s.losses}L / ${s.bes}BE${s.pendingR ? ` / ${s.pendingR} pend.` : ""}`, cls: "neutral" },
+        { label: "Winrate", value: s.rCount ? fmtPct(s.winrate) : "—", meta: `${s.wins}W / ${s.losses}L / ${s.bes}BE${s.openCount ? ` / ${s.openCount} em aberto` : ""}${s.pendingR ? ` / ${s.pendingR} pend.` : ""}`, cls: "neutral" },
         { label: "Expectancy", value: fmtR(s.expectancy), meta: "média por trade", cls: s.expectancy > 0 ? "win" : "loss" },
         { label: "Max Drawdown", value: fmtR(-s.maxDD), cls: "loss" },
         { label: "Trades", value: s.total, meta: s.currentStreakDir ? `Streak ${s.currentStreakDir > 0 ? "🟢" : "🔴"} ${s.currentStreak}` : "", cls: "neutral" }
     ];
     kpis[3] = { label: "Expectancy", value: s.rCount ? fmtR(s.expectancy) : "pendente", meta: "media por trade com R", cls: s.rCount && s.expectancy > 0 ? "win" : s.rCount && s.expectancy < 0 ? "loss" : "neutral" };
     kpis[4] = { label: "Max Drawdown", value: s.rCount ? fmtR(-s.maxDD) : "pendente", cls: s.rCount ? "loss" : "neutral" };
-    kpis[5] = { label: "Trades", value: s.total, meta: s.pendingR ? `${s.pendingR} com R pendente` : (s.currentStreakDir ? `Streak ${s.currentStreakDir > 0 ? "up" : "down"} ${s.currentStreak}` : ""), cls: "neutral" };
+    kpis[5] = { label: "Trades", value: s.total, meta: [`${s.rCount} fechados`, s.openCount ? `${s.openCount} em aberto` : "", s.pendingR ? `${s.pendingR} com R pendente` : ""].filter(Boolean).join(" · "), cls: "neutral" };
     $("kpiGrid").innerHTML = kpis.map((k) => `
         <div class="kpi-card ${k.cls}">
             <div class="label">${k.label}</div>
@@ -1256,15 +1270,18 @@ function drawEquity() {
 function drawDist() {
     const { ctx, w, h } = setupCanvas("distCanvas");
     const s = computeStats(manualTrades());
-    if (!s.rCount) { drawEmpty(ctx, w, h, s.pendingR ? "R pendente nos trades importados" : "Sem dados ainda"); return; }
+    if (!s.rCount) { drawEmpty(ctx, w, h, s.pendingR ? "R pendente nos trades importados" : s.openCount ? "Nenhum trade fechado ainda" : "Sem dados ainda"); return; }
     const data = [
         { l: "Wins", v: s.wins, c: "#2ddb8a" },
         { l: "Stops", v: s.losses, c: "#ff5d6c" },
         { l: "Empates", v: s.bes, c: "#f5c542" }
     ].filter((d) => d.v > 0);
     const total = data.reduce((a, d) => a + d.v, 0);
-    const cx = w / 2, cy = h / 2 - 14;
-    const radius = Math.min(w, h) * 0.28;
+    const legendColumns = Math.max(1, Math.min(data.length, Math.floor((w - 20) / 110)));
+    const legendRows = Math.ceil(data.length / legendColumns);
+    const plotHeight = h - legendRows * 22;
+    const cx = w / 2, cy = plotHeight / 2 - 6;
+    const radius = Math.min(w, plotHeight) * 0.28;
     let start = -Math.PI / 2;
     data.forEach((d) => {
         const ang = (d.v / total) * Math.PI * 2;
@@ -1278,15 +1295,14 @@ function drawDist() {
     ctx.fillStyle = "#e8edf7";
     ctx.font = "900 22px Inter, Arial";
     ctx.textAlign = "center";
-    ctx.fillText(s.total, cx, cy + 6);
+    ctx.fillText(s.rCount, cx, cy + 6);
     ctx.font = "700 11px Inter, Arial";
     ctx.fillStyle = "#8a98b5";
-    ctx.fillText("trades", cx, cy + 22);
+    ctx.fillText("fechados", cx, cy + 22);
 
-    const ly = h - 22;
-    const startX = Math.max(10, w / 2 - data.length * 56);
     data.forEach((d, i) => {
-        const x = startX + i * 112;
+        const x = 10 + (i % legendColumns) * ((w - 20) / legendColumns);
+        const ly = h - legendRows * 22 + Math.floor(i / legendColumns) * 22 + 5;
         ctx.fillStyle = d.c;
         ctx.fillRect(x, ly, 10, 10);
         ctx.fillStyle = "#8a98b5";
@@ -1340,12 +1356,20 @@ function chartResultLabel(bar) {
     return fmtCurrency(bar.cents / 100);
 }
 
+function tradeChartBarClass(bar) {
+    const outcomes = bar.rows.map((row) => tradeOutcome(row.trade));
+    if (outcomes.every((outcome) => outcome === "be")) return "hour-breakeven";
+    if (outcomes.every((outcome) => outcome === "open")) return "hour-open";
+    return bar.cents > 0 ? "hour-gain" : bar.cents < 0 ? "hour-loss" : "hour-breakeven";
+}
+
 function tradeChartTooltipHtml(bar) {
     const title = bar.kind === "day" ? chartDayLabel(bar.day) : fmtDate(bar.rows[0].trade);
     return `<div class="trade-tooltip-head"><strong>${escapeHtml(title)}</strong><button type="button" class="trade-tooltip-close" data-chart-close aria-label="Fechar detalhes">×</button></div>
         <p class="trade-tooltip-summary">${chartResultLabel(bar)} líquido · ${bar.rows.length} ${bar.rows.length === 1 ? "trade" : "trades"}</p>
         ${bar.rows.map(({ trade, local, cents }) => `<div class="trade-tooltip-trade">
-            <div class="trade-tooltip-result"><span>${local.slice(11)} · ${escapeHtml(trade.symbol || "Sem ativo")}</span><strong class="${cents > 0 ? "gain" : cents < 0 ? "loss" : ""}">${fmtCurrency(cents / 100)}</strong></div>
+            <div class="trade-tooltip-result"><span>${local.slice(11)} · ${escapeHtml(trade.symbol || "Sem ativo")}</span><strong class="${["be", "open"].includes(tradeOutcome(trade)) ? "" : cents > 0 ? "gain" : cents < 0 ? "loss" : ""}">${fmtCurrency(cents / 100)}</strong></div>
+            ${["be", "open"].includes(tradeOutcome(trade)) ? `<div class="trade-tooltip-status">${tradeOutcome(trade) === "be" ? "Empate / 0x0 · taxas incluídas no líquido" : "Em aberto"}</div>` : ""}
             <div class="trade-tooltip-setup">${escapeHtml(trade.setup || "Sem setup")}</div>
             <div class="trade-tooltip-tags">${(trade.tags || []).length ? trade.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("") : "Sem tags"}</div>
             ${(trade.mistakes || []).length ? `<div class="trade-tooltip-mistakes"><strong>Erros / Mistakes</strong><p>${escapeHtml(trade.mistakes.join(", "))}</p></div>` : ""}
@@ -1481,7 +1505,7 @@ function drawHour() {
     const w = Math.max(280, minWidth, chart.parentElement.clientWidth), h = 310;
     chart.style.minWidth = `${minWidth}px`;
     chart.setAttribute("viewBox", `0 0 ${w} ${h}`);
-    const notes = [day ? "Uma barra por trade, em R$ líquidos após taxas. Passe o mouse ou toque para ver setup, tags e Mistakes." : "Hoje: uma barra por trade. Dias anteriores: saldo líquido do dia em R$; clique para abrir os trades. Valores após taxas."];
+    const notes = [day ? "Uma barra por trade, em R$ líquidos após taxas. Passe o mouse ou toque para ver setup, tags e Mistakes." : "Hoje: uma barra por trade. Dias anteriores: saldo líquido do dia em R$; clique para abrir os trades. Valores após taxas.", "Empates são neutros; suas taxas aparecem no líquido."];
     if (invalid) notes.push(`${invalid} trade(s) com data ou valor financeiro inválido não incluído(s).`);
     if (minWidth > chart.parentElement.clientWidth) notes.push("Deslize para ver todas as barras.");
     $("hourHint").textContent = notes.join(" ");
@@ -1507,13 +1531,14 @@ function drawHour() {
         const details = bar.kind === "day" ? "Clique para ver os trades." : `${bar.rows[0].trade.setup || "Sem setup"}. Tags: ${(bar.rows[0].trade.tags || []).join(", ") || "Sem tags"}.${(bar.rows[0].trade.mistakes || []).length ? ` Mistakes: ${bar.rows[0].trade.mistakes.join(", ")}.` : ""}`;
         const description = `${bar.kind === "day" ? chartDayLabel(bar.day) : fmtDate(bar.rows[0].trade)}: ${chartResultLabel(bar)}. ${details}`;
         descriptions.push(description);
-        const color = cents > 0 ? "gain" : cents < 0 ? "loss" : "neutral";
+        const barClass = tradeChartBarClass(bar);
+        const color = barClass === "hour-gain" ? "gain" : barClass === "hour-loss" ? "loss" : "neutral";
         const height = cents ? Math.max(3, Math.abs(cents) / limit * half) : 5;
         const y = cents > 0 ? zero - height : cents < 0 ? zero : zero - height / 2;
         const valueY = cents < 0 ? zero + height + 16 : y - 9;
         html += `<g class="hour-group" data-chart-index="${index}" data-chart-kind="${bar.kind}" data-chart-day="${bar.day}" tabindex="0" role="button" aria-label="${escapeHtml(description)}" aria-describedby="tradeChartTooltip">
             <rect class="hour-hit" x="${center - groupWidth / 2 + 2}" y="${pad.t - 20}" width="${groupWidth - 4}" height="${h - pad.t + 20}"/>
-            <rect class="hour-bar ${cents === 0 ? "hour-breakeven" : `hour-${color}`}" x="${center - barWidth / 2}" y="${y}" width="${barWidth}" height="${height}" rx="2"/>
+            <rect class="hour-bar ${barClass}" x="${center - barWidth / 2}" y="${y}" width="${barWidth}" height="${height}" rx="2"/>
             <text class="hour-value hour-${color}-text" x="${center}" y="${valueY}" text-anchor="middle">${chartResultLabel(bar)}</text>
             <text class="hour-label" x="${center}" y="${h - 23}" text-anchor="middle">${label}</text><text class="hour-count" x="${center}" y="${h - 7}" text-anchor="middle">${sublabel}</text></g>`;
     });
@@ -1560,10 +1585,7 @@ function renderTrades() {
     const base = manualTrades();
     const filtered = base.filter((t) => {
         if (side && t.side !== side) return false;
-        const r = tradeRValue(t);
-        if (result === "win" && !(r > 0)) return false;
-        if (result === "loss" && !(r < 0)) return false;
-        if (result === "be" && !(r === 0)) return false;
+        if (result && tradeOutcome(t) !== result) return false;
         if (text) {
             const blob = `${t.symbol} ${t.setup} ${t.notes} ${(t.tags || []).join(" ")} ${(t.mistakes || []).join(" ")}`.toLowerCase();
             if (!blob.includes(text)) return false;
@@ -1706,7 +1728,8 @@ function renderAdvancedStats() {
         ["Total trades", s.total],
         ["Wins", s.wins],
         ["Stops", s.losses],
-        ["Empates", s.bes]
+        ["Empates", s.bes],
+        ["Em aberto", s.openCount]
     ];
     if (!s.rCount) {
         items[4] = ["Profit factor", "pendente"];
@@ -1728,7 +1751,7 @@ function renderAdvancedStats() {
 function renderTagStats() {
     const tagAgg = {};
     manualTrades().forEach((t) => {
-        if (isRPending(t)) return;
+        if (["open", "pending"].includes(tradeOutcome(t))) return;
         (t.tags || []).forEach((tag) => {
             tagAgg[tag] = tagAgg[tag] || { count: 0, r: 0, wins: 0 };
             tagAgg[tag].count++;
