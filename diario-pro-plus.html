@@ -907,6 +907,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 }
 </style>
 <link rel="stylesheet" href="diario-pro-plus.css">
+<link rel="stylesheet" href="diario-attachments.css">
 </head>
 <body class="pro-plus">
 <div class="app">
@@ -1254,6 +1255,22 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                     <label>Notas</label>
                     <textarea id="fNotes" placeholder="O que aconteceu, contexto, lição..."></textarea>
                 </div>
+                <div class="field full attachment-field">
+                    <label for="fAttachment">Imagem do gráfico</label>
+                    <input id="fAttachment" type="file" accept="image/jpeg,image/png,image/webp">
+                    <p class="field-hint" id="attachmentStatus">JPEG, PNG ou WebP · até 20 MB · privado por conta.</p>
+                    <div class="attachment-preview" id="attachmentPreview" hidden>
+                        <a id="attachmentOpen" target="_blank" rel="noopener noreferrer" aria-label="Abrir imagem anexada">
+                            <img id="attachmentImage" alt="Prévia da imagem anexada ao trade">
+                        </a>
+                        <div class="attachment-meta">
+                            <span id="attachmentName"></span>
+                            <button class="btn btn-danger btn-mini" id="btnRemoveAttachment" type="button">Remover imagem</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="full section-title">Resumo da operação</div>
+                <div class="full partial-summary" id="partialSummary" aria-live="polite"></div>
             </form>
         </div>
         <div class="modal-foot">

@@ -1,6 +1,9 @@
 const SUPABASE_URL = "https://cqjmxywdhlxlsltkrrxm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FdXdp5ogCGD65omUzmLjyw_kd3mGOqB";
 const SUPABASE_TABLE = "trades_pro";
+const ATTACHMENTS_BUCKET = "trade-attachments";
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const ALLOWED_ATTACHMENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const STORAGE_KEY = "diarioProTrades_v1";
 const PENDING_DELETE_STORAGE_KEY = "diarioProPendingCloudDeletes_v1";
 
@@ -16,7 +19,8 @@ const state = {
     editingId: null,
     calMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     fees: { cripto: 0, win: 0, wdo: 0 },
-    robot: { magic: 20250321, symbol: "" }
+    robot: { magic: 20250321, symbol: "" },
+    editAttachment: null
 };
 
 const ROBOT_DEFAULTS = { magic: 20250321, symbol: "" };
@@ -78,6 +82,136 @@ function clearPendingCloudDeletes() {
 
 function uid() {
     return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function attachmentName(attachment) {
+    return String(attachment?.name || "Imagem do gráfico");
+}
+
+function formatBytes(bytes) {
+    const value = Number(bytes || 0);
+    if (!value) return "";
+    return value < 1024 * 1024 ? `${Math.ceil(value / 1024)} KB` : `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function validateAttachmentFile(file) {
+    if (!file) return { ok: true };
+    if (!ALLOWED_ATTACHMENT_TYPES.has(file.type)) {
+        return { ok: false, message: "Use uma imagem JPEG, PNG ou WebP." };
+    }
+    if (!file.size) return { ok: false, message: "A imagem está vazia. Escolha outro arquivo." };
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+        return { ok: false, message: "A imagem deve ter no máximo 20 MB." };
+    }
+    return { ok: true };
+}
+
+function resetAttachmentEditor(attachment = null) {
+    const current = state.editAttachment;
+    if (current?.previewUrl) URL.revokeObjectURL(current.previewUrl);
+    state.editAttachment = { existing: attachment || null, removeExisting: false, previewUrl: null };
+    $("fAttachment").value = "";
+    renderAttachmentPreview();
+}
+
+function setAttachmentStatus(message) {
+    $("attachmentStatus").textContent = message;
+}
+
+function renderAttachmentPreview() {
+    const box = $("attachmentPreview");
+    const image = $("attachmentImage");
+    const open = $("attachmentOpen");
+    const name = $("attachmentName");
+    const selected = $("fAttachment").files[0];
+    const editor = state.editAttachment || { existing: null, removeExisting: false, previewUrl: null };
+
+    if (editor.previewUrl) {
+        URL.revokeObjectURL(editor.previewUrl);
+        editor.previewUrl = null;
+    }
+
+    if (selected) {
+        const check = validateAttachmentFile(selected);
+        if (!check.ok) {
+            $("fAttachment").value = "";
+            box.hidden = true;
+            setAttachmentStatus(check.message);
+            return;
+        }
+        editor.previewUrl = URL.createObjectURL(selected);
+        image.src = editor.previewUrl;
+        open.href = editor.previewUrl;
+        name.textContent = `${selected.name} · ${formatBytes(selected.size)} · novo anexo`;
+        box.hidden = false;
+        setAttachmentStatus(canUseCloud() ? "Será enviado de forma privada ao salvar o trade." : "Entre no Supabase para salvar imagens." );
+        return;
+    }
+
+    const attachment = !editor.removeExisting ? editor.existing : null;
+    if (!attachment?.path) {
+        image.removeAttribute("src");
+        open.removeAttribute("href");
+        box.hidden = true;
+        setAttachmentStatus("JPEG, PNG ou WebP · até 20 MB · privado por conta.");
+        return;
+    }
+
+    name.textContent = `${attachmentName(attachment)}${attachment.size ? ` · ${formatBytes(attachment.size)}` : ""}`;
+    box.hidden = false;
+    setAttachmentStatus(canUseCloud() ? "Carregando prévia privada…" : "Entre no Supabase para abrir este anexo privado.");
+    image.removeAttribute("src");
+    open.removeAttribute("href");
+    if (canUseCloud()) loadAttachmentPreview(attachment);
+}
+
+async function loadAttachmentPreview(attachment) {
+    const path = attachment?.path;
+    if (!path || !canUseCloud()) return;
+    const userId = currentUser.id;
+    try {
+        const { data, error } = await supabaseClient.storage.from(ATTACHMENTS_BUCKET).createSignedUrl(path, 600);
+        if (error) throw error;
+        const editor = state.editAttachment;
+        if (currentUser?.id !== userId || !editor || editor.removeExisting || editor.existing?.path !== path || $("fAttachment").files[0]) return;
+        $("attachmentImage").src = data.signedUrl;
+        $("attachmentOpen").href = data.signedUrl;
+        setAttachmentStatus("Anexo privado sincronizado.");
+    } catch (err) {
+        setAttachmentStatus(`Não foi possível abrir a imagem: ${err.message || err}`);
+    }
+}
+
+async function uploadTradeAttachment(tradeId, file) {
+    const check = validateAttachmentFile(file);
+    if (!check.ok) return check;
+    if (!canUseCloud()) return { ok: false, message: "Entre no Supabase para anexar uma imagem." };
+    const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" })[file.type];
+    const path = `${currentUser.id}/${tradeId}/${uid()}.${extension}`;
+    try {
+        const { error } = await supabaseClient.storage.from(ATTACHMENTS_BUCKET).upload(path, file, {
+            cacheControl: "31536000",
+            contentType: file.type,
+            upsert: false
+        });
+        if (error) return { ok: false, message: error.message };
+        return {
+            ok: true,
+            attachment: { path, name: file.name.slice(0, 160), size: file.size, type: file.type, uploadedAt: new Date().toISOString() }
+        };
+    } catch (err) {
+        return { ok: false, message: err.message || String(err) };
+    }
+}
+
+async function removeTradeAttachment(attachment) {
+    if (!attachment?.path || !canUseCloud()) return { ok: true };
+    try {
+        const { error } = await supabaseClient.storage.from(ATTACHMENTS_BUCKET).remove([attachment.path]);
+        return error ? { ok: false, message: error.message } : { ok: true };
+    } catch (err) {
+        return { ok: false, message: err.message || String(err) };
+    }
 }
 
 function fmtR(v) {
@@ -465,6 +599,7 @@ function switchView(view) {
 }
 
 function openModal(trade) {
+    if ($("btnSave").disabled) return;
     state.editingId = trade ? trade.id : null;
     $("modalTitle").textContent = trade ? "Editar trade" : "Novo trade";
     $("fDate").value = trade ? trade.date.slice(0, 16) : new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -483,6 +618,7 @@ function openModal(trade) {
     $("fTags").value = (trade?.tags || []).join(", ");
     $("fMistakes").value = (trade?.mistakes || []).join(", ");
     $("fNotes").value = trade?.notes || "";
+    resetAttachmentEditor(trade?.attachment || null);
 
     let partials = [];
     if (trade?.partials?.length && trade.partials[0].r !== undefined) {
@@ -497,7 +633,7 @@ function openModal(trade) {
 function renderPartials() {
     const box = $("partialsBox");
     if (!state.editPartials.length) {
-        box.innerHTML = `<div class="partials-empty">Nenhuma saída. Clique <strong>+ Parcial</strong>.</div><div class="partial-summary" id="partialSummary"></div>`;
+        box.innerHTML = `<div class="partials-empty">Nenhuma saída. Clique <strong>+ Parcial</strong>.</div>`;
         recomputeFromInputs();
         return;
     }
@@ -513,7 +649,7 @@ function renderPartials() {
             </div>
             <button class="partial-del" type="button" data-pdel="${i}" title="Remover">×</button>
         </div>
-    `).join("") + `<div class="partial-summary" id="partialSummary"></div>`;
+    `).join("");
 
     box.querySelectorAll("[data-pi]").forEach((inp) => {
         inp.addEventListener("input", () => {
@@ -598,11 +734,16 @@ function recomputeFromInputs() {
 }
 
 function closeModal() {
+    if ($("btnSave").disabled) return;
     $("modalBackdrop").classList.remove("open");
+    if (state.editAttachment?.previewUrl) URL.revokeObjectURL(state.editAttachment.previewUrl);
+    state.editAttachment = null;
     state.editingId = null;
 }
 
 async function saveFromForm() {
+    if ($("btnSave").disabled) return;
+    const savingUserId = canUseCloud() ? currentUser.id : null;
     const m = computeTradeMath();
     const initQty = Number($("fInitQty").value || 0);
     const status = $("fStatus").value;
@@ -612,6 +753,9 @@ async function saveFromForm() {
 
     const isEdit = Boolean(state.editingId);
     const existingTrade = isEdit ? state.trades.find((t) => t.id === state.editingId) : null;
+    const previousAttachment = existingTrade?.attachment || null;
+    const selectedAttachment = $("fAttachment").files[0];
+    const attachmentRemoved = Boolean(state.editAttachment?.removeExisting);
     const trade = {
         id: state.editingId || uid(),
         date: new Date($("fDate").value || new Date()).toISOString(),
@@ -636,6 +780,7 @@ async function saveFromForm() {
         tags: $("fTags").value.split(",").map((t) => t.trim()).filter(Boolean),
         mistakes: $("fMistakes").value.split(",").map((t) => t.trim()).filter(Boolean),
         notes: $("fNotes").value.trim(),
+        attachment: previousAttachment,
         createdAt: isEdit ? existingTrade?.createdAt : new Date().toISOString()
     };
     if (existingTrade?.source) trade.source = existingTrade.source;
@@ -645,19 +790,57 @@ async function saveFromForm() {
         return;
     }
 
+    const attachmentCheck = validateAttachmentFile(selectedAttachment);
+    if (!attachmentCheck.ok) {
+        toast(attachmentCheck.message);
+        return;
+    }
+    if ((selectedAttachment || attachmentRemoved) && !canUseCloud()) {
+        toast("Entre no Supabase para anexar ou remover uma imagem.");
+        return;
+    }
+
     $("btnSave").disabled = true;
-    if (canUseCloud()) {
-        const result = await upsertTradeCloud(trade);
-        $("btnSave").disabled = false;
-        if (!result.ok) {
-            alert(`Falha ao salvar na nuvem: ${result.message}`);
+    let uploadedAttachment = null;
+    try {
+        if (selectedAttachment) {
+            const upload = await uploadTradeAttachment(trade.id, selectedAttachment);
+            if (!upload.ok) {
+                alert(`Falha ao enviar imagem: ${upload.message}`);
+                return;
+            }
+            uploadedAttachment = upload.attachment;
+            trade.attachment = uploadedAttachment;
+        } else if (attachmentRemoved) {
+            trade.attachment = null;
+        }
+
+        if (savingUserId && (!canUseCloud() || currentUser.id !== savingUserId)) {
+            alert("A sessão mudou durante o envio. Entre novamente na mesma conta e tente salvar.");
             return;
         }
+        if (savingUserId) {
+            const result = await upsertTradeCloud(trade);
+            if (!result.ok) {
+                if (uploadedAttachment) {
+                    const cleanup = await removeTradeAttachment(uploadedAttachment);
+                    if (!cleanup.ok) alert("O envio da imagem foi concluído, mas não foi possível limpar o arquivo após a falha. Remova-o em Storage > trade-attachments no Supabase.");
+                }
+                alert(`Falha ao salvar na nuvem: ${result.message}`);
+                return;
+            }
+        }
+
+        if (previousAttachment && (selectedAttachment || attachmentRemoved)) {
+            const removal = await removeTradeAttachment(previousAttachment);
+            if (!removal.ok) alert(`O trade foi salvo, mas a imagem anterior continua no Storage. Você pode removê-la no Supabase. ${removal.message}`);
+        }
+    } finally {
+        $("btnSave").disabled = false;
     }
-    $("btnSave").disabled = false;
 
     if (isEdit) {
-        const idx = state.trades.findIndex((t) => t.id === state.editingId);
+        const idx = state.trades.findIndex((t) => t.id === trade.id);
         if (idx >= 0) state.trades[idx] = trade;
         toast(canUseCloud() ? "Trade atualizado · sincronizado" : "Trade atualizado (local)");
     } else {
@@ -1040,18 +1223,22 @@ function renderRecent() {
         return;
     }
     $("recentTrades").innerHTML = `<table>
-        <thead><tr><th>Data</th><th>Ativo</th><th>Lado</th><th>Setup</th><th class="right">R</th><th class="right">Fees</th><th class="right">P&L liq.</th></tr></thead>
+        <thead><tr><th>Data</th><th>Ativo</th><th>Lado</th><th>Setup</th><th class="right">R</th><th class="right">Fees</th><th class="right">P&L liq.</th><th class="right">Ação</th></tr></thead>
         <tbody>${recent.map((t) => `
             <tr>
                 <td class="muted">${fmtDate(t.date)}</td>
                 <td><strong>${escapeHtml(t.symbol)}</strong></td>
                 <td><span class="pill ${t.side}">${t.side === "long" ? "Long" : "Short"}</span></td>
-                <td class="muted">${escapeHtml(t.setup || "-")}</td>
+                <td class="muted">${escapeHtml(t.setup || "-")}${t.attachment?.path ? ` <span class="tag" title="Imagem anexada">imagem</span>` : ""}</td>
                 <td class="right">${renderRBadge(t)}</td>
                 <td class="right muted">${fmtCurrency(tradeFees(t))}</td>
                 <td class="right"><strong style="color:${tradeNetPnl(t) > 0 ? "var(--green)" : tradeNetPnl(t) < 0 ? "var(--red)" : "var(--muted)"}">${fmtCurrency(tradeNetPnl(t))}</strong></td>
+                <td class="right"><button class="btn btn-ghost btn-mini" data-recent-edit="${escapeHtml(t.id)}" type="button">Editar</button></td>
             </tr>
         `).join("")}</tbody></table>`;
+    $("recentTrades").querySelectorAll("[data-recent-edit]").forEach((button) => {
+        button.addEventListener("click", () => openModal(state.trades.find((t) => t.id === button.dataset.recentEdit)));
+    });
 }
 
 function renderTrades() {
@@ -1580,6 +1767,17 @@ function bindEvents() {
     $("modalClose").addEventListener("click", closeModal);
     $("btnCancel").addEventListener("click", closeModal);
     $("btnSave").addEventListener("click", saveFromForm);
+    $("fAttachment").addEventListener("change", () => {
+        if (!state.editAttachment) state.editAttachment = { existing: null, removeExisting: false, previewUrl: null };
+        renderAttachmentPreview();
+    });
+    $("btnRemoveAttachment").addEventListener("click", () => {
+        const hadSelection = Boolean($("fAttachment").files[0]);
+        $("fAttachment").value = "";
+        if (!state.editAttachment) return;
+        if (!hadSelection && state.editAttachment.existing) state.editAttachment.removeExisting = true;
+        renderAttachmentPreview();
+    });
 
     $("btnSaveFees").addEventListener("click", async () => {
         state.fees = {
@@ -1896,11 +2094,18 @@ async function saveCloudSettings() {
 async function deleteTradeCloud(id) {
     if (!canUseCloud()) return { ok: false, message: "Sem sessão" };
     try {
+        const { data: row } = await supabaseClient
+            .from(SUPABASE_TABLE)
+            .select("payload")
+            .eq("id", id)
+            .maybeSingle();
         const { error } = await supabaseClient
             .from(SUPABASE_TABLE)
             .delete()
             .eq("id", id);
         if (error) return { ok: false, message: error.message };
+        const removal = await removeTradeAttachment(row?.payload?.attachment);
+        if (!removal.ok) console.warn("Trade excluído, mas o anexo não pôde ser removido:", removal.message);
         return { ok: true };
     } catch (err) {
         return { ok: false, message: err.message || String(err) };
