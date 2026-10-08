@@ -1764,11 +1764,11 @@ function renderStreaks() {
 
 function renderJournal() {
     const trades = [...manualTrades()]
-        .filter((t) => t.notes || (t.mistakes || []).length)
+        .filter((t) => t.notes || (t.mistakes || []).length || t.attachment?.path)
         .sort((a, b) => tradeDisplayDate(b) - tradeDisplayDate(a))
         .slice(0, 30);
     if (!trades.length) {
-        $("journalList").innerHTML = `<div class="empty"><div class="empty-ico">📝</div>Nenhuma anotação ainda.</div>`;
+        $("journalList").innerHTML = `<div class="empty"><div class="empty-ico">📝</div>Nenhuma anotação ou imagem ainda.</div>`;
         return;
     }
     $("journalList").innerHTML = trades.map((t) => `
@@ -1777,6 +1777,7 @@ function renderJournal() {
                 <strong>${escapeHtml(t.symbol)}</strong>
                 <span class="pill ${t.side}">${t.side}</span>
                 ${renderRBadge(t)}
+                ${tradeAttachmentButton(t)}
                 <span class="muted">Fees ${fmtCurrency(tradeFees(t))} | P&L liq. ${fmtCurrency(tradeNetPnl(t))}</span>
                 <span class="muted" style="margin-left:auto;font-size:0.78rem">${fmtDate(t)}</span>
             </div>
