@@ -561,7 +561,7 @@ function setupChartResize() {
     if (typeof ResizeObserver === "undefined") return;
     if (s_chartResizeObserver) s_chartResizeObserver.disconnect();
     s_chartResizeObserver = new ResizeObserver(() => requestAnimationFrame(redrawChartsForView));
-    document.querySelectorAll(".chart-frame").forEach((el) => s_chartResizeObserver.observe(el));
+    document.querySelectorAll(".chart-frame, .hour-chart-scroll").forEach((el) => s_chartResizeObserver.observe(el));
 }
 
 function fmtPct(v) {
@@ -1215,39 +1215,81 @@ function drawDist() {
     });
 }
 
+function hourResults(trades) {
+    const buckets = new Map();
+    let pendingR = 0, invalid = 0;
+    trades.forEach((trade) => {
+        if (isRobotTrade(trade)) return;
+        if (isRPending(trade)) { pendingR++; return; }
+        const date = tradeDisplayDate(trade);
+        const r = tradeRValue(trade);
+        if (!Number.isFinite(date.getTime()) || !Number.isFinite(r)) { invalid++; return; }
+        const hour = date.getHours();
+        if (!buckets.has(hour)) buckets.set(hour, { hour, gains: 0, losses: 0, breakeven: 0, count: 0 });
+        const bucket = buckets.get(hour);
+        bucket.count++;
+        if (r > 0) bucket.gains += r;
+        else if (r < 0) bucket.losses += r;
+        else bucket.breakeven++;
+    });
+    return { hours: [...buckets.values()].sort((a, b) => a.hour - b.hour), pendingR, invalid };
+}
+
 function drawHour() {
-    const { ctx, w, h } = setupCanvas("hourCanvas");
-    const mt = manualTrades();
-    const s = computeStats(mt);
-    if (!s.rCount) { drawEmpty(ctx, w, h, s.pendingR ? "R pendente nos trades importados" : "Sem dados ainda"); return; }
-    const buckets = Array.from({ length: 24 }, () => 0);
-    mt.forEach((t) => {
-        if (isRPending(t)) return;
-        const hr = tradeDisplayDate(t).getHours();
-        buckets[hr] += tradeRValue(t);
-    });
-    const pad = { t: 12, r: 10, b: 24, l: 32 };
-    const maxAbs = Math.max(1, ...buckets.map(Math.abs));
-    const zero = pad.t + (h - pad.t - pad.b) / 2;
-    const bw = (w - pad.l - pad.r) / 24;
-    ctx.strokeStyle = "rgba(255,255,255,0.06)";
-    ctx.beginPath();
-    ctx.moveTo(pad.l, zero);
-    ctx.lineTo(w - pad.r, zero);
-    ctx.stroke();
-    buckets.forEach((v, i) => {
-        const x = pad.l + i * bw + 2;
-        const bh = (Math.abs(v) / maxAbs) * ((h - pad.t - pad.b) / 2 - 4);
-        const y = v >= 0 ? zero - bh : zero;
-        ctx.fillStyle = v >= 0 ? "#2ddb8a" : "#ff5d6c";
-        ctx.fillRect(x, y, bw - 4, Math.max(1, bh));
-    });
-    ctx.fillStyle = "#8a98b5";
-    ctx.font = "700 9px Inter, Arial";
-    ctx.textAlign = "center";
-    for (let i = 0; i < 24; i += 3) {
-        ctx.fillText(`${i}h`, pad.l + i * bw + bw / 2, h - 6);
+    const chart = $("hourChart");
+    if (!chart) return;
+    const { hours, pendingR, invalid } = hourResults(manualTrades());
+    const minWidth = hours.length ? Math.max(280, hours.length * 76 + 76) : 0;
+    const w = Math.max(280, minWidth, chart.parentElement.clientWidth);
+    const h = 310;
+    chart.style.minWidth = `${minWidth}px`;
+    chart.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    const notes = ["Somente horas com trades. Passe sobre uma hora para ver o saldo."];
+    if (pendingR) notes.push(`${pendingR} trade(s) com R pendente não incluído(s).`);
+    if (invalid) notes.push(`${invalid} trade(s) com data ou R inválido não incluído(s).`);
+    if (minWidth > chart.parentElement.clientWidth) notes.push("Deslize para ver todas as horas.");
+    $("hourHint").textContent = notes.join(" ");
+    if (!hours.length) {
+        const empty = pendingR ? "Preencha o R dos trades para ver o gráfico" : "Sem trades com R e horário válidos";
+        chart.setAttribute("aria-label", empty);
+        chart.innerHTML = `<text class="hour-empty" x="${w / 2}" y="${h / 2}" text-anchor="middle">${empty}</text>`;
+        return;
     }
+    const pad = { t: 30, r: 18, b: 53, l: 54 };
+    const half = (h - pad.t - pad.b) / 2;
+    const zero = pad.t + half;
+    const maxAbs = Math.max(1, ...hours.flatMap((hour) => [hour.gains, -hour.losses]));
+    const step = niceStep(maxAbs / 2);
+    const limit = Math.ceil(maxAbs / step) * step;
+    const groupWidth = (w - pad.l - pad.r) / hours.length;
+    const barWidth = Math.min(38, groupWidth * .28);
+    let html = "";
+    for (const value of [-limit, -limit / 2, 0, limit / 2, limit]) {
+        const y = zero - value / limit * half;
+        html += `<line class="${value === 0 ? "hour-zero" : "hour-grid"}" x1="${pad.l}" x2="${w - pad.r}" y1="${y}" y2="${y}"/><text class="hour-axis" x="${pad.l - 10}" y="${y + 4}" text-anchor="end">${fmtR(value)}</text>`;
+    }
+    const descriptions = [];
+    hours.forEach((hour, index) => {
+        const center = pad.l + (index + .5) * groupWidth;
+        const label = `${String(hour.hour).padStart(2, "0")}h`;
+        const description = `${label}: ganhos ${fmtR(hour.gains)}, perdas ${fmtR(hour.losses)}, saldo ${fmtR(hour.gains + hour.losses)}; ${hour.count} trade(s), ${hour.breakeven} empate(s).`;
+        descriptions.push(description);
+        html += `<g class="hour-group" data-hour="${hour.hour}" tabindex="0" role="img" aria-label="${description}"><title>${description}</title>`;
+        if (hour.gains > 0) {
+            const height = Math.max(3, hour.gains / limit * half);
+            const x = center - barWidth - 2;
+            html += `<rect class="hour-bar hour-gain" x="${x}" y="${zero - height}" width="${barWidth}" height="${height}" rx="3"/><text class="hour-value hour-gain-text" x="${x + barWidth / 2}" y="${zero - height - 9}" text-anchor="middle">${fmtR(hour.gains)}</text>`;
+        }
+        if (hour.losses < 0) {
+            const height = Math.max(3, -hour.losses / limit * half);
+            const x = center + 2;
+            html += `<rect class="hour-bar hour-loss" x="${x}" y="${zero}" width="${barWidth}" height="${height}" rx="3"/><text class="hour-value hour-loss-text" x="${x + barWidth / 2}" y="${zero + height + 18}" text-anchor="middle">${fmtR(hour.losses)}</text>`;
+        }
+        if (hour.breakeven) html += `<circle class="hour-breakeven" cx="${center}" cy="${zero}" r="4"/>`;
+        html += `<text class="hour-label" x="${center}" y="${h - 23}" text-anchor="middle">${label}</text><text class="hour-count" x="${center}" y="${h - 7}" text-anchor="middle">${hour.count} ${hour.count === 1 ? "trade" : "trades"}</text></g>`;
+    });
+    chart.innerHTML = html;
+    chart.setAttribute("aria-label", `Ganhos e perdas por hora, em R, sem compensação entre eles. ${descriptions.join(" ")}`);
 }
 
 function drawEmpty(ctx, w, h, text = "Sem dados ainda") {

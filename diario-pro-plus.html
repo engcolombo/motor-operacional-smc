@@ -906,7 +906,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     .form-grid { grid-template-columns: 1fr; }
 }
 </style>
-<link rel="stylesheet" href="diario-pro-plus.css?v=20261008-date-repair">
+<link rel="stylesheet" href="diario-pro-plus.css?v=20261008-hour-chart">
 <link rel="stylesheet" href="diario-attachments.css">
 </head>
 <body class="pro-plus">
@@ -1058,14 +1058,20 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
         </section>
 
         <section class="view" id="view-stats">
-            <div class="grid-2">
+            <div class="grid-2 stats-grid">
                 <div class="panel">
                     <div class="panel-head"><h2>Métricas avançadas</h2></div>
                     <div class="panel-body" id="advancedStats"></div>
                 </div>
                 <div class="panel">
-                    <div class="panel-head"><h2>Por hora do dia</h2></div>
-                    <div class="panel-body"><canvas id="hourCanvas" style="height:240px"></canvas></div>
+                    <div class="panel-head"><div><h2>Por hora do dia</h2><p>Ganhos e perdas separados, em R</p></div></div>
+                    <div class="panel-body">
+                        <div class="hour-legend"><span><i class="hour-key gain"></i>Ganhos</span><span><i class="hour-key loss"></i>Perdas</span><span><i class="hour-key breakeven"></i>Empate · 0R</span></div>
+                        <div class="hour-chart-scroll" tabindex="0" role="region" aria-label="Gráfico por hora com rolagem horizontal">
+                            <svg id="hourChart" role="img" aria-label="Ganhos e perdas por hora, em R" height="310"></svg>
+                        </div>
+                        <p class="hour-hint" id="hourHint"></p>
+                    </div>
                 </div>
             </div>
             <div class="panel" style="margin-top:16px">
@@ -1314,6 +1320,6 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 
 <script src="diario-backtests.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="diario-core.js?v=20261008-exact-form-time"></script>
+<script src="diario-core.js?v=20261008-hour-chart"></script>
 </body>
 </html>
