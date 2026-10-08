@@ -6,6 +6,8 @@ const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const ALLOWED_ATTACHMENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const STORAGE_KEY = "diarioProTrades_v1";
 const PENDING_DELETE_STORAGE_KEY = "diarioProPendingCloudDeletes_v1";
+const DATE_REPAIR_DAY = "2026-10-08";
+const DATE_REPAIR_CUTOFF = "2026-10-08T16:10:32.000Z";
 
 let supabaseClient = null;
 let currentUser = null;
@@ -793,6 +795,7 @@ async function saveFromForm() {
         createdAt: isEdit ? existingTrade?.createdAt : new Date().toISOString()
     };
     if (existingTrade?.source) trade.source = existingTrade.source;
+    if (existingTrade?.dateCorrection) trade.dateCorrection = existingTrade.dateCorrection;
 
     if (!trade.symbol) {
         toast("Informe o ativo");
@@ -2049,6 +2052,8 @@ async function signOutCloud() {
 
 async function loadCloudTrades() {
     if (!canUseCloud()) return;
+    if (dateRepairRequested() && (cloudBusy || dateRepairBusy)) return;
+    const loadingUserId = currentUser.id;
     cloudBusy = true;
     updateCloudUi();
     let data = null;
@@ -2056,7 +2061,8 @@ async function loadCloudTrades() {
     try {
         const result = await supabaseClient
             .from(SUPABASE_TABLE)
-            .select("id,payload,trade_timestamp")
+            .select("id,payload,trade_timestamp,created_at")
+            .eq("user_id", loadingUserId)
             .order("trade_timestamp", { ascending: true });
         data = result.data;
         error = result.error;
@@ -2065,8 +2071,10 @@ async function loadCloudTrades() {
     } finally {
         cloudBusy = false;
     }
+    if (currentUser?.id !== loadingUserId) return;
     if (error) {
         updateCloudUi();
+        if (dateRepairRequested()) setDateRepairStatus("Não foi possível carregar os trades. Use Atualizar nuvem para tentar a correção novamente.");
         alert(`Falha ao carregar nuvem: ${error.message || error}`);
         return;
     }
@@ -2076,6 +2084,85 @@ async function loadCloudTrades() {
     updateCloudUi();
     renderAll();
     toast(`${state.trades.length} trades sincronizados`);
+    if (dateRepairRequested()) await repairRegisteredTradeDates(data || []);
+}
+
+function dateRepairRequested() {
+    return typeof window !== "undefined"
+        && new URLSearchParams(window.location.search).get("corrigir-datas") === DATE_REPAIR_DAY;
+}
+
+function setDateRepairStatus(message) {
+    const box = $("dateRepairStatus");
+    box.hidden = false;
+    box.textContent = message;
+}
+
+function planRegisteredDateRepair(rows) {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+    });
+    return rows.flatMap((row) => {
+        const trade = row.payload || {};
+        if (isRobotTrade(trade)) return [];
+        const created = trade.createdAt || row.created_at;
+        if (created && (!Number.isFinite(new Date(created).getTime()) || new Date(created) > new Date(DATE_REPAIR_CUTOFF))) return [];
+        const date = new Date(trade.date);
+        if (!Number.isFinite(date.getTime())) return [];
+        const parts = Object.fromEntries(formatter.formatToParts(date).map((part) => [part.type, part.value]));
+        if (`${parts.year}-${parts.month}-${parts.day}` === DATE_REPAIR_DAY) return [];
+        // Only the day is known from the user's instruction; retain the recorded local clock time.
+        const milliseconds = String(date.getMilliseconds()).padStart(3, "0");
+        const corrected = new Date(`${DATE_REPAIR_DAY}T${parts.hour}:${parts.minute}:${parts.second}.${milliseconds}-03:00`).toISOString();
+        return [{
+            ...row,
+            payload: { ...trade, date: corrected, dateCorrection: {
+                originalDate: trade.date, targetDay: DATE_REPAIR_DAY,
+                timezone: "America/Sao_Paulo", correctedAt: new Date().toISOString()
+            } },
+            trade_timestamp: corrected
+        }];
+    });
+}
+
+let dateRepairBusy = false;
+async function repairRegisteredTradeDates(rows) {
+    if (!canUseCloud() || dateRepairBusy) return;
+    dateRepairBusy = true;
+    const userId = currentUser.id;
+    try {
+        const changes = planRegisteredDateRepair(rows);
+        if (changes.length) {
+            setDateRepairStatus(`Corrigindo ${changes.length} trade(s) para 08/10/2026 e sincronizando com Supabase…`);
+            const backupKey = `diarioProDateRepair_2026-10-08_${userId}`;
+            if (!localStorage.getItem(backupKey)) localStorage.setItem(backupKey, JSON.stringify({
+                userId, targetDay: DATE_REPAIR_DAY, savedAt: new Date().toISOString(), rows
+            }));
+            if (currentUser?.id !== userId) throw new Error("A conta mudou. Abra o link novamente na conta correta.");
+            const { error } = await supabaseClient.from(SUPABASE_TABLE).upsert(changes.map((row) => ({
+                id: row.id, user_id: userId, payload: row.payload,
+                trade_timestamp: row.trade_timestamp, updated_at: new Date().toISOString()
+            })));
+            if (error) throw error;
+            if (currentUser?.id !== userId) throw new Error("A conta mudou durante a sincronização. Entre novamente na conta corrigida.");
+            const corrected = new Map(changes.map((row) => [row.id, row.payload]));
+            state.trades = state.trades.map((trade) => corrected.has(trade.id) ? { ...corrected.get(trade.id), id: trade.id } : trade);
+            saveTrades();
+        }
+        setDateRepairStatus(changes.length
+            ? `${changes.length} trade(s) corrigido(s) para 08/10/2026 e sincronizado(s) com Supabase. Valores e anexos preservados.`
+            : "As datas dos trades deste lote já estão em 08/10/2026. Nenhuma alteração necessária.");
+        const url = new URL(window.location.href);
+        url.searchParams.delete("corrigir-datas");
+        window.history.replaceState(null, "", url.href);
+        state.calMonth = new Date(2026, 9, 1);
+        switchView("calendar");
+    } catch (error) {
+        setDateRepairStatus(`Correção pendente: ${error.message || error}. Use Atualizar nuvem para tentar novamente.`);
+    } finally {
+        dateRepairBusy = false;
+    }
 }
 
 async function upsertTradeCloud(trade) {
@@ -2217,4 +2304,5 @@ bindEvents();
 bindCloudEvents();
 renderAll();
 setupChartResize();
+if (dateRepairRequested()) setDateRepairStatus("Conecte sua conta do Supabase para corrigir os trades já registrados para 08/10/2026. A correção será aplicada ao carregar os dados.");
 initCloud();

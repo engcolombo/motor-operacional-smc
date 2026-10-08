@@ -122,6 +122,7 @@
 .pro-plus #calMonthSummary { margin-left: auto; color: var(--text); font-weight: 600; }
 .pro-plus .cal-explanation { margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .pro-plus .cal-future-notice { margin: 8px 0 0; color: var(--yellow); font-size: 11px; line-height: 1.6; }
+.pro-plus .date-repair-status { margin-bottom: 18px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg-elev); color: var(--text); font-size: 12px; line-height: 1.6; }
 .pro-plus .cal-cell:hover { transform: none; outline: 1px solid #a5b2c1; }
 .pro-plus .cal-cell.win-1 { background: #253a32; border-color: #355347; }
 .pro-plus .cal-cell.win-2 { background: #395c4d; border-color: #507360; }
