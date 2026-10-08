@@ -1296,6 +1296,31 @@ function renderTrades() {
     });
 }
 
+function calendarResults(trades, month, now = new Date()) {
+    const start7 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    const start30 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const dayMap = {};
+    let cents7 = 0, cents30 = 0;
+    trades.forEach((trade) => {
+        if (isRobotTrade(trade)) return;
+        const date = new Date(trade.date);
+        const pnl = tradeNetPnl(trade);
+        if (!Number.isFinite(date.getTime()) || !Number.isFinite(pnl)) return;
+        const cents = Math.round(pnl * 100);
+        if (date < end) {
+            if (date >= start7) cents7 += cents;
+            if (date >= start30) cents30 += cents;
+        }
+        if (date.getFullYear() !== month.getFullYear() || date.getMonth() !== month.getMonth()) return;
+        const day = date.getDate();
+        if (!dayMap[day]) dayMap[day] = { cents: 0, count: 0 };
+        dayMap[day].cents += cents;
+        dayMap[day].count++;
+    });
+    return { dayMap, last7: cents7 / 100, last30: cents30 / 100, start7, start30, now };
+}
+
 function renderCalendar() {
     const month = state.calMonth;
     $("calLabel").textContent = month.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
@@ -1304,37 +1329,43 @@ function renderCalendar() {
     const startDow = first.getDay();
     const days = last.getDate();
 
-    const dayMap = {};
-    manualTrades().forEach((t) => {
-        if (isRPending(t)) return;
-        const d = new Date(t.date);
-        if (d.getFullYear() !== month.getFullYear() || d.getMonth() !== month.getMonth()) return;
-        const k = d.getDate();
-        dayMap[k] = (dayMap[k] || 0) + tradeRValue(t);
-    });
-
-    const allVals = Object.values(dayMap);
-    const maxAbs = Math.max(1, ...allVals.map(Math.abs));
+    const results = calendarResults(state.trades, month);
+    const { dayMap } = results;
+    const allVals = Object.values(dayMap).map((day) => day.cents / 100);
+    const maxAbs = Math.max(0.01, ...allVals.map(Math.abs));
+    for (const [id, value, start] of [
+        ["calLast7", results.last7, results.start7],
+        ["calLast30", results.last30, results.start30]
+    ]) {
+        const el = $(id);
+        el.textContent = fmtCurrency(value);
+        el.className = `cal-period-value ${value > 0 ? "positive" : value < 0 ? "negative" : ""}`;
+        el.title = `${start.toLocaleDateString("pt-BR")} a ${results.now.toLocaleDateString("pt-BR")} · líquido após taxas`;
+    }
 
     let html = "";
     for (let i = 0; i < startDow; i++) html += `<div class="cal-cell empty"></div>`;
     for (let d = 1; d <= days; d++) {
-        const v = dayMap[d];
+        const entry = dayMap[d];
+        const v = entry ? entry.cents / 100 : undefined;
         let cls = "";
         if (v !== undefined) {
             const ratio = Math.abs(v) / maxAbs;
             const intensity = ratio > 0.66 ? 3 : ratio > 0.33 ? 2 : 1;
             cls = v > 0 ? `win-${intensity}` : v < 0 ? `loss-${intensity}` : "";
         }
-        const tip = v !== undefined ? `${fmtR(v)} em ${d}` : `${d}`;
-        html += `<div class="cal-cell ${cls}" title="${tip}">${d}</div>`;
+        const dateLabel = new Date(month.getFullYear(), month.getMonth(), d).toLocaleDateString("pt-BR");
+        const tip = entry
+            ? `${dateLabel}: ${fmtCurrency(v)} líquido · ${entry.count} ${entry.count === 1 ? "trade" : "trades"}`
+            : `${dateLabel}: sem operações`;
+        html += `<div class="cal-cell ${cls}" title="${tip}" aria-label="${tip}"><span class="cal-day">${d}</span><span class="cal-pnl">${entry ? fmtCurrency(v) : "—"}</span></div>`;
     }
     $("calendarGrid").innerHTML = html;
 
     const monthTotal = allVals.reduce((a, b) => a + b, 0);
     $("calMonthSummary").textContent = allVals.length
-        ? `Mês: ${fmtR(monthTotal)} em ${allVals.length} dias operados`
-        : "";
+        ? `Mês: ${fmtCurrency(monthTotal)} líquido · ${allVals.length} ${allVals.length === 1 ? "dia operado" : "dias operados"}`
+        : "Mês sem operações";
 }
 
 function renderAdvancedStats() {

@@ -1025,24 +1025,31 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 
         <section class="view" id="view-calendar">
             <div class="panel">
-                <div class="panel-head">
-                    <div class="cal-month-bar" style="margin:0;flex:1">
+                <div class="panel-head cal-panel-head">
+                    <div class="cal-month-bar">
                         <button class="btn btn-ghost" id="calPrev" type="button">←</button>
                         <strong id="calLabel"></strong>
                         <button class="btn btn-ghost" id="calNext" type="button">→</button>
                     </div>
+                    <div class="cal-periods" aria-live="polite">
+                        <div><span>Últimos 7 dias</span><strong class="cal-period-value" id="calLast7"></strong></div>
+                        <div><span>Últimos 30 dias</span><strong class="cal-period-value" id="calLast30"></strong></div>
+                        <p>Resultado líquido · dias corridos, incluindo hoje</p>
+                    </div>
                 </div>
                 <div class="panel-body">
-                    <div class="cal-head">
-                        <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                    <div class="cal-scroll" tabindex="0" role="region" aria-label="Calendário de resultados líquidos em reais">
+                        <div class="cal-head">
+                            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                        </div>
+                        <div class="calendar" id="calendarGrid"></div>
                     </div>
-                    <div class="calendar" id="calendarGrid"></div>
-                    <div style="margin-top:18px;display:flex;gap:18px;flex-wrap:wrap;font-size:0.78rem;color:var(--muted)">
-                        <span>🟢 Verde = lucro</span>
-                        <span>🔴 Vermelho = perda</span>
-                        <span>Intensidade = magnitude</span>
-                        <span id="calMonthSummary" style="margin-left:auto;color:var(--text);font-weight:700"></span>
+                    <div class="cal-legend">
+                        <span><i class="cal-key positive"></i>Verde = lucro</span>
+                        <span><i class="cal-key negative"></i>Vermelho = prejuízo</span>
+                        <span id="calMonthSummary" aria-live="polite"></span>
                     </div>
+                    <p class="cal-explanation">Quanto mais forte a cor, maior o lucro ou prejuízo em R$ em relação aos outros dias do mês. Valores líquidos após taxas.</p>
                 </div>
             </div>
         </section>
