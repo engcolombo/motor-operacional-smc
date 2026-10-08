@@ -20,6 +20,8 @@ const state = {
     view: "dashboard",
     editingId: null,
     calMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    chartMonth: localDateTimeValue().slice(0, 7),
+    chartDay: null,
     fees: { cripto: 0, win: 0, wdo: 0 },
     robot: { magic: 20250321, symbol: "" },
     editAttachment: null
@@ -582,6 +584,7 @@ function bindNav() {
 }
 
 function switchView(view) {
+    hideTradeChartTooltip();
     state.view = view;
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
@@ -1215,81 +1218,233 @@ function drawDist() {
     });
 }
 
-function hourResults(trades) {
-    const buckets = new Map();
-    let pendingR = 0, invalid = 0;
+function tradeChartData(trades, month, selectedDay = null, now = new Date()) {
+    const today = localDateTimeValue(now).slice(0, 10);
+    const validMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : today.slice(0, 7);
+    const day = selectedDay?.startsWith(`${validMonth}-`) && parseDateTimeLocal(`${selectedDay}T12:00`) ? selectedDay : null;
+    const rows = [];
+    let invalid = 0;
     trades.forEach((trade) => {
         if (isRobotTrade(trade)) return;
-        if (isRPending(trade)) { pendingR++; return; }
-        const date = tradeDisplayDate(trade);
+        const local = tradeLocalDateTime(trade);
+        if (!local) { invalid++; return; }
+        if (!local.startsWith(`${validMonth}-`) || (day && local.slice(0, 10) !== day)) return;
         const r = tradeRValue(trade);
-        if (!Number.isFinite(date.getTime()) || !Number.isFinite(r)) { invalid++; return; }
-        const hour = date.getHours();
-        if (!buckets.has(hour)) buckets.set(hour, { hour, gains: 0, losses: 0, breakeven: 0, count: 0 });
-        const bucket = buckets.get(hour);
-        bucket.count++;
-        if (r > 0) bucket.gains += r;
-        else if (r < 0) bucket.losses += r;
-        else bucket.breakeven++;
+        if (r !== null && !Number.isFinite(r)) { invalid++; return; }
+        rows.push({ trade, local, r });
     });
-    return { hours: [...buckets.values()].sort((a, b) => a.hour - b.hour), pendingR, invalid };
+    rows.sort((a, b) => a.local.localeCompare(b.local) || tradeDisplayDate(a.trade) - tradeDisplayDate(b.trade));
+    const bars = [], days = new Map(), ordinals = new Map();
+    rows.forEach((row) => {
+        const date = row.local.slice(0, 10);
+        const ordinal = (ordinals.get(date) || 0) + 1;
+        ordinals.set(date, ordinal);
+        // Consolidation is a view only: the original trades and their civil times stay intact.
+        if (!day && date < today) {
+            if (!days.has(date)) {
+                const bar = { kind: "day", day: date, rows: [] };
+                days.set(date, bar);
+                bars.push(bar);
+            }
+            days.get(date).rows.push(row);
+        } else bars.push({ kind: "trade", day: date, rows: [row], ordinal });
+    });
+    const totalR = (group) => {
+        const known = group.filter((row) => row.r !== null);
+        return known.length ? known.reduce((sum, row) => sum + row.r, 0) : null;
+    };
+    bars.forEach((bar) => {
+        bar.r = totalR(bar.rows);
+        bar.pendingR = bar.rows.filter((row) => row.r === null).length;
+    });
+    return { bars, rows, month: validMonth, day, today, r: totalR(rows), pendingR: rows.filter((row) => row.r === null).length, invalid };
+}
+
+function chartDayLabel(day) {
+    return day.split("-").reverse().join("/");
+}
+
+function chartResultLabel(bar) {
+    return bar.r === null ? "R pendente" : `${fmtR(bar.r)}${bar.pendingR ? " (parcial)" : ""}`;
+}
+
+function tradeChartTooltipHtml(bar) {
+    const title = bar.kind === "day" ? chartDayLabel(bar.day) : fmtDate(bar.rows[0].trade);
+    const pnl = bar.rows.reduce((sum, row) => sum + tradeNetPnl(row.trade), 0);
+    return `<div class="trade-tooltip-head"><strong>${escapeHtml(title)}</strong><button type="button" class="trade-tooltip-close" data-chart-close aria-label="Fechar detalhes">×</button></div>
+        <p class="trade-tooltip-summary">${chartResultLabel(bar)} · ${fmtCurrency(pnl)} líquido · ${bar.rows.length} ${bar.rows.length === 1 ? "trade" : "trades"}</p>
+        ${bar.rows.map(({ trade, local, r }) => `<div class="trade-tooltip-trade">
+            <div class="trade-tooltip-result"><span>${local.slice(11)} · ${escapeHtml(trade.symbol || "Sem ativo")}</span><strong class="${r > 0 ? "gain" : r < 0 ? "loss" : ""}">${r === null ? "R pendente" : fmtR(r)}</strong></div>
+            <div class="trade-tooltip-setup">${escapeHtml(trade.setup || "Sem setup")}</div>
+            <div class="trade-tooltip-tags">${(trade.tags || []).length ? trade.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("") : "Sem tags"}</div>
+        </div>`).join("")}
+        ${bar.kind === "day" ? '<button type="button" class="btn trade-tooltip-open" data-chart-open>Abrir trades deste dia →</button>' : ""}`;
+}
+
+let tradeChartBars = [];
+let tradeTooltipTimer;
+let tradeTooltipIndex = null;
+
+function hideTradeChartTooltip() {
+    clearTimeout(tradeTooltipTimer);
+    const tooltip = $("tradeChartTooltip");
+    if (tooltip) tooltip.hidden = true;
+    tradeTooltipIndex = null;
+}
+
+function positionTradeChartTooltip(x, y) {
+    const tooltip = $("tradeChartTooltip");
+    const rect = tooltip.getBoundingClientRect();
+    tooltip.style.left = `${Math.max(12, Math.min(x + 14, window.innerWidth - rect.width - 12))}px`;
+    const top = y + 16 + rect.height <= window.innerHeight - 12 ? y + 16 : y - rect.height - 16;
+    tooltip.style.top = `${Math.max(12, Math.min(top, window.innerHeight - rect.height - 12))}px`;
+}
+
+function showTradeChartTooltip(group, event) {
+    const index = Number(group.dataset.chartIndex);
+    const bar = tradeChartBars[index];
+    if (!bar) return;
+    clearTimeout(tradeTooltipTimer);
+    const tooltip = $("tradeChartTooltip");
+    if (tradeTooltipIndex !== index || tooltip.hidden) {
+        tooltip.innerHTML = tradeChartTooltipHtml(bar);
+        tooltip.scrollTop = 0;
+    }
+    tooltip.hidden = false;
+    tradeTooltipIndex = index;
+    const rect = group.getBoundingClientRect();
+    positionTradeChartTooltip(event?.clientX ?? rect.x + rect.width / 2, event?.clientY ?? rect.y + rect.height / 2);
+}
+
+function openTradeChartDay(bar) {
+    if (bar?.kind !== "day") return;
+    state.chartDay = bar.day;
+    drawHour();
+    $("hourChart").parentElement.scrollLeft = 0;
+    $("tradeChartBack").focus();
+}
+
+function bindTradeChartEvents() {
+    const chart = $("hourChart"), tooltip = $("tradeChartTooltip");
+    if (!chart || !tooltip) return;
+    $("tradeChartMonth").addEventListener("change", (event) => {
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value)) return;
+        state.chartMonth = event.target.value;
+        state.chartDay = null;
+        drawHour();
+        chart.parentElement.scrollLeft = 0;
+    });
+    $("tradeChartBack").addEventListener("click", () => {
+        state.chartDay = null;
+        drawHour();
+        chart.parentElement.scrollLeft = 0;
+        $("tradeChartMonth").focus();
+    });
+    const groupOf = (event) => event.target.closest?.("[data-chart-index]");
+    const queueHide = () => { clearTimeout(tradeTooltipTimer); tradeTooltipTimer = setTimeout(hideTradeChartTooltip, 180); };
+    chart.addEventListener("pointerover", (event) => {
+        const group = groupOf(event);
+        if (group && event.pointerType !== "touch") showTradeChartTooltip(group, event);
+    });
+    chart.addEventListener("pointermove", (event) => {
+        if (groupOf(event) && !tooltip.hidden && event.pointerType !== "touch") positionTradeChartTooltip(event.clientX, event.clientY);
+    });
+    chart.addEventListener("pointerout", (event) => {
+        const group = groupOf(event);
+        if (group && !group.contains(event.relatedTarget)) queueHide();
+    });
+    chart.addEventListener("focusin", (event) => { const group = groupOf(event); if (group) showTradeChartTooltip(group); });
+    chart.addEventListener("focusout", (event) => { if (!tooltip.contains(event.relatedTarget)) queueHide(); });
+    chart.addEventListener("click", (event) => {
+        const group = groupOf(event);
+        if (!group) return;
+        const bar = tradeChartBars[Number(group.dataset.chartIndex)];
+        if (bar?.kind === "day") openTradeChartDay(bar);
+        else showTradeChartTooltip(group);
+    });
+    chart.addEventListener("keydown", (event) => {
+        const group = groupOf(event);
+        if (group && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); group.dispatchEvent(new MouseEvent("click", { bubbles: true })); }
+    });
+    tooltip.addEventListener("pointerenter", () => clearTimeout(tradeTooltipTimer));
+    tooltip.addEventListener("pointerleave", queueHide);
+    tooltip.addEventListener("focusin", () => clearTimeout(tradeTooltipTimer));
+    tooltip.addEventListener("focusout", (event) => { if (!tooltip.contains(event.relatedTarget)) queueHide(); });
+    tooltip.addEventListener("click", (event) => {
+        if (event.target.closest("[data-chart-close]")) hideTradeChartTooltip();
+        if (event.target.closest("[data-chart-open]")) openTradeChartDay(tradeChartBars[tradeTooltipIndex]);
+    });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape") hideTradeChartTooltip(); });
+    document.addEventListener("pointerdown", (event) => { if (!chart.contains(event.target) && !tooltip.contains(event.target)) hideTradeChartTooltip(); });
+    chart.parentElement.addEventListener("scroll", hideTradeChartTooltip, { passive: true });
+    window.addEventListener("scroll", hideTradeChartTooltip, { passive: true });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && state.view === "stats") drawHour(); });
+    // A page left open overnight automatically consolidates yesterday without rewriting data.
+    const scheduleMidnight = () => {
+        const now = new Date(), next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        setTimeout(() => { if (state.view === "stats") drawHour(); scheduleMidnight(); }, next - now + 100);
+    };
+    scheduleMidnight();
 }
 
 function drawHour() {
     const chart = $("hourChart");
     if (!chart) return;
-    const { hours, pendingR, invalid } = hourResults(manualTrades());
-    const minWidth = hours.length ? Math.max(280, hours.length * 76 + 76) : 0;
-    const w = Math.max(280, minWidth, chart.parentElement.clientWidth);
-    const h = 310;
+    hideTradeChartTooltip();
+    const data = tradeChartData(manualTrades(), state.chartMonth, state.chartDay);
+    const { bars, rows, month, day, today, pendingR, invalid } = data;
+    state.chartMonth = month;
+    state.chartDay = day;
+    tradeChartBars = bars;
+    $("tradeChartMonth").value = month;
+    $("tradeChartBack").hidden = !day;
+    const period = day ? chartDayLabel(day) : new Date(`${month}-01T12:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    $("tradeChartPeriod").textContent = `${period} · ${rows.length} ${rows.length === 1 ? "trade" : "trades"}${rows.length ? ` · ${chartResultLabel(data)}` : ""}`;
+    const minWidth = bars.length ? Math.max(280, bars.length * 88 + 76) : 0;
+    const w = Math.max(280, minWidth, chart.parentElement.clientWidth), h = 310;
     chart.style.minWidth = `${minWidth}px`;
     chart.setAttribute("viewBox", `0 0 ${w} ${h}`);
-    const notes = ["Somente horas com trades. Passe sobre uma hora para ver o saldo."];
-    if (pendingR) notes.push(`${pendingR} trade(s) com R pendente não incluído(s).`);
+    const notes = [day ? "Uma barra por trade, na ordem do horário registrado. Passe o mouse ou toque para ver setup e tags." : "Hoje: uma barra por trade. Dias anteriores: saldo do dia em R; clique para abrir os trades. Passe o mouse ou toque para ver setup e tags."];
+    if (pendingR) notes.push(`${pendingR} trade(s) com R pendente; saldos com * são parciais.`);
     if (invalid) notes.push(`${invalid} trade(s) com data ou R inválido não incluído(s).`);
-    if (minWidth > chart.parentElement.clientWidth) notes.push("Deslize para ver todas as horas.");
+    if (minWidth > chart.parentElement.clientWidth) notes.push("Deslize para ver todas as barras.");
     $("hourHint").textContent = notes.join(" ");
-    if (!hours.length) {
-        const empty = pendingR ? "Preencha o R dos trades para ver o gráfico" : "Sem trades com R e horário válidos";
+    if (!bars.length) {
+        const empty = day ? "Sem trades neste dia" : "Sem trades neste mês";
         chart.setAttribute("aria-label", empty);
         chart.innerHTML = `<text class="hour-empty" x="${w / 2}" y="${h / 2}" text-anchor="middle">${empty}</text>`;
         return;
     }
-    const pad = { t: 30, r: 18, b: 53, l: 54 };
-    const half = (h - pad.t - pad.b) / 2;
-    const zero = pad.t + half;
-    const maxAbs = Math.max(1, ...hours.flatMap((hour) => [hour.gains, -hour.losses]));
-    const step = niceStep(maxAbs / 2);
-    const limit = Math.ceil(maxAbs / step) * step;
-    const groupWidth = (w - pad.l - pad.r) / hours.length;
-    const barWidth = Math.min(38, groupWidth * .28);
+    const pad = { t: 30, r: 18, b: 53, l: 54 }, half = (h - pad.t - pad.b) / 2, zero = pad.t + half;
+    const maxAbs = bars.reduce((max, bar) => Math.max(max, Math.abs(bar.r || 0)), 1);
+    const step = niceStep(maxAbs / 2), limit = Math.ceil(maxAbs / step) * step;
+    const groupWidth = (w - pad.l - pad.r) / bars.length, barWidth = Math.min(40, groupWidth * .48);
     let html = "";
     for (const value of [-limit, -limit / 2, 0, limit / 2, limit]) {
         const y = zero - value / limit * half;
         html += `<line class="${value === 0 ? "hour-zero" : "hour-grid"}" x1="${pad.l}" x2="${w - pad.r}" y1="${y}" y2="${y}"/><text class="hour-axis" x="${pad.l - 10}" y="${y + 4}" text-anchor="end">${fmtR(value)}</text>`;
     }
     const descriptions = [];
-    hours.forEach((hour, index) => {
-        const center = pad.l + (index + .5) * groupWidth;
-        const label = `${String(hour.hour).padStart(2, "0")}h`;
-        const description = `${label}: ganhos ${fmtR(hour.gains)}, perdas ${fmtR(hour.losses)}, saldo ${fmtR(hour.gains + hour.losses)}; ${hour.count} trade(s), ${hour.breakeven} empate(s).`;
+    bars.forEach((bar, index) => {
+        const center = pad.l + (index + .5) * groupWidth, r = bar.r;
+        const local = bar.rows[0].local;
+        const label = bar.kind === "day" ? chartDayLabel(bar.day).slice(0, 5) : local.slice(11);
+        const sublabel = bar.kind === "day" ? `${bar.rows.length} ${bar.rows.length === 1 ? "trade" : "trades"} ↗` : `${day ? "" : bar.day === today ? "Hoje · " : `${chartDayLabel(bar.day).slice(0, 5)} · `}#${bar.ordinal}`;
+        const details = bar.kind === "day" ? "Clique para ver os trades." : `${bar.rows[0].trade.setup || "Sem setup"}. Tags: ${(bar.rows[0].trade.tags || []).join(", ") || "Sem tags"}.`;
+        const description = `${bar.kind === "day" ? chartDayLabel(bar.day) : fmtDate(bar.rows[0].trade)}: ${chartResultLabel(bar)}. ${details}`;
         descriptions.push(description);
-        html += `<g class="hour-group" data-hour="${hour.hour}" tabindex="0" role="img" aria-label="${description}"><title>${description}</title>`;
-        if (hour.gains > 0) {
-            const height = Math.max(3, hour.gains / limit * half);
-            const x = center - barWidth - 2;
-            html += `<rect class="hour-bar hour-gain" x="${x}" y="${zero - height}" width="${barWidth}" height="${height}" rx="3"/><text class="hour-value hour-gain-text" x="${x + barWidth / 2}" y="${zero - height - 9}" text-anchor="middle">${fmtR(hour.gains)}</text>`;
-        }
-        if (hour.losses < 0) {
-            const height = Math.max(3, -hour.losses / limit * half);
-            const x = center + 2;
-            html += `<rect class="hour-bar hour-loss" x="${x}" y="${zero}" width="${barWidth}" height="${height}" rx="3"/><text class="hour-value hour-loss-text" x="${x + barWidth / 2}" y="${zero + height + 18}" text-anchor="middle">${fmtR(hour.losses)}</text>`;
-        }
-        if (hour.breakeven) html += `<circle class="hour-breakeven" cx="${center}" cy="${zero}" r="4"/>`;
-        html += `<text class="hour-label" x="${center}" y="${h - 23}" text-anchor="middle">${label}</text><text class="hour-count" x="${center}" y="${h - 7}" text-anchor="middle">${hour.count} ${hour.count === 1 ? "trade" : "trades"}</text></g>`;
+        const color = r > 0 ? "gain" : r < 0 ? "loss" : "neutral";
+        const height = r ? Math.max(3, Math.abs(r) / limit * half) : 5;
+        const y = r > 0 ? zero - height : r < 0 ? zero : zero - height / 2;
+        const valueY = r < 0 ? zero + height + 16 : y - 9;
+        html += `<g class="hour-group" data-chart-index="${index}" data-chart-kind="${bar.kind}" data-chart-day="${bar.day}" tabindex="0" role="button" aria-label="${escapeHtml(description)}" aria-describedby="tradeChartTooltip">
+            <rect class="hour-hit" x="${center - groupWidth / 2 + 2}" y="${pad.t - 20}" width="${groupWidth - 4}" height="${h - pad.t + 20}"/>
+            <rect class="hour-bar ${r === null ? "hour-pending" : r === 0 ? "hour-breakeven" : `hour-${color}`}" x="${center - barWidth / 2}" y="${y}" width="${barWidth}" height="${height}" rx="2"/>
+            <text class="hour-value hour-${color}-text" x="${center}" y="${valueY}" text-anchor="middle">${r === null ? "pend." : `${fmtR(r)}${bar.pendingR ? "*" : ""}`}</text>
+            <text class="hour-label" x="${center}" y="${h - 23}" text-anchor="middle">${label}</text><text class="hour-count" x="${center}" y="${h - 7}" text-anchor="middle">${sublabel}</text></g>`;
     });
     chart.innerHTML = html;
-    chart.setAttribute("aria-label", `Ganhos e perdas por hora, em R, sem compensação entre eles. ${descriptions.join(" ")}`);
+    chart.setAttribute("aria-label", `Resultados em R. ${descriptions.join(" ")}`);
 }
 
 function drawEmpty(ctx, w, h, text = "Sem dados ainda") {
@@ -1489,7 +1644,7 @@ function renderAdvancedStats() {
         items[10] = ["Max drawdown", "pendente"];
     }
     $("advancedStats").innerHTML = items.map(([l, v]) => `
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line-soft)">
+        <div class="metric-row">
             <span class="muted">${l}</span>
             <strong>${v}</strong>
         </div>
@@ -1884,6 +2039,7 @@ function toast(msg) {
 }
 
 function bindEvents() {
+    bindTradeChartEvents();
     $("btnAddTrade").addEventListener("click", () => openModal());
     $("modalClose").addEventListener("click", closeModal);
     $("btnCancel").addEventListener("click", closeModal);
