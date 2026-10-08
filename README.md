@@ -26,6 +26,10 @@ A versão principal está em `diario-pro-plus.html`, acessível pelo botão **Di
 
 O Diário Pro foi desativado; `diario.html` redireciona para o Pro+, preservando os links antigos. O Pro+ usa `diario-core.js`, `diario-backtests.js`, o mesmo login, as mesmas chaves locais e as mesmas tabelas Supabase da versão anterior. Os dados existentes continuam disponíveis sem migração. O tema adicional está em `diario-pro-plus.css`. Ao publicar, envie esses arquivos junto com os HTMLs.
 
+## Checklist de Trade
+
+O checklist único é o **Checklist de Trade**, em `checklist.html`, com o visual sóbrio anteriormente chamado Checklist Pro. A versão visual antiga foi removida. Links para `checklist-pro.html` redirecionam para o checklist atual; modelos, critérios e marcações locais foram preservados.
+
 ## Imagens anexadas aos trades
 
 Para habilitar um print do gráfico por trade, execute `supabase-attachments.sql` no SQL Editor do mesmo projeto Supabase. O script cria ou atualiza o bucket privado `trade-attachments`, limita os arquivos a JPEG, PNG ou WebP de até 20 MB e aplica políticas que aceitam apenas arquivos no diretório do usuário autenticado. Se já executou a versão de 5 MB, execute novamente para atualizar o limite.
