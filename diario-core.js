@@ -568,10 +568,11 @@ function fmtPct(v) {
     return `${Number(v || 0).toFixed(1)}%`;
 }
 
-function fmtDate(iso) {
-    if (!iso) return "-";
-    const d = new Date(iso);
-    return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+function fmtDate(value) {
+    if (!value) return "-";
+    const local = typeof value === "object" ? tradeLocalDateTime(value) : localDateTimeValue(value);
+    if (!local) return "-";
+    return `${local.slice(8, 10)}/${local.slice(5, 7)}/${local.slice(0, 4)} ${local.slice(11, 16)}`;
 }
 
 function bindNav() {
@@ -607,11 +608,31 @@ function localDateTimeValue(value = new Date()) {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function parseDateTimeLocal(value) {
+    const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/);
+    if (!match) return null;
+    const [, year, month, day, hour, minute, second = "0", fraction = "0"] = match;
+    const date = new Date(+year, +month - 1, +day, +hour, +minute, +second, +fraction.padEnd(3, "0"));
+    if (date.getFullYear() !== +year || date.getMonth() !== +month - 1 || date.getDate() !== +day
+        || date.getHours() !== +hour || date.getMinutes() !== +minute || date.getSeconds() !== +second) return null;
+    return date;
+}
+
+function tradeLocalDateTime(trade) {
+    // The form's wall clock value is authoritative; UTC remains the cloud timestamp/index.
+    if (parseDateTimeLocal(trade?.dateLocal)) return trade.dateLocal.slice(0, 16);
+    return trade?.date ? localDateTimeValue(trade.date) : "";
+}
+
+function tradeDisplayDate(trade) {
+    return parseDateTimeLocal(trade?.dateLocal) || new Date(trade?.date);
+}
+
 function openModal(trade) {
     if ($("btnSave").disabled) return;
     state.editingId = trade ? trade.id : null;
     $("modalTitle").textContent = trade ? "Editar trade" : "Novo trade";
-    $("fDate").value = localDateTimeValue(trade ? trade.date : new Date());
+    $("fDate").value = trade ? tradeLocalDateTime(trade) : localDateTimeValue();
     $("fSymbol").value = trade?.symbol || "";
     $("fSide").value = trade?.side || "long";
     $("fSetup").value = trade?.setup || "";
@@ -762,14 +783,22 @@ async function saveFromForm() {
 
     const isEdit = Boolean(state.editingId);
     const existingTrade = isEdit ? state.trades.find((t) => t.id === state.editingId) : null;
+    const enteredDateLocal = $("fDate").value;
+    const enteredDate = parseDateTimeLocal(enteredDateLocal);
+    if (!enteredDate) {
+        toast("Informe uma data e hora válidas.");
+        return;
+    }
+    const unchangedDate = existingTrade?.date && enteredDateLocal === tradeLocalDateTime(existingTrade);
     const previousAttachment = existingTrade?.attachment || null;
     const selectedAttachment = $("fAttachment").files[0];
     const attachmentRemoved = Boolean(state.editAttachment?.removeExisting);
     const trade = {
         id: state.editingId || uid(),
-        date: existingTrade?.date && $("fDate").value === localDateTimeValue(existingTrade.date)
-            ? existingTrade.date
-            : new Date($("fDate").value || new Date()).toISOString(),
+        date: unchangedDate ? existingTrade.date : enteredDate.toISOString(),
+        dateLocal: enteredDateLocal,
+        dateTimeZone: unchangedDate && existingTrade.dateTimeZone
+            ? existingTrade.dateTimeZone : Intl.DateTimeFormat().resolvedOptions().timeZone,
         symbol: $("fSymbol").value.trim().toUpperCase(),
         side: $("fSide").value,
         setup: $("fSetup").value.trim(),
@@ -881,7 +910,7 @@ async function deleteTrade(id) {
 }
 
 function computeStats(trades) {
-    const sorted = [...trades].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sorted = [...trades].sort((a, b) => tradeDisplayDate(a) - tradeDisplayDate(b));
     const total = sorted.length;
     const completedR = sorted.filter((t) => !isRPending(t));
     const rCount = completedR.length;
@@ -981,7 +1010,7 @@ function setupCanvas(id) {
 
 function fmtDateShort(iso) {
     if (!iso) return "";
-    const d = new Date(iso);
+    const d = typeof iso === "object" ? tradeDisplayDate(iso) : new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
     return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}`;
 }
@@ -1138,8 +1167,8 @@ function drawEquity() {
         drawEmpty(ctx, w, h);
         return;
     }
-    const sortedMt = [...mt].sort((a, b) => new Date(a.date) - new Date(b.date));
-    const dates = ["Início", ...sortedMt.map((t) => fmtDateShort(t.date))];
+    const sortedMt = [...mt].sort((a, b) => tradeDisplayDate(a) - tradeDisplayDate(b));
+    const dates = ["Início", ...sortedMt.map((t) => fmtDateShort(t))];
     drawCapitalCurve("equityCanvas", s.capitalEquity, dates, { color: "#b591ff" });
 }
 
@@ -1194,7 +1223,7 @@ function drawHour() {
     const buckets = Array.from({ length: 24 }, () => 0);
     mt.forEach((t) => {
         if (isRPending(t)) return;
-        const hr = new Date(t.date).getHours();
+        const hr = tradeDisplayDate(t).getHours();
         buckets[hr] += tradeRValue(t);
     });
     const pad = { t: 12, r: 10, b: 24, l: 32 };
@@ -1229,7 +1258,7 @@ function drawEmpty(ctx, w, h, text = "Sem dados ainda") {
 }
 
 function renderRecent() {
-    const recent = [...manualTrades()].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+    const recent = [...manualTrades()].sort((a, b) => tradeDisplayDate(b) - tradeDisplayDate(a)).slice(0, 8);
     if (!recent.length) {
         $("recentTrades").innerHTML = `<div class="empty"><div class="empty-ico">∅</div>Nenhum trade ainda. Clique em <strong>+ Novo Trade</strong>.</div>`;
         return;
@@ -1238,7 +1267,7 @@ function renderRecent() {
         <thead><tr><th>Data</th><th>Ativo</th><th>Lado</th><th>Setup</th><th class="right">R</th><th class="right">Fees</th><th class="right">P&L liq.</th><th class="right">Ação</th></tr></thead>
         <tbody>${recent.map((t) => `
             <tr>
-                <td class="muted">${fmtDate(t.date)}</td>
+                <td class="muted">${fmtDate(t)}</td>
                 <td><strong>${escapeHtml(t.symbol)}</strong></td>
                 <td><span class="pill ${t.side}">${t.side === "long" ? "Long" : "Short"}</span></td>
                 <td class="muted">${escapeHtml(t.setup || "-")}${t.attachment?.path ? ` <span class="tag" title="Imagem anexada">imagem</span>` : ""}</td>
@@ -1269,7 +1298,7 @@ function renderTrades() {
             if (!blob.includes(text)) return false;
         }
         return true;
-    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+    }).sort((a, b) => tradeDisplayDate(b) - tradeDisplayDate(a));
 
     $("filterCount").textContent = `${filtered.length} de ${base.length}`;
 
@@ -1285,7 +1314,7 @@ function renderTrades() {
         </tr></thead>
         <tbody>${filtered.map((t) => `
             <tr>
-                <td class="muted">${fmtDate(t.date)}</td>
+                <td class="muted">${fmtDate(t)}</td>
                 <td><strong>${escapeHtml(t.symbol)}</strong></td>
                 <td><span class="pill ${t.side}">${t.side === "long" ? "Long" : "Short"}</span></td>
                 <td class="muted">${escapeHtml(t.setup || "-")}</td>
@@ -1316,7 +1345,7 @@ function calendarResults(trades, month, now = new Date()) {
     let cents7 = 0, cents30 = 0, futureCount = 0;
     trades.forEach((trade) => {
         if (isRobotTrade(trade)) return;
-        const date = new Date(trade.date);
+        const date = tradeDisplayDate(trade);
         const pnl = tradeNetPnl(trade);
         if (!Number.isFinite(date.getTime()) || !Number.isFinite(pnl)) return;
         const cents = Math.round(pnl * 100);
@@ -1465,7 +1494,7 @@ function renderStreaks() {
 function renderJournal() {
     const trades = [...manualTrades()]
         .filter((t) => t.notes || (t.mistakes || []).length)
-        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .sort((a, b) => tradeDisplayDate(b) - tradeDisplayDate(a))
         .slice(0, 30);
     if (!trades.length) {
         $("journalList").innerHTML = `<div class="empty"><div class="empty-ico">📝</div>Nenhuma anotação ainda.</div>`;
@@ -1478,7 +1507,7 @@ function renderJournal() {
                 <span class="pill ${t.side}">${t.side}</span>
                 ${renderRBadge(t)}
                 <span class="muted">Fees ${fmtCurrency(tradeFees(t))} | P&L liq. ${fmtCurrency(tradeNetPnl(t))}</span>
-                <span class="muted" style="margin-left:auto;font-size:0.78rem">${fmtDate(t.date)}</span>
+                <span class="muted" style="margin-left:auto;font-size:0.78rem">${fmtDate(t)}</span>
             </div>
             ${(t.mistakes || []).length ? `<div style="margin:6px 0">${t.mistakes.map((m) => `<span class="tag" style="background:var(--red-soft);color:var(--red);border-color:rgba(255,93,108,0.32)">${escapeHtml(m)}</span>`).join("")}</div>` : ""}
             ${(t.tags || []).length ? `<div style="margin:6px 0">${t.tags.map((tg) => `<span class="tag">${escapeHtml(tg)}</span>`).join("")}</div>` : ""}
@@ -2117,7 +2146,9 @@ function planRegisteredDateRepair(rows) {
         const corrected = new Date(`${DATE_REPAIR_DAY}T${parts.hour}:${parts.minute}:${parts.second}.${milliseconds}-03:00`).toISOString();
         return [{
             ...row,
-            payload: { ...trade, date: corrected, dateCorrection: {
+            payload: { ...trade, date: corrected,
+                ...(trade.dateLocal ? { dateLocal: `${DATE_REPAIR_DAY}${trade.dateLocal.slice(10)}` } : {}),
+                dateCorrection: {
                 originalDate: trade.date, targetDay: DATE_REPAIR_DAY,
                 timezone: "America/Sao_Paulo", correctedAt: new Date().toISOString()
             } },
