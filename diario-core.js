@@ -1307,9 +1307,9 @@ function tradeChartData(trades, month, selectedDay = null, now = new Date()) {
         const local = tradeLocalDateTime(trade);
         if (!local) { invalid++; return; }
         if (!local.startsWith(`${validMonth}-`) || (day && local.slice(0, 10) !== day)) return;
-        const r = tradeRValue(trade);
-        if (r !== null && !Number.isFinite(r)) { invalid++; return; }
-        rows.push({ trade, local, r });
+        const pnl = tradeNetPnl(trade);
+        if (!Number.isFinite(pnl)) { invalid++; return; }
+        rows.push({ trade, local, cents: Math.round(pnl * 100) });
     });
     rows.sort((a, b) => a.local.localeCompare(b.local) || tradeDisplayDate(a.trade) - tradeDisplayDate(b.trade));
     const bars = [], days = new Map(), ordinals = new Map();
@@ -1327,15 +1327,9 @@ function tradeChartData(trades, month, selectedDay = null, now = new Date()) {
             days.get(date).rows.push(row);
         } else bars.push({ kind: "trade", day: date, rows: [row], ordinal });
     });
-    const totalR = (group) => {
-        const known = group.filter((row) => row.r !== null);
-        return known.length ? known.reduce((sum, row) => sum + row.r, 0) : null;
-    };
-    bars.forEach((bar) => {
-        bar.r = totalR(bar.rows);
-        bar.pendingR = bar.rows.filter((row) => row.r === null).length;
-    });
-    return { bars, rows, month: validMonth, day, today, r: totalR(rows), pendingR: rows.filter((row) => row.r === null).length, invalid };
+    const totalCents = (group) => group.reduce((sum, row) => sum + row.cents, 0);
+    bars.forEach((bar) => { bar.cents = totalCents(bar.rows); });
+    return { bars, rows, month: validMonth, day, today, cents: totalCents(rows), invalid };
 }
 
 function chartDayLabel(day) {
@@ -1343,16 +1337,15 @@ function chartDayLabel(day) {
 }
 
 function chartResultLabel(bar) {
-    return bar.r === null ? "R pendente" : `${fmtR(bar.r)}${bar.pendingR ? " (parcial)" : ""}`;
+    return fmtCurrency(bar.cents / 100);
 }
 
 function tradeChartTooltipHtml(bar) {
     const title = bar.kind === "day" ? chartDayLabel(bar.day) : fmtDate(bar.rows[0].trade);
-    const pnl = bar.rows.reduce((sum, row) => sum + tradeNetPnl(row.trade), 0);
     return `<div class="trade-tooltip-head"><strong>${escapeHtml(title)}</strong><button type="button" class="trade-tooltip-close" data-chart-close aria-label="Fechar detalhes">×</button></div>
-        <p class="trade-tooltip-summary">${chartResultLabel(bar)} · ${fmtCurrency(pnl)} líquido · ${bar.rows.length} ${bar.rows.length === 1 ? "trade" : "trades"}</p>
-        ${bar.rows.map(({ trade, local, r }) => `<div class="trade-tooltip-trade">
-            <div class="trade-tooltip-result"><span>${local.slice(11)} · ${escapeHtml(trade.symbol || "Sem ativo")}</span><strong class="${r > 0 ? "gain" : r < 0 ? "loss" : ""}">${r === null ? "R pendente" : fmtR(r)}</strong></div>
+        <p class="trade-tooltip-summary">${chartResultLabel(bar)} líquido · ${bar.rows.length} ${bar.rows.length === 1 ? "trade" : "trades"}</p>
+        ${bar.rows.map(({ trade, local, cents }) => `<div class="trade-tooltip-trade">
+            <div class="trade-tooltip-result"><span>${local.slice(11)} · ${escapeHtml(trade.symbol || "Sem ativo")}</span><strong class="${cents > 0 ? "gain" : cents < 0 ? "loss" : ""}">${fmtCurrency(cents / 100)}</strong></div>
             <div class="trade-tooltip-setup">${escapeHtml(trade.setup || "Sem setup")}</div>
             <div class="trade-tooltip-tags">${(trade.tags || []).length ? trade.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("") : "Sem tags"}</div>
             ${(trade.mistakes || []).length ? `<div class="trade-tooltip-mistakes"><strong>Erros / Mistakes</strong><p>${escapeHtml(trade.mistakes.join(", "))}</p></div>` : ""}
@@ -1471,7 +1464,7 @@ function drawHour() {
     if (!chart) return;
     hideTradeChartTooltip();
     const data = tradeChartData(manualTrades(), state.chartMonth, state.chartDay);
-    const { bars, rows, month, day, today, pendingR, invalid } = data;
+    const { bars, rows, month, day, today, invalid } = data;
     state.chartMonth = month;
     state.chartDay = day;
     tradeChartBars = bars;
@@ -1479,13 +1472,17 @@ function drawHour() {
     $("tradeChartBack").hidden = !day;
     const period = day ? chartDayLabel(day) : new Date(`${month}-01T12:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
     $("tradeChartPeriod").textContent = `${period} · ${rows.length} ${rows.length === 1 ? "trade" : "trades"}${rows.length ? ` · ${chartResultLabel(data)}` : ""}`;
-    const minWidth = bars.length ? Math.max(280, bars.length * 88 + 76) : 0;
+    const maxAbs = bars.reduce((max, bar) => Math.max(max, Math.abs(bar.cents)), 100);
+    const step = niceStep(maxAbs / 2), limit = Math.ceil(maxAbs / step) * step;
+    const axisValues = [-limit, -limit / 2, 0, limit / 2, limit];
+    const pad = { t: 30, r: 18, b: 53, l: Math.max(88, ...axisValues.map((value) => fmtCurrency(value / 100).length * 6 + 18)) };
+    const columnWidth = bars.reduce((width, bar) => Math.max(width, chartResultLabel(bar).length * 6.5 + 20), 104);
+    const minWidth = bars.length ? Math.max(280, bars.length * columnWidth + pad.l + pad.r) : 0;
     const w = Math.max(280, minWidth, chart.parentElement.clientWidth), h = 310;
     chart.style.minWidth = `${minWidth}px`;
     chart.setAttribute("viewBox", `0 0 ${w} ${h}`);
-    const notes = [day ? "Uma barra por trade, na ordem do horário registrado. Passe o mouse ou toque para ver setup e tags." : "Hoje: uma barra por trade. Dias anteriores: saldo do dia em R; clique para abrir os trades. Passe o mouse ou toque para ver setup e tags."];
-    if (pendingR) notes.push(`${pendingR} trade(s) com R pendente; saldos com * são parciais.`);
-    if (invalid) notes.push(`${invalid} trade(s) com data ou R inválido não incluído(s).`);
+    const notes = [day ? "Uma barra por trade, em R$ líquidos após taxas. Passe o mouse ou toque para ver setup, tags e Mistakes." : "Hoje: uma barra por trade. Dias anteriores: saldo líquido do dia em R$; clique para abrir os trades. Valores após taxas."];
+    if (invalid) notes.push(`${invalid} trade(s) com data ou valor financeiro inválido não incluído(s).`);
     if (minWidth > chart.parentElement.clientWidth) notes.push("Deslize para ver todas as barras.");
     $("hourHint").textContent = notes.join(" ");
     if (!bars.length) {
@@ -1494,36 +1491,34 @@ function drawHour() {
         chart.innerHTML = `<text class="hour-empty" x="${w / 2}" y="${h / 2}" text-anchor="middle">${empty}</text>`;
         return;
     }
-    const pad = { t: 30, r: 18, b: 53, l: 54 }, half = (h - pad.t - pad.b) / 2, zero = pad.t + half;
-    const maxAbs = bars.reduce((max, bar) => Math.max(max, Math.abs(bar.r || 0)), 1);
-    const step = niceStep(maxAbs / 2), limit = Math.ceil(maxAbs / step) * step;
+    const half = (h - pad.t - pad.b) / 2, zero = pad.t + half;
     const groupWidth = (w - pad.l - pad.r) / bars.length, barWidth = Math.min(40, groupWidth * .48);
     let html = "";
-    for (const value of [-limit, -limit / 2, 0, limit / 2, limit]) {
+    for (const value of axisValues) {
         const y = zero - value / limit * half;
-        html += `<line class="${value === 0 ? "hour-zero" : "hour-grid"}" x1="${pad.l}" x2="${w - pad.r}" y1="${y}" y2="${y}"/><text class="hour-axis" x="${pad.l - 10}" y="${y + 4}" text-anchor="end">${fmtR(value)}</text>`;
+        html += `<line class="${value === 0 ? "hour-zero" : "hour-grid"}" x1="${pad.l}" x2="${w - pad.r}" y1="${y}" y2="${y}"/><text class="hour-axis" x="${pad.l - 10}" y="${y + 4}" text-anchor="end">${fmtCurrency(value / 100)}</text>`;
     }
     const descriptions = [];
     bars.forEach((bar, index) => {
-        const center = pad.l + (index + .5) * groupWidth, r = bar.r;
+        const center = pad.l + (index + .5) * groupWidth, cents = bar.cents;
         const local = bar.rows[0].local;
         const label = bar.kind === "day" ? chartDayLabel(bar.day).slice(0, 5) : local.slice(11);
         const sublabel = bar.kind === "day" ? `${bar.rows.length} ${bar.rows.length === 1 ? "trade" : "trades"} ↗` : `${day ? "" : bar.day === today ? "Hoje · " : `${chartDayLabel(bar.day).slice(0, 5)} · `}#${bar.ordinal}`;
         const details = bar.kind === "day" ? "Clique para ver os trades." : `${bar.rows[0].trade.setup || "Sem setup"}. Tags: ${(bar.rows[0].trade.tags || []).join(", ") || "Sem tags"}.${(bar.rows[0].trade.mistakes || []).length ? ` Mistakes: ${bar.rows[0].trade.mistakes.join(", ")}.` : ""}`;
         const description = `${bar.kind === "day" ? chartDayLabel(bar.day) : fmtDate(bar.rows[0].trade)}: ${chartResultLabel(bar)}. ${details}`;
         descriptions.push(description);
-        const color = r > 0 ? "gain" : r < 0 ? "loss" : "neutral";
-        const height = r ? Math.max(3, Math.abs(r) / limit * half) : 5;
-        const y = r > 0 ? zero - height : r < 0 ? zero : zero - height / 2;
-        const valueY = r < 0 ? zero + height + 16 : y - 9;
+        const color = cents > 0 ? "gain" : cents < 0 ? "loss" : "neutral";
+        const height = cents ? Math.max(3, Math.abs(cents) / limit * half) : 5;
+        const y = cents > 0 ? zero - height : cents < 0 ? zero : zero - height / 2;
+        const valueY = cents < 0 ? zero + height + 16 : y - 9;
         html += `<g class="hour-group" data-chart-index="${index}" data-chart-kind="${bar.kind}" data-chart-day="${bar.day}" tabindex="0" role="button" aria-label="${escapeHtml(description)}" aria-describedby="tradeChartTooltip">
             <rect class="hour-hit" x="${center - groupWidth / 2 + 2}" y="${pad.t - 20}" width="${groupWidth - 4}" height="${h - pad.t + 20}"/>
-            <rect class="hour-bar ${r === null ? "hour-pending" : r === 0 ? "hour-breakeven" : `hour-${color}`}" x="${center - barWidth / 2}" y="${y}" width="${barWidth}" height="${height}" rx="2"/>
-            <text class="hour-value hour-${color}-text" x="${center}" y="${valueY}" text-anchor="middle">${r === null ? "pend." : `${fmtR(r)}${bar.pendingR ? "*" : ""}`}</text>
+            <rect class="hour-bar ${cents === 0 ? "hour-breakeven" : `hour-${color}`}" x="${center - barWidth / 2}" y="${y}" width="${barWidth}" height="${height}" rx="2"/>
+            <text class="hour-value hour-${color}-text" x="${center}" y="${valueY}" text-anchor="middle">${chartResultLabel(bar)}</text>
             <text class="hour-label" x="${center}" y="${h - 23}" text-anchor="middle">${label}</text><text class="hour-count" x="${center}" y="${h - 7}" text-anchor="middle">${sublabel}</text></g>`;
     });
     chart.innerHTML = html;
-    chart.setAttribute("aria-label", `Resultados em R. ${descriptions.join(" ")}`);
+    chart.setAttribute("aria-label", `Resultados líquidos em reais, após taxas. ${descriptions.join(" ")}`);
 }
 
 function drawEmpty(ctx, w, h, text = "Sem dados ainda") {

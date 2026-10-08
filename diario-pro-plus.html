@@ -906,7 +906,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     .form-grid { grid-template-columns: 1fr; }
 }
 </style>
-<link rel="stylesheet" href="diario-pro-plus.css?v=20261008-mistakes">
+<link rel="stylesheet" href="diario-pro-plus.css?v=20261008-currency-chart">
 <link rel="stylesheet" href="diario-attachments.css?v=20261008-image-viewer">
 </head>
 <body class="pro-plus">
@@ -1065,14 +1065,14 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                 </div>
                 <div class="panel trade-chart-panel">
                     <div class="panel-head trade-chart-head">
-                        <div><h2>Resultados por trade</h2><p>Hoje por operação · dias anteriores consolidados</p></div>
+                        <div><h2>Resultados por trade (R$ líquido)</h2><p>Hoje por operação · dias anteriores consolidados</p></div>
                         <label class="trade-chart-month" for="tradeChartMonth">Mês<input id="tradeChartMonth" type="month"></label>
                     </div>
                     <div class="panel-body">
                         <div class="trade-chart-context"><button class="btn btn-ghost" id="tradeChartBack" type="button" hidden>← Voltar ao mês</button><span id="tradeChartPeriod" aria-live="polite"></span></div>
-                        <div class="hour-legend"><span><i class="hour-key gain"></i>Ganhos</span><span><i class="hour-key loss"></i>Perdas</span><span><i class="hour-key breakeven"></i>Empate · 0R</span></div>
+                        <div class="hour-legend"><span><i class="hour-key gain"></i>Ganhos</span><span><i class="hour-key loss"></i>Perdas</span><span><i class="hour-key breakeven"></i>Empate · R$ 0,00</span></div>
                         <div class="hour-chart-scroll" tabindex="0" role="region" aria-label="Resultados por trade e dia com rolagem horizontal">
-                            <svg id="hourChart" role="group" aria-label="Resultados por trade e dia, em R" height="310"></svg>
+                            <svg id="hourChart" role="group" aria-label="Resultados líquidos por trade e dia, em reais" height="310"></svg>
                         </div>
                         <p class="hour-hint" id="hourHint"></p>
                         <div id="tradeChartTooltip" class="trade-chart-tooltip" role="region" aria-label="Detalhes da barra" hidden></div>
@@ -1339,6 +1339,6 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 
 <script src="diario-backtests.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="diario-core.js?v=20261008-mistakes"></script>
+<script src="diario-core.js?v=20261008-currency-chart"></script>
 </body>
 </html>

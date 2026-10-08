@@ -98,7 +98,6 @@
 .pro-plus .hour-group { cursor: pointer; }
 .pro-plus .hour-hit { fill: transparent; }
 .pro-plus .hour-group:focus .hour-bar, .pro-plus .hour-group:hover .hour-bar { stroke: #fff; stroke-width: 2; }
-.pro-plus .hour-pending { fill: #252f3b; stroke: #a9b5c3; stroke-dasharray: 3 2; }
 .pro-plus .hour-neutral-text { fill: #b6c2d0; }
 .pro-plus .hour-empty { fill: #a9b5c3; font-size: 12px; }
 .pro-plus .hour-hint { margin: 12px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
