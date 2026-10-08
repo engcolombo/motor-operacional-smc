@@ -1,6 +1,6 @@
 ﻿# Backtests manuais do Diário Pro
 
-Abra `diario.html` e entre na aba **Backtests**. Dê um nome à estratégia e clique em **Iniciar novo backtest**. Marque **Alvo** (1R, 2R ou 3R) ou **Stop** (-1R), depois **Registrar trade**. O histórico, saldo, acerto, drawdown e curva são recalculados a cada registro. **Continuar** reabre qualquer teste salvo. Excluir um trade recalcula o histórico; excluir um teste remove-o da lista após confirmação.
+Abra `diario-pro-plus.html` e entre na aba **Backtests**. Dê um nome à estratégia e clique em **Iniciar novo backtest**. Marque **Alvo** (1R, 2R ou 3R) ou **Stop** (-1R), depois **Registrar trade**. O histórico, saldo, acerto, drawdown e curva são recalculados a cada registro. **Continuar** reabre qualquer teste salvo. Excluir um trade recalcula o histórico; excluir um teste remove-o da lista após confirmação.
 
 ## Ativar a nuvem
 

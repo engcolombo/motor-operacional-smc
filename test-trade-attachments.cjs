@@ -149,13 +149,22 @@ renderAll = () => {};`, context);
     ["select", "insert", "update", "delete"].forEach((operation) => assert.match(sql, new RegExp(`for ${operation} to authenticated`)));
     assert.match(sql, /storage\.foldername\(name\)\)\[1\] = \(select auth\.uid\(\)::text\)/);
 
-    ["diario.html", "diario-pro-plus.html"].forEach((page) => {
+    ["diario-pro-plus.html"].forEach((page) => {
         const html = fs.readFileSync(`${__dirname}/${page}`, "utf8");
         assert.match(html, /id="fAttachment"/);
         assert.match(html, /id="attachmentPreview"/);
         assert.match(html, /diario-attachments\.css/);
         assert.equal((html.match(/id="partialSummary"/g) || []).length, 1);
         assert.ok(html.indexOf('id="partialSummary"') > html.indexOf('id="attachmentPreview"'));
+    });
+    const legacy = fs.readFileSync(`${__dirname}/diario.html`, "utf8");
+    const redirect = legacy.match(/<script>([\s\S]*?)<\/script>/)[1];
+    let redirected;
+    vm.runInNewContext(redirect, {location:{search:"?origem=favorito",hash:"#trade",replace:url=>{redirected=url;}}});
+    assert.equal(redirected, "diario-pro-plus.html?origem=favorito#trade");
+    assert.match(legacy, /http-equiv="refresh"/);
+    ["index.html", "diario-pro-plus.html", "checklist.html", "checklist-pro.html"].forEach(page => {
+        assert.doesNotMatch(fs.readFileSync(`${__dirname}/${page}`, "utf8"), /href="diario\.html"/);
     });
     console.log("PASS: validação, upload privado, remoção, RLS e formulários de anexos.");
 })().catch((error) => {

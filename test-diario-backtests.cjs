@@ -56,7 +56,7 @@ function boot(storage = new Map()) {
     const corrupt=boot(new Map([['diarioBacktests_v1_guest','broken']]));corrupt.node('btStrategy').value='test';corrupt.submit('btCreate');
     assert.equal(corrupt.storage.get('diarioBacktests_v1_guest'),'broken');
     new vm.Script(fs.readFileSync(__dirname+'/diario-core.js','utf8'));
-    const html=fs.readFileSync(__dirname+'/diario.html','utf8');
+    const html=fs.readFileSync(__dirname+'/diario-pro-plus.html','utf8');
     for(const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);
     assert.equal((html.match(/data-view="backtests"/g)||[]).length,1);
     console.log('PASS: R, drawdown, history, reload/resume, escaping, deletion, storage failure, offline retry, account isolation, import, sync and inline syntax.');
