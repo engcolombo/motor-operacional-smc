@@ -1600,14 +1600,14 @@ function drawEmpty(ctx, w, h, text = "Sem dados ainda") {
 }
 
 function renderRecent() {
-    const recent = [...filteredManualTrades()].sort((a, b) => tradeDisplayDate(b) - tradeDisplayDate(a)).slice(0, 8);
-    if (!recent.length) {
+    const trades = [...filteredManualTrades()].sort((a, b) => tradeDisplayDate(b) - tradeDisplayDate(a));
+    if (!trades.length) {
         $("recentTrades").innerHTML = `<div class="empty"><div class="empty-ico">∅</div>Nenhum trade ainda. Clique em <strong>+ Novo Trade</strong>.</div>`;
         return;
     }
     $("recentTrades").innerHTML = `<table>
         <thead><tr><th>Data</th><th>Ativo</th><th>Lado</th><th>Setup</th><th class="right">R</th><th class="right">Fees</th><th class="right">P&L liq.</th><th class="right">Ação</th></tr></thead>
-        <tbody>${recent.map((t) => `
+        <tbody>${trades.map((t) => `
             <tr>
                 <td class="muted">${fmtDate(t)}</td>
                 <td><strong>${escapeHtml(t.symbol)}</strong></td>

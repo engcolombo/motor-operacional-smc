@@ -130,6 +130,8 @@
 .pro-plus tbody tr:hover { background: #ffffff03; }
 .pro-plus .table-scroll { width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; touch-action: pan-x pan-y; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #526171 var(--bg-elev); }
 .pro-plus .table-scroll > table { min-width: 820px; }
+.pro-plus #recentTrades { max-height: 520px; max-height: min(520px, 65dvh); overflow-y: auto; }
+.pro-plus #recentTrades thead th { z-index: 1; }
 .pro-plus #tradesTable > table { min-width: 900px; }
 .pro-plus .table-scroll th, .pro-plus .table-scroll td:first-child, .pro-plus .table-scroll td.right { white-space: nowrap; }
 .pro-plus .table-scroll:focus-visible { outline: 2px solid #b5c9df; outline-offset: -2px; }
