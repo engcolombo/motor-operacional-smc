@@ -906,7 +906,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     .form-grid { grid-template-columns: 1fr; }
 }
 </style>
-<link rel="stylesheet" href="diario-pro-plus.css?v=20261008-breakeven">
+<link rel="stylesheet" href="diario-pro-plus.css?v=20261009-asset-filters">
 <link rel="stylesheet" href="diario-attachments.css?v=20261008-image-viewer">
 </head>
 <body class="pro-plus">
@@ -965,6 +965,15 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                 <button class="btn btn-ghost" id="btnImport" type="button">Importar</button>
                 <button class="btn btn-primary" id="btnAddTrade" type="button">+ Nova operação</button>
             </div>
+        </div>
+
+        <div class="asset-filters" id="assetFilters" role="group" aria-label="Filtrar por ativo">
+            <span class="asset-filters-label">Ativos</span>
+            <button class="btn active" type="button" data-asset-filter="all" aria-pressed="true">Todos</button>
+            <button class="btn" type="button" data-asset-filter="win" aria-pressed="false">WIN</button>
+            <button class="btn" type="button" data-asset-filter="cripto" aria-pressed="false">Cripto</button>
+            <button class="btn" type="button" data-asset-filter="wdo" aria-pressed="false">WDO</button>
+            <button class="btn" type="button" data-asset-filter="forex" aria-pressed="false">Forex</button>
         </div>
 
         <div class="date-repair-status" id="dateRepairStatus" role="status" aria-live="polite" hidden></div>
@@ -1342,6 +1351,6 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 
 <script src="diario-backtests.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="diario-core.js?v=20261008-breakeven"></script>
+<script src="diario-core.js?v=20261009-asset-filters"></script>
 </body>
 </html>

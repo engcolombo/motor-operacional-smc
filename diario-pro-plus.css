@@ -51,6 +51,10 @@
 .pro-plus .btn-primary { background: #d2dde9; color: #18212b; border-color: #d2dde9; font-weight: 600; box-shadow: none; }
 .pro-plus .btn-primary:hover { background: #e9eef4; color: #111820; border-color: #e9eef4; }
 .pro-plus .btn-ghost { color: #acb6c2; }
+.pro-plus .asset-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 20px; }
+.pro-plus .asset-filters-label { color: var(--muted); font-size: 11px; margin-right: 6px; }
+.pro-plus .asset-filters .btn { padding: 7px 12px; color: var(--muted); }
+.pro-plus .asset-filters .btn.active { color: var(--text); background: #2a323c; border-color: #7c8da1; }
 .pro-plus .btn-danger { background: transparent; color: var(--red); border-color: #5a3c40; }
 .pro-plus .btn-danger:hover { background: var(--red-soft); border-color: #906166; }
 .pro-plus button:focus-visible, .pro-plus a:focus-visible, .pro-plus input:focus-visible, .pro-plus select:focus-visible, .pro-plus summary:focus-visible { outline: 2px solid #b5c9df; outline-offset: 3px; }

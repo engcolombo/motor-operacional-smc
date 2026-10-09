@@ -18,6 +18,7 @@ const state = {
     trades: loadTrades(),
     pendingCloudDeletes: loadPendingCloudDeletes(),
     view: "dashboard",
+    assetFilter: "all",
     editingId: null,
     calMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     chartMonth: localDateTimeValue().slice(0, 7),
@@ -43,6 +44,51 @@ function persistRobotConfig() {
 function isRobotTrade(t) { return t?.source === ROBOT_SOURCE; }
 function manualTrades() { return state.trades.filter((t) => !isRobotTrade(t)); }
 function robotTrades() { return state.trades.filter(isRobotTrade); }
+
+const ASSET_FILTERS = { all: "Todos", win: "WIN", cripto: "Cripto", wdo: "WDO", forex: "Forex" };
+const ASSET_FILTER_VIEWS = new Set(["dashboard", "trades", "calendar", "stats", "journal"]);
+const FOREX_CURRENCIES = new Set(["USD", "EUR", "GBP", "JPY", "CHF", "AUD", "NZD", "CAD", "BRL", "MXN", "ZAR", "TRY", "CNH", "CNY", "HKD", "SGD", "NOK", "SEK", "DKK", "PLN", "HUF", "CZK", "XAU", "XAG"]);
+
+function tradeAssetCategory(trade) {
+    const symbol = String(trade?.symbol || "").trim().toUpperCase();
+    if (symbol.startsWith("WIN")) return "win";
+    if (symbol.startsWith("WDO")) return "wdo";
+    // Check currency pairs before crypto prefixes (USDCAD starts with USDC).
+    const pair = symbol.match(/^([A-Z]{3})[\s/_-]?([A-Z]{3})(?:[._-]?[A-Z0-9]+)?$/);
+    if (pair && pair[1] !== pair[2] && FOREX_CURRENCIES.has(pair[1]) && FOREX_CURRENCIES.has(pair[2])) return "forex";
+    if (classifySymbol(symbol) === "cripto" || /^[A-Z0-9]+[/_-]?(?:USDT|USDC|BUSD)(?:[.:_-][A-Z0-9]+)?$/.test(symbol)) return "cripto";
+    return null;
+}
+
+function filteredManualTrades() {
+    const trades = manualTrades();
+    return state.assetFilter === "all" ? trades : trades.filter((trade) => tradeAssetCategory(trade) === state.assetFilter);
+}
+
+function setAssetFilter(category) {
+    if (!Object.hasOwn(ASSET_FILTERS, category)) return;
+    state.assetFilter = category;
+    hideTradeChartTooltip();
+    renderAll();
+}
+
+function renderAssetFilters() {
+    const toolbar = $("assetFilters");
+    if (!toolbar) return;
+    toolbar.hidden = !ASSET_FILTER_VIEWS.has(state.view);
+    toolbar.querySelectorAll("[data-asset-filter]").forEach((button) => {
+        const active = button.dataset.assetFilter === state.assetFilter;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+    });
+    if (state.view === "trades") $("viewSubtitle").textContent = `${filteredManualTrades().length} operações registradas · ${ASSET_FILTERS[state.assetFilter]}`;
+}
+
+function bindAssetFilters() {
+    $("assetFilters")?.querySelectorAll("[data-asset-filter]").forEach((button) => {
+        button.addEventListener("click", () => setAssetFilter(button.dataset.assetFilter));
+    });
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -679,7 +725,7 @@ function switchView(view) {
     const titles = {
         backtests: ["Backtests", "Teste manual por estratégia · resultado em R"],
         dashboard: ["Dashboard", "Visão geral da performance"],
-        trades: ["Trades", `${manualTrades().length} operações registradas`],
+        trades: ["Trades", `${filteredManualTrades().length} operações registradas`],
         calendar: ["Calendário", "Resultado diário"],
         stats: ["Estatísticas", "Métricas avançadas e análises"],
         journal: ["Diário", "Notas e revisão por trade"],
@@ -1068,7 +1114,7 @@ function computeStats(trades) {
 }
 
 function renderKPIs() {
-    const s = computeStats(manualTrades());
+    const s = computeStats(filteredManualTrades());
     const rMeta = `${s.rCount} fechados com R${s.pendingR ? ` / ${s.pendingR} pend.` : ""}${s.openCount ? ` / ${s.openCount} em aberto` : ""}`;
     const kpis = [
         { label: "Net P&L liq.", value: fmtCurrency(s.pnlTotal), meta: `fees: ${fmtCurrency(s.feesTotal)}`, cls: s.pnlTotal > 0 ? "win" : s.pnlTotal < 0 ? "loss" : "neutral" },
@@ -1255,7 +1301,7 @@ function drawCapitalCurve(canvasId, points, dates, opts) {
 function drawEquity() {
     const c = $("equityCanvas");
     if (!c) return;
-    const mt = manualTrades();
+    const mt = filteredManualTrades();
     const s = computeStats(mt);
     if (!mt.length) {
         const { ctx, w, h } = setupCanvas("equityCanvas");
@@ -1269,7 +1315,7 @@ function drawEquity() {
 
 function drawDist() {
     const { ctx, w, h } = setupCanvas("distCanvas");
-    const s = computeStats(manualTrades());
+    const s = computeStats(filteredManualTrades());
     if (!s.rCount) { drawEmpty(ctx, w, h, s.pendingR ? "R pendente nos trades importados" : s.openCount ? "Nenhum trade fechado ainda" : "Sem dados ainda"); return; }
     const data = [
         { l: "Wins", v: s.wins, c: "#2ddb8a" },
@@ -1487,7 +1533,7 @@ function drawHour() {
     const chart = $("hourChart");
     if (!chart) return;
     hideTradeChartTooltip();
-    const data = tradeChartData(manualTrades(), state.chartMonth, state.chartDay);
+    const data = tradeChartData(filteredManualTrades(), state.chartMonth, state.chartDay);
     const { bars, rows, month, day, today, invalid } = data;
     state.chartMonth = month;
     state.chartDay = day;
@@ -1554,7 +1600,7 @@ function drawEmpty(ctx, w, h, text = "Sem dados ainda") {
 }
 
 function renderRecent() {
-    const recent = [...manualTrades()].sort((a, b) => tradeDisplayDate(b) - tradeDisplayDate(a)).slice(0, 8);
+    const recent = [...filteredManualTrades()].sort((a, b) => tradeDisplayDate(b) - tradeDisplayDate(a)).slice(0, 8);
     if (!recent.length) {
         $("recentTrades").innerHTML = `<div class="empty"><div class="empty-ico">∅</div>Nenhum trade ainda. Clique em <strong>+ Novo Trade</strong>.</div>`;
         return;
@@ -1582,7 +1628,7 @@ function renderTrades() {
     const text = $("filterText").value.trim().toLowerCase();
     const side = $("filterSide").value;
     const result = $("filterResult").value;
-    const base = manualTrades();
+    const base = filteredManualTrades();
     const filtered = base.filter((t) => {
         if (side && t.side !== side) return false;
         if (result && tradeOutcome(t) !== result) return false;
@@ -1663,7 +1709,7 @@ function renderCalendar() {
     const startDow = first.getDay();
     const days = last.getDate();
 
-    const results = calendarResults(state.trades, month);
+    const results = calendarResults(filteredManualTrades(), month);
     const { dayMap } = results;
     const allVals = Object.values(dayMap).map((day) => day.cents / 100);
     const maxAbs = Math.max(0.01, ...allVals.map(Math.abs));
@@ -1710,7 +1756,7 @@ function renderCalendar() {
 }
 
 function renderAdvancedStats() {
-    const s = computeStats(manualTrades());
+    const s = computeStats(filteredManualTrades());
     const items = [
         ["P&L liquido", fmtCurrency(s.pnlTotal)],
         ["Fees/custos", fmtCurrency(s.feesTotal)],
@@ -1750,7 +1796,7 @@ function renderAdvancedStats() {
 
 function renderTagStats() {
     const tagAgg = {};
-    manualTrades().forEach((t) => {
+    filteredManualTrades().forEach((t) => {
         if (["open", "pending"].includes(tradeOutcome(t))) return;
         (t.tags || []).forEach((tag) => {
             tagAgg[tag] = tagAgg[tag] || { count: 0, r: 0, wins: 0 };
@@ -1775,7 +1821,7 @@ function renderTagStats() {
 }
 
 function renderStreaks() {
-    const s = computeStats(manualTrades());
+    const s = computeStats(filteredManualTrades());
     $("streaksBox").innerHTML = `
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
             <div class="kpi-card win"><div class="label">Maior sequência verde</div><div class="value">${s.bestWinStreak}</div></div>
@@ -1786,7 +1832,7 @@ function renderStreaks() {
 }
 
 function renderJournal() {
-    const trades = [...manualTrades()]
+    const trades = [...filteredManualTrades()]
         .filter((t) => t.notes || (t.mistakes || []).length || t.attachment?.path)
         .sort((a, b) => tradeDisplayDate(b) - tradeDisplayDate(a))
         .slice(0, 30);
@@ -1812,6 +1858,7 @@ function renderJournal() {
 }
 
 function renderAll() {
+    renderAssetFilters();
     if (state.view === "backtests") Backtests.render();
     if (state.view === "dashboard") {
         renderKPIs();
@@ -2139,6 +2186,7 @@ function toast(msg) {
 function bindEvents() {
     bindAttachmentViewer();
     bindTradeChartEvents();
+    bindAssetFilters();
     $("btnAddTrade").addEventListener("click", () => openModal());
     $("modalClose").addEventListener("click", closeModal);
     $("btnCancel").addEventListener("click", closeModal);
