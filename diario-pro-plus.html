@@ -906,7 +906,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     .form-grid { grid-template-columns: 1fr; }
 }
 </style>
-<link rel="stylesheet" href="diario-pro-plus.css?v=20261009-asset-filters">
+<link rel="stylesheet" href="diario-pro-plus.css?v=20261009-mobile-tables">
 <link rel="stylesheet" href="diario-attachments.css?v=20261008-image-viewer">
 </head>
 <body class="pro-plus">
@@ -1008,7 +1008,8 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                 <div class="panel-head">
                     <h2>Trades recentes</h2>
                 </div>
-                <div id="recentTrades"></div>
+                <p class="table-scroll-hint" id="recentTradesScrollHint">Deslize a tabela para ver todas as colunas e editar.</p>
+                <div class="table-scroll" id="recentTrades" tabindex="0" role="region" aria-label="Trades recentes" aria-describedby="recentTradesScrollHint"></div>
             </div>
         </section>
 
@@ -1031,7 +1032,8 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                     <span class="muted" id="filterCount" style="margin-left:auto"></span>
                     <button class="btn btn-ghost" id="btnDeleteAllTrades" type="button" style="color:var(--red); padding: 4px 8px; font-size: 0.85rem;" title="Apagar todos os trades manuais apenas deste navegador">Excluir Todos (local)</button>
                 </div>
-                <div id="tradesTable"></div>
+                <p class="table-scroll-hint" id="tradesTableScrollHint">Deslize a tabela para ver todas as colunas e editar.</p>
+                <div class="table-scroll" id="tradesTable" tabindex="0" role="region" aria-label="Operações registradas" aria-describedby="tradesTableScrollHint"></div>
             </div>
         </section>
 
@@ -1351,6 +1353,6 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 
 <script src="diario-backtests.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="diario-core.js?v=20261009-asset-filters"></script>
+<script src="diario-core.js?v=20261009-mobile-tables"></script>
 </body>
 </html>

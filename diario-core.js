@@ -1662,8 +1662,8 @@ function renderTrades() {
                 <td class="right muted">${fmtCurrency(tradeFees(t))}</td>
                 <td class="right" style="color:${tradeNetPnl(t) > 0 ? "var(--green)" : tradeNetPnl(t) < 0 ? "var(--red)" : "var(--muted)"}">${fmtCurrency(tradeNetPnl(t))}</td>
                 <td class="right">
-                    <button class="btn btn-ghost" data-edit="${t.id}" type="button">✎</button>
-                    <button class="btn btn-danger" data-del="${t.id}" type="button">×</button>
+                    <button class="btn btn-ghost" data-edit="${t.id}" type="button" title="Editar trade" aria-label="Editar trade">✎</button>
+                    <button class="btn btn-danger" data-del="${t.id}" type="button" title="Excluir trade" aria-label="Excluir trade">×</button>
                 </td>
             </tr>
         `).join("")}</tbody></table>`;

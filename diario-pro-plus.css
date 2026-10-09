@@ -128,6 +128,12 @@
 .pro-plus thead th { background: #1b2026; color: #9ca8b6; font-size: 10px; letter-spacing: .04em; font-weight: 600; padding: 12px 16px; }
 .pro-plus tbody td { padding: 13px 16px; font-size: 12px; }
 .pro-plus tbody tr:hover { background: #ffffff03; }
+.pro-plus .table-scroll { width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; touch-action: pan-x pan-y; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #526171 var(--bg-elev); }
+.pro-plus .table-scroll > table { min-width: 820px; }
+.pro-plus #tradesTable > table { min-width: 900px; }
+.pro-plus .table-scroll th, .pro-plus .table-scroll td:first-child, .pro-plus .table-scroll td.right { white-space: nowrap; }
+.pro-plus .table-scroll:focus-visible { outline: 2px solid #b5c9df; outline-offset: -2px; }
+.pro-plus .table-scroll-hint { display: none; }
 .pro-plus .pill { background: transparent; border-radius: 3px; padding: 2px 0; font-weight: 500; }
 .pro-plus .tag { border-radius: 3px; font-weight: 400; }
 .pro-plus .cloud-box { background: transparent; padding: 12px 8px; border: 0; border-top: 1px solid var(--line); margin: 0 0 16px; border-radius: 0; }
@@ -225,6 +231,8 @@
     .pro-plus .panel-head, .pro-plus .panel-body { padding: 15px; }
     .pro-plus .toolbar { padding: 12px; }
     .pro-plus .toolbar input, .pro-plus .toolbar select { min-width: 0; max-width: 100%; }
+    .pro-plus .table-scroll-hint { display: block; margin: 0; padding: 9px 15px; color: var(--muted); font-size: 11px; border-bottom: 1px solid var(--line-soft); }
+    .pro-plus .table-scroll td:last-child .btn { min-width: 44px; min-height: 44px; }
     .pro-plus .chart-frame { height: 250px; }
     .pro-plus #btCreate > .field { min-width: 0 !important; flex-basis: 100% !important; }
 }
