@@ -40,6 +40,13 @@ function boot(storage = new Map()) {
     ctx.result='stop';node('btSetupTag').value='FVG';submit('btTrade');
     assert.equal(app.rows('guest').find(x=>x.r===-1).setupTag,'FVG','Stop trades also save their setup tag');
     assert.match(node('btCurve').innerHTML,/4 trades · \+5R/);
+    const historyRows=[...node('btHistory').innerHTML.matchAll(/<tr>(.*?)<\/tr>/g)]
+        .map(row=>[...row[1].matchAll(/<td(?: [^>]*)?>(.*?)<\/td>/g)].map(cell=>cell[1]));
+    assert.deepEqual(historyRows.map(row=>Number(row[0])),[4,3,2,1],'Most recent trade appears first, with its original number');
+    assert.deepEqual(historyRows.map(row=>row[4]),['-1R','+3R','+2R','+1R']);
+    assert.deepEqual(historyRows.map(row=>row[5]),['+5R','+6R','+3R','+1R'],'Each row retains the chronological accumulated result');
+    const savedOrder=app.rows('guest').filter(row=>row.kind==='trade').map(row=>row.r);
+    assert.deepEqual(savedOrder,[1,2,3,-1],'Display order never changes stored trades');
     const m=ctx.bt.metrics([{r:1},{r:-1},{r:-1},{r:3}]);
     assert.equal(m.total,2);assert.equal(m.dd,2);assert.equal(m.wins,2);
     assert.deepEqual(Array.from(m.points),[0,1,0,-1,2]);
@@ -48,6 +55,7 @@ function boot(storage = new Map()) {
     assert.match(resumed.node('btCurve').innerHTML,/4 trades · \+5R/);
     assert.match(resumed.node('btHistory').innerHTML,/POI/);
     assert.match(resumed.node('btHistory').innerHTML,/FVG/,'Setup tags survive reload and resume');
+    assert.match(resumed.node('btHistory').innerHTML,/^<tr><td>4<\/td>.*?FVG/,'Newest first persists after reloading and continuing');
     const legacyRows=app.rows('guest').map(({setupTag,...record})=>record);
     const legacy=boot(new Map([['diarioBacktests_v1_guest',JSON.stringify(legacyRows)]]));legacy.click({open:session.id});
     assert.match(legacy.node('btCurve').innerHTML,/4 trades · \+5R/);
@@ -78,5 +86,5 @@ function boot(storage = new Map()) {
     const html=fs.readFileSync(__dirname+'/diario-pro-plus.html','utf8');
     for(const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);
     assert.equal((html.match(/data-view="backtests"/g)||[]).length,1);
-    console.log('PASS: R, drawdown, per-trade setup tags, optional/legacy tags, reload/resume, escaping, deletion, storage failure, offline retry, account isolation, import, Supabase payload/reload and inline syntax.');
+    console.log('PASS: newest-first history with chronological totals, R, drawdown, per-trade setup tags, optional/legacy tags, reload/resume, escaping, deletion, storage failure, offline retry, account isolation, import, Supabase payload/reload and inline syntax.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

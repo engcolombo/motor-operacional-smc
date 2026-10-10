@@ -94,7 +94,7 @@ const Backtests = (() => {
         el('btHistory').innerHTML = ts.length ? ts.map((t,i) => {
             accumulated += t.r;
             return `<tr><td>${i+1}</td><td>${esc(new Date(t.created).toLocaleString('pt-BR'))}</td><td><span class="pill ${t.r>0?'win':'loss'}">${t.r>0?'Alvo':'Stop'}</span></td><td class="bt-history-setup">${t.setupTag ? `<span class="tag">${esc(t.setupTag)}</span>` : '<span class="muted">—</span>'}</td><td>${rfmt(t.r)}</td><td>${rfmt(accumulated)}</td><td><button class="btn btn-mini btn-danger" data-remove="${esc(t.id)}" aria-label="Excluir trade ${i+1}">Excluir</button></td></tr>`;
-        }).join('') : '<tr><td colspan="7" class="empty">Marque o resultado e registre o primeiro trade.</td></tr>';
+        }).reverse().join('') : '<tr><td colspan="7" class="empty">Marque o resultado e registre o primeiro trade.</td></tr>';
         draw(m.points);
     }
     function draw(points) {
