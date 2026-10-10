@@ -93,8 +93,8 @@ const Backtests = (() => {
         let accumulated = 0;
         el('btHistory').innerHTML = ts.length ? ts.map((t,i) => {
             accumulated += t.r;
-            return `<tr><td>${i+1}</td><td>${esc(new Date(t.created).toLocaleString('pt-BR'))}</td><td><span class="pill ${t.r>0?'win':'loss'}">${t.r>0?'Alvo':'Stop'}</span></td><td>${rfmt(t.r)}</td><td>${rfmt(accumulated)}</td><td><button class="btn btn-mini btn-danger" data-remove="${esc(t.id)}" aria-label="Excluir trade ${i+1}">Excluir</button></td></tr>`;
-        }).join('') : '<tr><td colspan="6" class="empty">Marque o resultado e registre o primeiro trade.</td></tr>';
+            return `<tr><td>${i+1}</td><td>${esc(new Date(t.created).toLocaleString('pt-BR'))}</td><td><span class="pill ${t.r>0?'win':'loss'}">${t.r>0?'Alvo':'Stop'}</span></td><td class="bt-history-setup">${t.setupTag ? `<span class="tag">${esc(t.setupTag)}</span>` : '<span class="muted">—</span>'}</td><td>${rfmt(t.r)}</td><td>${rfmt(accumulated)}</td><td><button class="btn btn-mini btn-danger" data-remove="${esc(t.id)}" aria-label="Excluir trade ${i+1}">Excluir</button></td></tr>`;
+        }).join('') : '<tr><td colspan="7" class="empty">Marque o resultado e registre o primeiro trade.</td></tr>';
         draw(m.points);
     }
     function draw(points) {
@@ -111,9 +111,9 @@ const Backtests = (() => {
           <div style="overflow-x:auto"><table><thead><tr><th>Estratégia</th><th>Trades</th><th>Resultado</th><th>Ações</th></tr></thead><tbody id="btList"></tbody></table></div></div>
           <div class="panel" id="btEditor" hidden><div class="panel-head"><h2 id="btName"></h2><button class="btn" id="btClose">Voltar à lista</button></div><div class="panel-body">
           <div id="btKpis" class="kpi-grid"></div>
-          <form id="btTrade"><fieldset style="border:1px solid var(--line);border-radius:8px;padding:16px"><legend>Resultado do próximo trade</legend><div class="actions"><label class="btn"><input type="radio" name="btResult" value="target" checked> Alvo</label><label class="btn"><input type="radio" name="btResult" value="stop"> Stop (−1R)</label><label class="btn">Alvo em R <select id="btTarget" style="background:var(--bg)"><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option></select></label><button class="btn btn-primary" type="submit">Registrar trade</button></div></fieldset></form>
+          <form id="btTrade"><fieldset style="border:1px solid var(--line);border-radius:8px;padding:16px"><legend>Resultado do próximo trade</legend><div class="actions"><label class="btn"><input type="radio" name="btResult" value="target" checked> Alvo</label><label class="btn"><input type="radio" name="btResult" value="stop"> Stop (−1R)</label><label class="btn">Alvo em R <select id="btTarget" style="background:var(--bg)"><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option></select></label><div class="field bt-setup-field"><label for="btSetupTag">Tag do setup</label><input id="btSetupTag" type="text" maxlength="100" placeholder="Ex.: POI, Orderblock" autocomplete="off"></div><button class="btn btn-primary" type="submit">Registrar trade</button></div></fieldset></form>
           <p class="muted">1R é o risco de uma operação. Curva bruta, sem taxas ou parciais.</p><svg id="btCurve" viewBox="0 0 800 220" role="img" aria-label="Curva de lucro acumulado em R" style="width:100%;display:block;background:var(--bg-elev-2);border-radius:8px"></svg></div>
-          <div style="overflow-x:auto;max-height:440px"><table><thead><tr><th>#</th><th>Registrado em</th><th>Resultado</th><th>R</th><th>Acumulado</th><th>Ação</th></tr></thead><tbody id="btHistory"></tbody></table></div></div>
+          <div class="table-scroll" style="max-height:440px" tabindex="0" role="region" aria-label="Histórico do backtest"><table><thead><tr><th>#</th><th>Registrado em</th><th>Resultado</th><th>Tag do setup</th><th>R</th><th>Acumulado</th><th>Ação</th></tr></thead><tbody id="btHistory"></tbody></table></div></div>
         </section>`);
         el('btCreate').onsubmit = e => {
             e.preventDefault(); const name=el('btStrategy').value.trim(); if (!name) return;
@@ -125,7 +125,8 @@ const Backtests = (() => {
             e.preventDefault(); if (!sessions().some(s=>s.id===active)) return;
             const stop=document.querySelector('input[name="btResult"]:checked').value==='stop';
             const r=stop?-1:Number(el('btTarget').value); if (![-1,1,2,3].includes(r)) return;
-            commit([...records,{id:uid(),kind:'trade',parent:active,r,created:new Date().toISOString(),dirty:true}]);
+            const setupTag=el('btSetupTag').value.trim().slice(0,100);
+            if (commit([...records,{id:uid(),kind:'trade',parent:active,r,setupTag,created:new Date().toISOString(),dirty:true}])) el('btSetupTag').value='';
         };
         document.querySelectorAll('input[name="btResult"]').forEach(input=>input.onchange=()=>{ el('btTarget').disabled=document.querySelector('input[name="btResult"]:checked').value==='stop'; });
         el('view-backtests').onclick = e => {

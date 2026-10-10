@@ -198,6 +198,9 @@
 .pro-plus #btCurve polyline { stroke: #a8bfd7; }
 .pro-plus #btCurve circle { fill: #82bea5; }
 .pro-plus #btTrade .actions { align-items: center; }
+.pro-plus .bt-setup-field { flex: 0 1 220px; min-width: 0; }
+.pro-plus .bt-history-setup { min-width: 140px; }
+.pro-plus .bt-history-setup .tag { max-width: 240px; white-space: normal; overflow-wrap: anywhere; }
 .pro-plus #btTrade input[type=radio] { accent-color: #a8bfd7; }
 .pro-plus #btCreate { align-items: end; }
 @media (max-width: 1200px) {
@@ -237,6 +240,8 @@
     .pro-plus .table-scroll td:last-child .btn { min-width: 44px; min-height: 44px; }
     .pro-plus .chart-frame { height: 250px; }
     .pro-plus #btCreate > .field { min-width: 0 !important; flex-basis: 100% !important; }
+    .pro-plus .bt-setup-field { flex: 1 1 160px; }
+    .pro-plus .bt-setup-field input { font-size: 16px; }
 }
 @media (max-width: 560px) {
     .pro-plus #advancedStats { grid-template-columns: 1fr; }

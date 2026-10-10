@@ -1314,7 +1314,9 @@ function drawEquity() {
 }
 
 function drawDist() {
-    const { ctx, w, h } = setupCanvas("distCanvas");
+    const setup = setupCanvas("distCanvas");
+    if (!setup || setup.w <= 0 || setup.h <= 0) return;
+    const { ctx, w, h } = setup;
     const s = computeStats(filteredManualTrades());
     if (!s.rCount) { drawEmpty(ctx, w, h, s.pendingR ? "R pendente nos trades importados" : s.openCount ? "Nenhum trade fechado ainda" : "Sem dados ainda"); return; }
     const data = [

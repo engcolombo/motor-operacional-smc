@@ -29,8 +29,16 @@ function boot(storage = new Map()) {
     const app=boot(); const {ctx,node,submit,click}=app;
     node('btStrategy').value='POI <img src=x>'; submit('btCreate');
     assert.match(node('btList').innerHTML,/&lt;img/);
-    for(const target of ['1','2','3']){node('btTarget').value=target;submit('btTrade');}
-    ctx.result='stop';submit('btTrade');
+    for(const [target,tag] of [['1','  POI  '],['2','OB <img src=x>'],['3','']]){
+        node('btTarget').value=target;node('btSetupTag').value=tag;submit('btTrade');
+        assert.equal(node('btSetupTag').value,'','Clear the tag only after saving the trade');
+    }
+    assert.equal(app.rows('guest').find(x=>x.r===1).setupTag,'POI','Trim the per-trade tag');
+    assert.match(node('btHistory').innerHTML,/OB &lt;img src=x&gt;/);
+    assert.doesNotMatch(node('btHistory').innerHTML,/<img/);
+    assert.match(node('btHistory').innerHTML,/bt-history-setup"><span class="muted">—/,'Tag is optional');
+    ctx.result='stop';node('btSetupTag').value='FVG';submit('btTrade');
+    assert.equal(app.rows('guest').find(x=>x.r===-1).setupTag,'FVG','Stop trades also save their setup tag');
     assert.match(node('btCurve').innerHTML,/4 trades · \+5R/);
     const m=ctx.bt.metrics([{r:1},{r:-1},{r:-1},{r:3}]);
     assert.equal(m.total,2);assert.equal(m.dd,2);assert.equal(m.wins,2);
@@ -38,16 +46,27 @@ function boot(storage = new Map()) {
     const session=app.rows('guest').find(x=>x.kind==='session');
     const resumed=boot(app.storage);resumed.click({open:session.id});
     assert.match(resumed.node('btCurve').innerHTML,/4 trades · \+5R/);
+    assert.match(resumed.node('btHistory').innerHTML,/POI/);
+    assert.match(resumed.node('btHistory').innerHTML,/FVG/,'Setup tags survive reload and resume');
+    const legacyRows=app.rows('guest').map(({setupTag,...record})=>record);
+    const legacy=boot(new Map([['diarioBacktests_v1_guest',JSON.stringify(legacyRows)]]));legacy.click({open:session.id});
+    assert.match(legacy.node('btCurve').innerHTML,/4 trades · \+5R/);
+    assert.equal((legacy.node('btHistory').innerHTML.match(/bt-history-setup"><span class="muted">—/g)||[]).length,4,'Older backtests without tags still render');
     click({remove:app.rows('guest').find(x=>x.r===2).id});
     assert.match(node('btCurve').innerHTML,/3 trades · \+3R/);
-    const before=app.storage.get('diarioBacktests_v1_guest');ctx.full=true;submit('btTrade');ctx.full=false;
+    const before=app.storage.get('diarioBacktests_v1_guest');node('btSetupTag').value='Manter se falhar';ctx.full=true;submit('btTrade');ctx.full=false;
     assert.equal(app.storage.get('diarioBacktests_v1_guest'),before);assert.ok(ctx.alerts.length);
+    assert.equal(node('btSetupTag').value,'Manter se falhar','A failed save preserves the typed tag');
     ctx.currentUser={id:'alice'};ctx.bt.authChanged();assert.equal(app.rows('alice').length,0);
     node('btImportLocal').onclick();ctx.offline=true;await node('btSync').onclick();
     assert.ok(app.rows('alice').some(x=>x.dirty));assert.match(node('btStatus').textContent,/offline/);
     ctx.offline=false;await node('btSync').onclick();assert.ok(app.rows('alice').every(x=>!x.dirty));
+    assert.ok([...app.cloud.values()].some(row=>row.user_id==='alice'&&row.payload.setupTag==='POI'),'Tags are included in the Supabase payload');
+    assert.ok([...app.cloud.values()].some(row=>row.user_id==='alice'&&row.payload.setupTag==='FVG'));
     const aliceSession=app.rows('alice').find(x=>x.kind==='session');click({open:aliceSession.id});
     assert.match(node('btCurve').innerHTML,/3 trades · \+3R/);
+    assert.match(node('btHistory').innerHTML,/POI/);
+    assert.match(node('btHistory').innerHTML,/FVG/,'Tags survive the Supabase reload');
     ctx.currentUser={id:'bob'};ctx.bt.authChanged();await node('btSync').onclick();assert.equal(app.rows('bob').length,0);
     ctx.currentUser={id:'alice'};ctx.bt.authChanged();click({delete:aliceSession.id});await node('btSync').onclick();
     assert.ok(app.rows('alice').every(x=>x.deleted));
@@ -59,5 +78,5 @@ function boot(storage = new Map()) {
     const html=fs.readFileSync(__dirname+'/diario-pro-plus.html','utf8');
     for(const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);
     assert.equal((html.match(/data-view="backtests"/g)||[]).length,1);
-    console.log('PASS: R, drawdown, history, reload/resume, escaping, deletion, storage failure, offline retry, account isolation, import, sync and inline syntax.');
+    console.log('PASS: R, drawdown, per-trade setup tags, optional/legacy tags, reload/resume, escaping, deletion, storage failure, offline retry, account isolation, import, Supabase payload/reload and inline syntax.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
