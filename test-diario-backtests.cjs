@@ -5,13 +5,16 @@ const source = fs.readFileSync(__dirname + '/diario-backtests.js','utf8');
 function boot(storage = new Map()) {
     const nodes = new Map(), cloud = new Map();
     let seq = 0;
+    for (const data of storage.values()) {
+        try { JSON.parse(data).forEach(row=>{const match=/^id-(\d+)$/.exec(row.id);if(match)seq=Math.max(seq,Number(match[1]));}); } catch {}
+    }
     const node = id => {
         if (!nodes.has(id)) nodes.set(id, {value: id === 'btTarget' ? '1' : '', innerHTML:'', textContent:'', scrollIntoView(){}, focus(){}, click(){}});
         return nodes.get(id);
     };
     const ctx = {
         console, Blob, URL, Date, Math, JSON, Map, Number, String, Boolean,
-        document: {getElementById:node, querySelector:s => s === '.main' ? {insertAdjacentHTML(){}} : {value:ctx.result}, querySelectorAll:()=>['target','stop','breakeven'].map(value=>({value,set checked(checked){if(checked)ctx.result=value;}})), createElement:()=>node('download')},
+        document: {getElementById:node, querySelector:s => s === '.main' ? {insertAdjacentHTML(){}} : {value:ctx.result}, querySelectorAll:s=>s.includes('btResult') ? ['target','stop','breakeven'].map(value=>({value,set checked(checked){if(checked)ctx.result=value;}})) : [], createElement:()=>node('download')},
         window: {addEventListener(){}}, localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>{if(ctx.full)throw Error('quota');storage.set(k,v);},removeItem:k=>storage.delete(k)},
         setTimeout:()=>1, clearTimeout(){}, alert:msg=>ctx.alerts.push(msg), confirm:()=>true, toast(){},
         uid:()=>`id-${++seq}`, canUseCloud:()=>!!ctx.currentUser, currentUser:null, result:'target', alerts:[],
@@ -28,6 +31,7 @@ function boot(storage = new Map()) {
 (async()=>{
     const app=boot(); const {ctx,node,submit,click}=app;
     node('btStrategy').value='POI <img src=x>'; submit('btCreate');
+    click({weekday:'1'});
     assert.match(node('btList').innerHTML,/&lt;img/);
     for(const [target,tag] of [['1','  POI  '],['2','OB <img src=x>'],['3','']]){
         node('btTarget').value=target;node('btSetupTag').value=tag;submit('btTrade');
@@ -40,7 +44,7 @@ function boot(storage = new Map()) {
     ctx.result='stop';node('btSetupTag').value='FVG';submit('btTrade');
     assert.equal(app.rows('guest').find(x=>x.r===-1).setupTag,'FVG','Stop trades also save their setup tag');
     assert.match(node('btCurve').innerHTML,/4 trades · \+5R/);
-    const historyRows=[...node('btHistory').innerHTML.matchAll(/<tr>(.*?)<\/tr>/g)]
+    const historyRows=[...node('btHistory').innerHTML.matchAll(/<tr data-trade="[^"]+">(.*?)<\/tr>/g)]
         .map(row=>[...row[1].matchAll(/<td(?: [^>]*)?>(.*?)<\/td>/g)].map(cell=>cell[1]));
     assert.deepEqual(historyRows.map(row=>Number(row[0])),[4,3,2,1],'Most recent trade appears first, with its original number');
     assert.deepEqual(historyRows.map(row=>row[4]),['-1R','+3R','+2R','+1R']);
@@ -78,7 +82,7 @@ function boot(storage = new Map()) {
     assert.match(resumed.node('btCurve').innerHTML,/4 trades · \+5R/);
     assert.match(resumed.node('btHistory').innerHTML,/POI/);
     assert.match(resumed.node('btHistory').innerHTML,/FVG/,'Setup tags survive reload and resume');
-    assert.match(resumed.node('btHistory').innerHTML,/^<tr><td>4<\/td>.*?FVG/,'Newest first persists after reloading and continuing');
+    assert.match(resumed.node('btHistory').innerHTML,/<tr data-trade="[^"]+"><td>4<\/td>.*?FVG/,'Newest first persists after reloading and continuing');
     const legacyRows=app.rows('guest').map(({setupTag,...record})=>record);
     const legacy=boot(new Map([['diarioBacktests_v1_guest',JSON.stringify(legacyRows)]]));legacy.click({open:session.id});
     assert.match(legacy.node('btCurve').innerHTML,/4 trades · \+5R/);
@@ -132,7 +136,7 @@ function boot(storage = new Map()) {
     assert.match(node('btList').innerHTML,/primeiro backtest/);
     const corrupt=boot(new Map([['diarioBacktests_v1_guest','broken']]));corrupt.node('btStrategy').value='test';corrupt.submit('btCreate');
     assert.equal(corrupt.storage.get('diarioBacktests_v1_guest'),'broken');
-    const zeroApp=boot();zeroApp.node('btStrategy').value='Teste 0 a 0';zeroApp.submit('btCreate');
+    const zeroApp=boot();zeroApp.node('btStrategy').value='Teste 0 a 0';zeroApp.submit('btCreate');zeroApp.click({weekday:'1'});
     zeroApp.ctx.result='breakeven';zeroApp.node('btTarget').value='3';zeroApp.node('btSetupTag').value='BE';zeroApp.submit('btTrade');
     const zeroTrade=zeroApp.rows('guest').find(t=>t.kind==='trade');
     assert.equal(zeroTrade.r,0,'Breakeven ignores the selected target');assert.equal(zeroTrade.setupTag,'BE');
@@ -164,9 +168,77 @@ function boot(storage = new Map()) {
     zeroReload.click({edit:reloadedZero.id});zeroReload.ctx.result='target';zeroReload.node('btTarget').value='3';zeroReload.submit('btTrade');
     assert.equal(zeroReload.rows('zero-user').find(t=>t.id===reloadedZero.id).r,3,'Zero can be corrected to a target');
     assert.match(zeroReload.node('btCurve').innerHTML,/3 trades · \+5R/);
+    const dayApp=boot();dayApp.node('btStrategy').value='Dias do replay';dayApp.submit('btCreate');
+    const daySession=dayApp.rows('guest').find(t=>t.kind==='session');
+    dayApp.submit('btTrade');assert.equal(dayApp.rows('guest').filter(t=>t.kind==='trade').length,0,'Choose a replay weekday explicitly, never infer it from registration time');
+    dayApp.click({weekday:'1'});dayApp.ctx.result='target';dayApp.node('btTarget').value='2';dayApp.submit('btTrade');
+    dayApp.ctx.result='stop';dayApp.submit('btTrade');
+    const monday=dayApp.rows('guest').find(t=>t.kind==='day');
+    assert.equal(monday.weekday,1);assert.equal(monday.number,1);assert.equal(monday.date,'');
+    assert.ok(dayApp.rows('guest').filter(t=>t.kind==='trade').every(t=>t.dayId===monday.id),'Repeated registrations remain in the current day');
+    dayApp.node('btNewDay').onclick();dayApp.submit('btTrade');
+    assert.equal(dayApp.rows('guest').filter(t=>t.kind==='day').length,1,'New day is saved atomically with its first trade');
+    dayApp.node('btDayDate').value='2026-10-06';dayApp.node('btDayDate').onchange();
+    dayApp.ctx.result='target';dayApp.node('btTarget').value='3';dayApp.submit('btTrade');dayApp.ctx.result='breakeven';dayApp.submit('btTrade');
+    const tuesday=dayApp.rows('guest').find(t=>t.kind==='day'&&t.weekday===2);
+    assert.equal(tuesday.date,'2026-10-06','Explicit replay dates select the corresponding weekday');
+    dayApp.node('btNewDay').onclick();dayApp.click({weekday:'1'});dayApp.node('btDayDate').value='2026-10-12';dayApp.ctx.result='stop';dayApp.submit('btTrade');
+    const secondMonday=dayApp.rows('guest').find(t=>t.kind==='day'&&t.number===3);
+    assert.notEqual(secondMonday.id,monday.id);assert.equal(secondMonday.weekday,1,'Two Mondays are distinct replay days');
+    const dayMetrics=app=>app.ctx.bt.weekdayStats(app.rows('guest').filter(t=>t.kind==='trade'&&!t.deleted),app.rows('guest').filter(t=>t.kind==='day'&&!t.deleted));
+    let byWeekday=dayMetrics(dayApp);
+    assert.equal(byWeekday.groups[0].days,2);assert.equal(byWeekday.groups[0].count,3);assert.equal(byWeekday.groups[0].total,0);assert.equal(byWeekday.groups[0].profitFactor,1);
+    assert.equal(byWeekday.groups[1].days,1);assert.equal(byWeekday.groups[1].count,2);assert.equal(byWeekday.groups[1].breakevens,1);assert.equal(byWeekday.groups[1].winRate,100);
+    assert.equal(byWeekday.groups[1].expectancy,1.5);assert.equal(byWeekday.groups[1].avgDay,3);assert.equal(byWeekday.groups[4].count,0);
+    assert.equal((dayApp.node('btHistory').innerHTML.match(/class="bt-day-separator"/g)||[]).length,3);
+    assert.match(dayApp.node('btWeekdayComparison').textContent,/Terça-feira \(\+1,5R\)/);
+    const legacyDayTrade={id:'legacy-day-trade',kind:'trade',parent:daySession.id,r:-1,setupTag:'Antigo',created:'2026-09-04T12:00:00Z'};
+    const dayReload=boot(new Map([['diarioBacktests_v1_guest',JSON.stringify([...dayApp.rows('guest'),legacyDayTrade])]]));dayReload.click({open:daySession.id});
+    assert.equal(dayMetrics(dayReload).unassigned,1);assert.equal(dayMetrics(dayReload).groups[4].count,0,'A Friday registration date never assigns a legacy replay trade to Friday');
+    assert.match(dayReload.node('btUnassignedDays').textContent,/1 trade sem dia informado/);
+    assert.equal(dayReload.node('btDayDate').value,'2026-10-12');
+    dayReload.ctx.result='breakeven';dayReload.submit('btTrade');
+    assert.equal(dayReload.rows('guest').filter(t=>t.dayId===secondMonday.id).length,2,'Reload and Continue restore the active replay day');
+    dayReload.click({resumeDay:tuesday.id});assert.equal(dayReload.node('btDayDate').value,'2026-10-06');
+    dayReload.ctx.result='target';dayReload.node('btTarget').value='1';dayReload.submit('btTrade');
+    assert.equal(dayMetrics(dayReload).groups[1].count,3);assert.equal(dayMetrics(dayReload).groups[1].total,4);
+    dayReload.click({edit:legacyDayTrade.id});dayReload.node('btDayGroup').value=monday.id;dayReload.node('btDayGroup').onchange();dayReload.submit('btTrade');
+    assert.equal(dayMetrics(dayReload).unassigned,0);assert.equal(dayReload.rows('guest').find(t=>t.id===legacyDayTrade.id).created,legacyDayTrade.created);
+    assert.equal(dayReload.rows('guest').find(t=>t.id===legacyDayTrade.id).dayId,monday.id,'Legacy trades can join an existing replay day');
+    const firstMondayTrade=dayReload.rows('guest').find(t=>t.dayId===monday.id&&t.r===2);
+    dayReload.click({edit:firstMondayTrade.id});dayReload.click({weekday:'5'});dayReload.submit('btTrade');
+    const friday=dayReload.rows('guest').find(t=>t.kind==='day'&&t.weekday===5);
+    assert.equal(dayReload.rows('guest').find(t=>t.id===firstMondayTrade.id).dayId,friday.id);
+    assert.equal(dayReload.rows('guest').find(t=>t.kind==='session').currentDay,tuesday.id,'Editing an old trade does not switch the active replay day');
+    assert.equal(dayMetrics(dayReload).groups[0].total,-3);assert.equal(dayMetrics(dayReload).groups[4].total,2);
+    assert.equal(dayReload.rows('guest').filter(t=>t.kind==='trade').length,8,'Associating days never duplicates trades');
+    dayReload.click({edit:firstMondayTrade.id});dayReload.node('btDayGroup').value='';dayReload.node('btDayGroup').onchange();dayReload.node('btCancelEdit').onclick();
+    assert.equal(dayReload.rows('guest').find(t=>t.id===firstMondayTrade.id).dayId,friday.id,'Cancelling day reassignment preserves the original group');
+    dayReload.node('btNewDay').onclick();dayReload.click({weekday:'1'});dayReload.node('btDayDate').value='2026-10-09';
+    const beforeInvalid=dayReload.storage.get('diarioBacktests_v1_guest');dayReload.submit('btTrade');
+    assert.equal(dayReload.storage.get('diarioBacktests_v1_guest'),beforeInvalid,'Mismatched weekday/date is rejected without creating records');
+    dayReload.node('btDayDate').value='2026-10-10';dayReload.node('btDayDate').onchange();dayReload.submit('btTrade');
+    assert.equal(dayReload.storage.get('diarioBacktests_v1_guest'),beforeInvalid,'Weekend replay dates are rejected for the Monday–Friday workflow');
+    dayReload.node('btDayDate').value='2026-10-09';dayReload.node('btDayDate').onchange();dayReload.ctx.full=true;dayReload.submit('btTrade');dayReload.ctx.full=false;
+    assert.equal(dayReload.storage.get('diarioBacktests_v1_guest'),beforeInvalid,'Quota failure never saves a partial day/trade');
+    assert.equal(dayReload.node('btDayDate').value,'2026-10-09');assert.match(dayReload.node('btDayStatus').textContent,/Sexta-feira/);
+    dayReload.submit('btTrade');
+    const lastDay=dayReload.rows('guest').find(t=>t.kind==='day'&&t.number===5),lastDayTrade=dayReload.rows('guest').find(t=>t.dayId===lastDay.id);
+    dayReload.click({remove:lastDayTrade.id});assert.equal(dayMetrics(dayReload).groups[4].days,1,'Empty groups do not inflate the number of tested days');
+    const guestDayIds=new Set(dayReload.rows('guest').filter(t=>t.kind==='day').map(t=>t.id));
+    dayReload.ctx.currentUser={id:'day-user'};dayReload.ctx.bt.authChanged();dayReload.node('btImportLocal').onclick();await dayReload.node('btSync').onclick();
+    const cloudDays=dayReload.rows('day-user').filter(t=>t.kind==='day'),cloudDayIds=new Set(cloudDays.map(t=>t.id));
+    assert.ok(cloudDays.every(d=>!guestDayIds.has(d.id)),'Import creates account-owned day ids');
+    assert.ok(dayReload.rows('day-user').filter(t=>t.kind==='trade'&&!t.deleted).every(t=>cloudDayIds.has(t.dayId)),'Import remaps every trade/day association');
+    assert.ok(cloudDayIds.has(dayReload.rows('day-user').find(t=>t.kind==='session').currentDay),'Import remaps the active day');
+    assert.ok([...dayReload.cloud.values()].some(row=>row.payload.kind==='day'&&row.payload.date==='2026-10-06'),'Weekday and explicit replay date sync in JSON');
+    const accountCopy=boot(new Map([['diarioBacktests_v1_day-user',JSON.stringify(dayReload.rows('day-user'))]]));accountCopy.ctx.currentUser={id:'day-user'};accountCopy.ctx.bt.authChanged();
+    const copiedSession=accountCopy.rows('day-user').find(t=>t.kind==='session');accountCopy.click({open:copiedSession.id});
+    assert.equal(accountCopy.node('btDayDate').value,'2026-10-09','Active day survives account reload');
+    accountCopy.click({delete:copiedSession.id});assert.ok(accountCopy.rows('day-user').every(t=>t.deleted),'Deleting a backtest also removes its day groups');
     new vm.Script(fs.readFileSync(__dirname+'/diario-core.js','utf8'));
     const html=fs.readFileSync(__dirname+'/diario-pro-plus.html','utf8');
     for(const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);
     assert.equal((html.match(/data-view="backtests"/g)||[]).length,1);
-    console.log('PASS: breakeven registration/edit/reload/cloud payload, neutral counts/win rate/streaks, backtest statistics, edit/cancel/failure without duplicates, newest-first history, tags, deletion, offline retry, account isolation and inline syntax.');
+    console.log('PASS: explicit replay weekdays, separate repeated weekdays, group markers, active-day resume/reload, weekday statistics, legacy reassignment, validation, atomic storage failure, import/cloud reference mapping, breakeven and existing backtest behavior.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
