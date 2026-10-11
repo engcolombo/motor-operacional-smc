@@ -59,8 +59,8 @@ const Backtests = (() => {
         const trade = trades(active).find(t=>t.id===id);
         if (!trade) return;
         editing = id;
-        document.querySelectorAll('input[name="btResult"]').forEach(input=>input.checked=input.value===(trade.r<0?'stop':'target'));
-        el('btTarget').value = String(trade.r>0?trade.r:1); el('btTarget').disabled = trade.r<0;
+        document.querySelectorAll('input[name="btResult"]').forEach(input=>input.checked=input.value===(trade.r<0?'stop':trade.r>0?'target':'breakeven'));
+        el('btTarget').value = String(trade.r>0?trade.r:1); el('btTarget').disabled = trade.r<=0;
         el('btSetupTag').value = trade.setupTag || '';
         tradeMode(); el('btTrade').scrollIntoView({behavior:'smooth',block:'center'});
         el('btSetupTag').focus({preventScroll:true});
@@ -174,9 +174,9 @@ const Backtests = (() => {
           <div style="overflow-x:auto"><table><thead><tr><th>Estratégia</th><th>Trades</th><th>Resultado</th><th>Ações</th></tr></thead><tbody id="btList"></tbody></table></div></div>
           <div class="panel" id="btEditor" hidden><div class="panel-head"><h2 id="btName"></h2><button class="btn" id="btClose">Voltar à lista</button></div><div class="panel-body">
           <div id="btKpis" class="kpi-grid"></div>
-          <form id="btTrade"><fieldset style="border:1px solid var(--line);border-radius:8px;padding:16px"><legend id="btTradeLegend">Resultado do próximo trade</legend><div class="actions"><label class="btn"><input type="radio" name="btResult" value="target" checked> Alvo</label><label class="btn"><input type="radio" name="btResult" value="stop"> Stop (−1R)</label><label class="btn">Alvo em R <select id="btTarget" style="background:var(--bg)"><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option></select></label><div class="field bt-setup-field"><label for="btSetupTag">Tag do setup</label><input id="btSetupTag" type="text" maxlength="100" placeholder="Ex.: POI, Orderblock" autocomplete="off"></div><button class="btn btn-primary" id="btSaveTrade" type="submit">Registrar trade</button><button class="btn" id="btCancelEdit" type="button" hidden>Cancelar edição</button></div></fieldset></form>
+          <form id="btTrade"><fieldset style="border:1px solid var(--line);border-radius:8px;padding:16px"><legend id="btTradeLegend">Resultado do próximo trade</legend><div class="actions"><label class="btn"><input type="radio" name="btResult" value="target" checked> Alvo</label><label class="btn"><input type="radio" name="btResult" value="stop"> Stop (−1R)</label><label class="btn"><input type="radio" name="btResult" value="breakeven"> 0 a 0 (0R)</label><label class="btn">Alvo em R <select id="btTarget" style="background:var(--bg)"><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option></select></label><div class="field bt-setup-field"><label for="btSetupTag">Tag do setup</label><input id="btSetupTag" type="text" maxlength="100" placeholder="Ex.: POI, Orderblock" autocomplete="off"></div><button class="btn btn-primary" id="btSaveTrade" type="submit">Registrar trade</button><button class="btn" id="btCancelEdit" type="button" hidden>Cancelar edição</button></div></fieldset></form>
           <p class="muted">1R é o risco de uma operação. Curva bruta, sem taxas ou parciais.</p><svg id="btCurve" viewBox="0 0 800 220" role="img" aria-label="Curva de lucro acumulado em R" style="width:100%;display:block;background:var(--bg-elev-2);border-radius:8px"></svg>
-          <section class="bt-statistics" aria-labelledby="btStatsTitle"><h2 id="btStatsTitle">Estatísticas do backtest</h2><div class="bt-stats-grid" id="btStats"></div><p class="muted bt-stats-note">Acerto = alvos ÷ (alvos + stops). Profit factor = ganhos brutos ÷ perdas brutas. Valores em R, sem taxas.</p></section></div>
+          <section class="bt-statistics" aria-labelledby="btStatsTitle"><h2 id="btStatsTitle">Estatísticas do backtest</h2><div class="bt-stats-grid" id="btStats"></div><p class="muted bt-stats-note">Acerto = alvos ÷ (alvos + stops), sem empates. Profit factor = ganhos brutos ÷ perdas brutas. Valores em R, sem taxas.</p></section></div>
           <div class="table-scroll" style="max-height:440px" tabindex="0" role="region" aria-label="Histórico do backtest"><table><thead><tr><th>#</th><th>Registrado em</th><th>Resultado</th><th>Tag do setup</th><th>R</th><th>Acumulado</th><th>Ações</th></tr></thead><tbody id="btHistory"></tbody></table></div></div>
         </section>`);
         el('btCreate').onsubmit = e => {
@@ -187,15 +187,15 @@ const Backtests = (() => {
         };
         el('btTrade').onsubmit = e => {
             e.preventDefault(); if (!sessions().some(s=>s.id===active)) return;
-            const stop=document.querySelector('input[name="btResult"]:checked').value==='stop';
-            const r=stop?-1:Number(el('btTarget').value); if (![-1,1,2,3].includes(r)) return;
+            const result=document.querySelector('input[name="btResult"]:checked').value;
+            const r=result==='stop'?-1:result==='breakeven'?0:Number(el('btTarget').value); if (![-1,0,1,2,3].includes(r)) return;
             const setupTag=el('btSetupTag').value.trim().slice(0,100);
             if (editing) {
                 if (!trades(active).some(t=>t.id===editing)) { clearEdit(); return; }
                 if (commit(records.map(t=>t.id===editing ? {...t,r,setupTag,updated:new Date().toISOString(),dirty:true} : t))) clearEdit();
             } else if (commit([...records,{id:uid(),kind:'trade',parent:active,r,setupTag,created:new Date().toISOString(),dirty:true}])) el('btSetupTag').value='';
         };
-        document.querySelectorAll('input[name="btResult"]').forEach(input=>input.onchange=()=>{ el('btTarget').disabled=document.querySelector('input[name="btResult"]:checked').value==='stop'; });
+        document.querySelectorAll('input[name="btResult"]').forEach(input=>input.onchange=()=>{ el('btTarget').disabled=document.querySelector('input[name="btResult"]:checked').value!=='target'; });
         el('view-backtests').onclick = e => {
             const b=e.target.closest('button'); if (!b) return;
             if (b.dataset.open) { clearEdit(); active=b.dataset.open; render(); el('btEditor').scrollIntoView({behavior:'smooth',block:'start'}); }

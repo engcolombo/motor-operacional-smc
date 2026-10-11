@@ -11,7 +11,7 @@ function boot(storage = new Map()) {
     };
     const ctx = {
         console, Blob, URL, Date, Math, JSON, Map, Number, String, Boolean,
-        document: {getElementById:node, querySelector:s => s === '.main' ? {insertAdjacentHTML(){}} : {value:ctx.result}, querySelectorAll:()=>['target','stop'].map(value=>({value,set checked(checked){if(checked)ctx.result=value;}})), createElement:()=>node('download')},
+        document: {getElementById:node, querySelector:s => s === '.main' ? {insertAdjacentHTML(){}} : {value:ctx.result}, querySelectorAll:()=>['target','stop','breakeven'].map(value=>({value,set checked(checked){if(checked)ctx.result=value;}})), createElement:()=>node('download')},
         window: {addEventListener(){}}, localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>{if(ctx.full)throw Error('quota');storage.set(k,v);},removeItem:k=>storage.delete(k)},
         setTimeout:()=>1, clearTimeout(){}, alert:msg=>ctx.alerts.push(msg), confirm:()=>true, toast(){},
         uid:()=>`id-${++seq}`, canUseCloud:()=>!!ctx.currentUser, currentUser:null, result:'target', alerts:[],
@@ -64,6 +64,12 @@ function boot(storage = new Map()) {
     assert.equal(empty.count,0);assert.equal(empty.winRate,0);assert.equal(empty.expectancy,null);assert.equal(empty.profitFactor,null);
     assert.equal(onlyWins.winRate,100);assert.equal(onlyWins.profitFactor,null);assert.equal(onlyWins.avgLoss,null);assert.equal(onlyWins.dd,0);
     assert.equal(onlyLosses.winRate,0);assert.equal(onlyLosses.profitFactor,0);assert.equal(onlyLosses.avgWin,null);assert.equal(onlyLosses.dd,2);
+    const onlyZero=ctx.bt.metrics([{r:0},{r:0}]);
+    assert.equal(onlyZero.count,2);assert.equal(onlyZero.breakevens,2);assert.equal(onlyZero.wins,0);assert.equal(onlyZero.losses,0);
+    assert.equal(onlyZero.total,0);assert.equal(onlyZero.dd,0);assert.equal(onlyZero.expectancy,0);assert.equal(onlyZero.profitFactor,null);
+    assert.equal(onlyZero.bestWinStreak,0);assert.equal(onlyZero.worstLossStreak,0);assert.equal(onlyZero.winRate,0);
+    const neutralStreak=ctx.bt.metrics([2,0,3,-1,0,-1].map(r=>({r})));
+    assert.equal(neutralStreak.bestWinStreak,1);assert.equal(neutralStreak.worstLossStreak,1,'A breakeven interrupts both streaks');
     assert.match(node('btStats').innerHTML,/Quantidade de trades/);
     assert.match(node('btStats').innerHTML,/Média por trade/);
     assert.doesNotMatch(node('btStats').innerHTML,/NaN|Infinity/);
@@ -126,9 +132,41 @@ function boot(storage = new Map()) {
     assert.match(node('btList').innerHTML,/primeiro backtest/);
     const corrupt=boot(new Map([['diarioBacktests_v1_guest','broken']]));corrupt.node('btStrategy').value='test';corrupt.submit('btCreate');
     assert.equal(corrupt.storage.get('diarioBacktests_v1_guest'),'broken');
+    const zeroApp=boot();zeroApp.node('btStrategy').value='Teste 0 a 0';zeroApp.submit('btCreate');
+    zeroApp.ctx.result='breakeven';zeroApp.node('btTarget').value='3';zeroApp.node('btSetupTag').value='BE';zeroApp.submit('btTrade');
+    const zeroTrade=zeroApp.rows('guest').find(t=>t.kind==='trade');
+    assert.equal(zeroTrade.r,0,'Breakeven ignores the selected target');assert.equal(zeroTrade.setupTag,'BE');
+    assert.match(zeroApp.node('btHistory').innerHTML,/<span class="pill be">Empate<\/span>/);
+    assert.match(zeroApp.node('btCurve').innerHTML,/1 trades · 0R/);
+    assert.match(zeroApp.node('btStats').innerHTML,/<span>Empates<\/span><strong>1<\/strong>/);
+    assert.doesNotMatch(zeroApp.node('btStats').innerHTML,/NaN|Infinity|-0R/);
+    zeroApp.ctx.result='target';zeroApp.node('btTarget').value='2';zeroApp.submit('btTrade');
+    zeroApp.ctx.result='stop';zeroApp.submit('btTrade');
+    const stopTrade=zeroApp.rows('guest').find(t=>t.r===-1);
+    assert.match(zeroApp.node('btStats').innerHTML,/<span>Taxa de acerto<\/span><strong>50,0%<\/strong>/,'Neutral trades do not dilute win rate');
+    zeroApp.click({edit:stopTrade.id});zeroApp.ctx.result='breakeven';zeroApp.node('btSetupTag').value='Proteção';zeroApp.submit('btTrade');
+    assert.equal(zeroApp.rows('guest').find(t=>t.id===stopTrade.id).r,0);
+    assert.equal(zeroApp.rows('guest').find(t=>t.id===stopTrade.id).created,stopTrade.created);
+    assert.equal(zeroApp.rows('guest').filter(t=>t.kind==='trade').length,3);
+    assert.match(zeroApp.node('btCurve').innerHTML,/3 trades · \+2R/);
+    assert.match(zeroApp.node('btStats').innerHTML,/<span>Empates<\/span><strong>2<\/strong>/);
+    zeroApp.click({edit:zeroTrade.id});
+    assert.equal(zeroApp.ctx.result,'breakeven');assert.equal(zeroApp.node('btTarget').disabled,true,'Editing zero keeps its neutral mode');
+    zeroApp.node('btSetupTag').value='BE atualizado';zeroApp.submit('btTrade');
+    assert.equal(zeroApp.rows('guest').find(t=>t.id===zeroTrade.id).r,0,'Editing only the tag preserves zero');
+    zeroApp.ctx.currentUser={id:'zero-user'};zeroApp.ctx.bt.authChanged();zeroApp.node('btImportLocal').onclick();await zeroApp.node('btSync').onclick();
+    assert.equal([...zeroApp.cloud.values()].filter(t=>t.payload.r===0).length,2,'Cloud JSON preserves zero as a number');
+    const zeroSession=zeroApp.rows('zero-user').find(t=>t.kind==='session');
+    const zeroReload=boot(new Map([['diarioBacktests_v1_zero-user',JSON.stringify(zeroApp.rows('zero-user'))]]));
+    zeroReload.ctx.currentUser={id:'zero-user'};zeroReload.ctx.bt.authChanged();zeroReload.click({open:zeroSession.id});
+    assert.match(zeroReload.node('btStats').innerHTML,/<span>Empates<\/span><strong>2<\/strong>/);
+    const reloadedZero=zeroReload.rows('zero-user').find(t=>t.r===0&&t.setupTag==='BE atualizado');
+    zeroReload.click({edit:reloadedZero.id});zeroReload.ctx.result='target';zeroReload.node('btTarget').value='3';zeroReload.submit('btTrade');
+    assert.equal(zeroReload.rows('zero-user').find(t=>t.id===reloadedZero.id).r,3,'Zero can be corrected to a target');
+    assert.match(zeroReload.node('btCurve').innerHTML,/3 trades · \+5R/);
     new vm.Script(fs.readFileSync(__dirname+'/diario-core.js','utf8'));
     const html=fs.readFileSync(__dirname+'/diario-pro-plus.html','utf8');
     for(const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);
     assert.equal((html.match(/data-view="backtests"/g)||[]).length,1);
-    console.log('PASS: backtest statistics, empty/wins/losses/breakeven cases, streaks, edit/cancel/failure without duplicates, cloud update/reload, newest-first history with chronological totals, tags, deletion, offline retry, account isolation and inline syntax.');
+    console.log('PASS: breakeven registration/edit/reload/cloud payload, neutral counts/win rate/streaks, backtest statistics, edit/cancel/failure without duplicates, newest-first history, tags, deletion, offline retry, account isolation and inline syntax.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
