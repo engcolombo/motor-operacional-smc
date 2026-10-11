@@ -201,6 +201,15 @@
 .pro-plus .bt-setup-field { flex: 0 1 220px; min-width: 0; }
 .pro-plus .bt-history-setup { min-width: 140px; }
 .pro-plus .bt-history-setup .tag { max-width: 240px; white-space: normal; overflow-wrap: anywhere; }
+.pro-plus .bt-history-actions { display: flex; gap: 8px; }
+.pro-plus .bt-statistics { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.pro-plus .bt-statistics > h2 { margin: 0 0 14px; font-size: 14px; font-weight: 600; }
+.pro-plus .bt-stats-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; }
+.pro-plus .bt-stats-group { min-width: 0; }
+.pro-plus .bt-stats-group h3 { margin: 0 0 9px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.pro-plus .bt-stats-group .metric-row { gap: 10px; padding: 6px 0; }
+.pro-plus .bt-stats-group .metric-row span { color: var(--muted); }
+.pro-plus .bt-stats-note { margin: 14px 0 0; font-size: 11px; line-height: 1.5; }
 .pro-plus #btTrade input[type=radio] { accent-color: #a8bfd7; }
 .pro-plus #btCreate { align-items: end; }
 @media (max-width: 1200px) {
@@ -242,9 +251,11 @@
     .pro-plus #btCreate > .field { min-width: 0 !important; flex-basis: 100% !important; }
     .pro-plus .bt-setup-field { flex: 1 1 160px; }
     .pro-plus .bt-setup-field input { font-size: 16px; }
+    .pro-plus .bt-stats-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
 }
 @media (max-width: 560px) {
     .pro-plus #advancedStats { grid-template-columns: 1fr; }
+    .pro-plus .bt-stats-grid { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
     .pro-plus *, .pro-plus *::before, .pro-plus *::after { transition: none !important; scroll-behavior: auto !important; }

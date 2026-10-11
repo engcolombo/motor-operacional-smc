@@ -1,11 +1,12 @@
-/* Manual backtests: independent of live trades; append-only entries with deletion markers. */
+/* Manual backtests: independent of live trades; stable entries with deletion markers. */
 const Backtests = (() => {
     const TABLE = 'backtest_entries';
-    let owner = null, records = [], active = null, busy = false, message = '', timer, storageReady = true;
+    let owner = null, records = [], active = null, editing = null, busy = false, message = '', timer, storageReady = true;
     const el = id => document.getElementById(id);
     const key = who => `diarioBacktests_v1_${who}`;
     const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const rfmt = n => `${n > 0 ? '+' : ''}${n}R`;
+    const number = n => (n === 0 ? 0 : n).toLocaleString('pt-BR', {maximumFractionDigits:2});
+    const rfmt = n => `${n > 0 ? '+' : ''}${number(n)}R`;
     function read(who) {
         const data = JSON.parse(localStorage.getItem(key(who)) || '[]');
         if (!Array.isArray(data)) throw new Error('Backup local inválido');
@@ -19,10 +20,70 @@ const Backtests = (() => {
     const sessions = () => records.filter(x => x.kind === 'session' && !x.deleted);
     const trades = id => records.filter(x => x.kind === 'trade' && x.parent === id && !x.deleted).sort((a,b) => a.created.localeCompare(b.created) || a.id.localeCompare(b.id));
     function metrics(list) {
-        let total = 0, peak = 0, dd = 0, wins = 0;
-        const points = [0];
-        list.forEach(t => { total += t.r; wins += t.r > 0 ? 1 : 0; peak = Math.max(peak, total); dd = Math.max(dd, peak - total); points.push(total); });
-        return {total, dd, wins, points};
+        let total = 0, peak = 0, dd = 0, wins = 0, losses = 0, grossWins = 0, grossLosses = 0;
+        let largestWin = 0, largestLoss = 0, winStreak = 0, lossStreak = 0, bestWinStreak = 0, worstLossStreak = 0;
+        const points = [0], targets = {1:0, 2:0, 3:0};
+        list.forEach(t => {
+            total += t.r;
+            if (t.r > 0) {
+                wins++; grossWins += t.r; largestWin = Math.max(largestWin, t.r);
+                winStreak++; lossStreak = 0; bestWinStreak = Math.max(bestWinStreak, winStreak);
+                if (t.r in targets) targets[t.r]++;
+            } else if (t.r < 0) {
+                losses++; grossLosses -= t.r; largestLoss = Math.min(largestLoss, t.r);
+                lossStreak++; winStreak = 0; worstLossStreak = Math.max(worstLossStreak, lossStreak);
+            } else { winStreak = 0; lossStreak = 0; }
+            peak = Math.max(peak, total); dd = Math.max(dd, peak - total); points.push(total);
+        });
+        const count = list.length;
+        return {total, dd, wins, losses, count, breakevens:count-wins-losses, points, targets,
+            grossWins, grossLosses, largestWin, largestLoss, bestWinStreak, worstLossStreak,
+            winRate:wins+losses ? 100*wins/(wins+losses) : 0,
+            expectancy:count ? total/count : null, avgWin:wins ? grossWins/wins : null,
+            avgLoss:losses ? -grossLosses/losses : null, profitFactor:grossLosses ? grossWins/grossLosses : null};
+    }
+    function tradeMode() {
+        el('btTradeLegend').textContent = editing ? `Editar trade #${trades(active).findIndex(t=>t.id===editing)+1}` : 'Resultado do próximo trade';
+        el('btSaveTrade').textContent = editing ? 'Salvar alterações' : 'Registrar trade';
+        el('btCancelEdit').hidden = !editing;
+    }
+    function clearEdit() {
+        if (editing) {
+            el('btTarget').value = '1'; el('btTarget').disabled = false;
+            document.querySelectorAll('input[name="btResult"]').forEach(input=>input.checked=input.value==='target');
+            el('btSetupTag').value = '';
+        }
+        editing = null; tradeMode();
+    }
+    function editTrade(id) {
+        const trade = trades(active).find(t=>t.id===id);
+        if (!trade) return;
+        editing = id;
+        document.querySelectorAll('input[name="btResult"]').forEach(input=>input.checked=input.value===(trade.r<0?'stop':'target'));
+        el('btTarget').value = String(trade.r>0?trade.r:1); el('btTarget').disabled = trade.r<0;
+        el('btSetupTag').value = trade.setupTag || '';
+        tradeMode(); el('btTrade').scrollIntoView({behavior:'smooth',block:'center'});
+        el('btSetupTag').focus({preventScroll:true});
+    }
+    function renderStats(m) {
+        const percent = `${m.winRate.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`;
+        const optionalR = value => value === null ? '—' : rfmt(value);
+        const groups = [
+            ['Operações', [
+                ['Quantidade de trades',m.count],['Alvos atingidos',m.wins],['Stops',m.losses],['Empates',m.breakevens],
+                ['Taxa de acerto',percent],['Alvos 1R / 2R / 3R',`${m.targets[1]} / ${m.targets[2]} / ${m.targets[3]}`]
+            ]],
+            ['Retorno em R', [
+                ['Resultado acumulado',rfmt(m.total)],['Ganhos brutos',rfmt(m.grossWins)],['Perdas brutas',rfmt(-m.grossLosses)],
+                ['Média por trade',optionalR(m.expectancy)],['Média dos alvos',optionalR(m.avgWin)],['Média dos stops',optionalR(m.avgLoss)]
+            ]],
+            ['Risco e sequências', [
+                ['Profit factor',m.profitFactor === null ? (m.wins ? 'Sem perdas' : '—') : number(m.profitFactor)],
+                ['Drawdown máximo',`${number(m.dd)}R`],['Maior alvo',m.wins ? rfmt(m.largestWin) : '—'],
+                ['Maior perda',m.losses ? rfmt(m.largestLoss) : '—'],['Alvos consecutivos (máx.)',m.bestWinStreak],['Stops consecutivos (máx.)',m.worstLossStreak]
+            ]]
+        ];
+        el('btStats').innerHTML = groups.map(([heading,rows])=>`<div class="bt-stats-group"><h3>${heading}</h3>${rows.map(([label,value])=>`<div class="metric-row"><span>${label}</span><strong>${value}</strong></div>`).join('')}</div>`).join('');
     }
     function commit(next) {
         if (!save(next)) return false;
@@ -86,16 +147,18 @@ const Backtests = (() => {
         }).join('') : '<tr><td colspan="4" class="empty">Crie seu primeiro backtest: POI, Orderblock ou outra estratégia.</td></tr>';
         const session = list.find(x => x.id === active);
         el('btEditor').hidden = !session;
-        if (!session) return;
+        if (!session) { clearEdit(); return; }
         el('btName').textContent = session.name;
         const ts = trades(active), m = metrics(ts);
-        el('btKpis').innerHTML = [['Resultado',rfmt(m.total)],['Trades',ts.length],['Acerto',`${ts.length ? (100*m.wins/ts.length).toFixed(1) : '0'}%`],['Drawdown máximo',`${m.dd}R`]].map(([label,value])=>`<div class="kpi-card"><div class="label">${label}</div><div class="value">${value}</div></div>`).join('');
+        if (editing && !ts.some(t=>t.id===editing)) clearEdit();
+        tradeMode();
+        el('btKpis').innerHTML = [['Resultado',rfmt(m.total)],['Trades',m.count],['Acerto',`${number(m.winRate)}%`],['Drawdown máximo',`${number(m.dd)}R`]].map(([label,value])=>`<div class="kpi-card"><div class="label">${label}</div><div class="value">${value}</div></div>`).join('');
         let accumulated = 0;
         el('btHistory').innerHTML = ts.length ? ts.map((t,i) => {
             accumulated += t.r;
-            return `<tr><td>${i+1}</td><td>${esc(new Date(t.created).toLocaleString('pt-BR'))}</td><td><span class="pill ${t.r>0?'win':'loss'}">${t.r>0?'Alvo':'Stop'}</span></td><td class="bt-history-setup">${t.setupTag ? `<span class="tag">${esc(t.setupTag)}</span>` : '<span class="muted">—</span>'}</td><td>${rfmt(t.r)}</td><td>${rfmt(accumulated)}</td><td><button class="btn btn-mini btn-danger" data-remove="${esc(t.id)}" aria-label="Excluir trade ${i+1}">Excluir</button></td></tr>`;
+            return `<tr><td>${i+1}</td><td>${esc(new Date(t.created).toLocaleString('pt-BR'))}</td><td><span class="pill ${t.r>0?'win':t.r<0?'loss':'be'}">${t.r>0?'Alvo':t.r<0?'Stop':'Empate'}</span></td><td class="bt-history-setup">${t.setupTag ? `<span class="tag">${esc(t.setupTag)}</span>` : '<span class="muted">—</span>'}</td><td>${rfmt(t.r)}</td><td>${rfmt(accumulated)}</td><td><div class="bt-history-actions"><button class="btn btn-mini" data-edit="${esc(t.id)}" aria-label="Editar trade ${i+1}">Editar</button><button class="btn btn-mini btn-danger" data-remove="${esc(t.id)}" aria-label="Excluir trade ${i+1}">Excluir</button></div></td></tr>`;
         }).reverse().join('') : '<tr><td colspan="7" class="empty">Marque o resultado e registre o primeiro trade.</td></tr>';
-        draw(m.points);
+        draw(m.points); renderStats(m);
     }
     function draw(points) {
         const w=800,h=220,p=36, min=Math.min(0,...points), max=Math.max(1,...points), span=max-min || 1;
@@ -111,9 +174,10 @@ const Backtests = (() => {
           <div style="overflow-x:auto"><table><thead><tr><th>Estratégia</th><th>Trades</th><th>Resultado</th><th>Ações</th></tr></thead><tbody id="btList"></tbody></table></div></div>
           <div class="panel" id="btEditor" hidden><div class="panel-head"><h2 id="btName"></h2><button class="btn" id="btClose">Voltar à lista</button></div><div class="panel-body">
           <div id="btKpis" class="kpi-grid"></div>
-          <form id="btTrade"><fieldset style="border:1px solid var(--line);border-radius:8px;padding:16px"><legend>Resultado do próximo trade</legend><div class="actions"><label class="btn"><input type="radio" name="btResult" value="target" checked> Alvo</label><label class="btn"><input type="radio" name="btResult" value="stop"> Stop (−1R)</label><label class="btn">Alvo em R <select id="btTarget" style="background:var(--bg)"><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option></select></label><div class="field bt-setup-field"><label for="btSetupTag">Tag do setup</label><input id="btSetupTag" type="text" maxlength="100" placeholder="Ex.: POI, Orderblock" autocomplete="off"></div><button class="btn btn-primary" type="submit">Registrar trade</button></div></fieldset></form>
-          <p class="muted">1R é o risco de uma operação. Curva bruta, sem taxas ou parciais.</p><svg id="btCurve" viewBox="0 0 800 220" role="img" aria-label="Curva de lucro acumulado em R" style="width:100%;display:block;background:var(--bg-elev-2);border-radius:8px"></svg></div>
-          <div class="table-scroll" style="max-height:440px" tabindex="0" role="region" aria-label="Histórico do backtest"><table><thead><tr><th>#</th><th>Registrado em</th><th>Resultado</th><th>Tag do setup</th><th>R</th><th>Acumulado</th><th>Ação</th></tr></thead><tbody id="btHistory"></tbody></table></div></div>
+          <form id="btTrade"><fieldset style="border:1px solid var(--line);border-radius:8px;padding:16px"><legend id="btTradeLegend">Resultado do próximo trade</legend><div class="actions"><label class="btn"><input type="radio" name="btResult" value="target" checked> Alvo</label><label class="btn"><input type="radio" name="btResult" value="stop"> Stop (−1R)</label><label class="btn">Alvo em R <select id="btTarget" style="background:var(--bg)"><option value="1">1R</option><option value="2">2R</option><option value="3">3R</option></select></label><div class="field bt-setup-field"><label for="btSetupTag">Tag do setup</label><input id="btSetupTag" type="text" maxlength="100" placeholder="Ex.: POI, Orderblock" autocomplete="off"></div><button class="btn btn-primary" id="btSaveTrade" type="submit">Registrar trade</button><button class="btn" id="btCancelEdit" type="button" hidden>Cancelar edição</button></div></fieldset></form>
+          <p class="muted">1R é o risco de uma operação. Curva bruta, sem taxas ou parciais.</p><svg id="btCurve" viewBox="0 0 800 220" role="img" aria-label="Curva de lucro acumulado em R" style="width:100%;display:block;background:var(--bg-elev-2);border-radius:8px"></svg>
+          <section class="bt-statistics" aria-labelledby="btStatsTitle"><h2 id="btStatsTitle">Estatísticas do backtest</h2><div class="bt-stats-grid" id="btStats"></div><p class="muted bt-stats-note">Acerto = alvos ÷ (alvos + stops). Profit factor = ganhos brutos ÷ perdas brutas. Valores em R, sem taxas.</p></section></div>
+          <div class="table-scroll" style="max-height:440px" tabindex="0" role="region" aria-label="Histórico do backtest"><table><thead><tr><th>#</th><th>Registrado em</th><th>Resultado</th><th>Tag do setup</th><th>R</th><th>Acumulado</th><th>Ações</th></tr></thead><tbody id="btHistory"></tbody></table></div></div>
         </section>`);
         el('btCreate').onsubmit = e => {
             e.preventDefault(); const name=el('btStrategy').value.trim(); if (!name) return;
@@ -126,18 +190,23 @@ const Backtests = (() => {
             const stop=document.querySelector('input[name="btResult"]:checked').value==='stop';
             const r=stop?-1:Number(el('btTarget').value); if (![-1,1,2,3].includes(r)) return;
             const setupTag=el('btSetupTag').value.trim().slice(0,100);
-            if (commit([...records,{id:uid(),kind:'trade',parent:active,r,setupTag,created:new Date().toISOString(),dirty:true}])) el('btSetupTag').value='';
+            if (editing) {
+                if (!trades(active).some(t=>t.id===editing)) { clearEdit(); return; }
+                if (commit(records.map(t=>t.id===editing ? {...t,r,setupTag,updated:new Date().toISOString(),dirty:true} : t))) clearEdit();
+            } else if (commit([...records,{id:uid(),kind:'trade',parent:active,r,setupTag,created:new Date().toISOString(),dirty:true}])) el('btSetupTag').value='';
         };
         document.querySelectorAll('input[name="btResult"]').forEach(input=>input.onchange=()=>{ el('btTarget').disabled=document.querySelector('input[name="btResult"]:checked').value==='stop'; });
         el('view-backtests').onclick = e => {
             const b=e.target.closest('button'); if (!b) return;
-            if (b.dataset.open) { active=b.dataset.open; render(); el('btEditor').scrollIntoView({behavior:'smooth',block:'start'}); }
+            if (b.dataset.open) { clearEdit(); active=b.dataset.open; render(); el('btEditor').scrollIntoView({behavior:'smooth',block:'start'}); }
+            if (b.dataset.edit) editTrade(b.dataset.edit);
             const id=b.dataset.delete || b.dataset.remove;
             if (id && confirm(b.dataset.delete ? 'Excluir este backtest e seu histórico? A exclusão será sincronizada com o Supabase.' : 'Excluir este trade e recalcular a curva?')) {
                 commit(records.map(x=> x.id===id || x.parent===id ? {...x,deleted:true,dirty:true} : x));
             }
         };
         el('btClose').onclick=()=>{active=null;render();};
+        el('btCancelEdit').onclick=clearEdit;
         el('btSync').onclick=sync;
         el('btExport').onclick=()=>{
             const url=URL.createObjectURL(new Blob([JSON.stringify({version:1,records},null,2)],{type:'application/json'}));

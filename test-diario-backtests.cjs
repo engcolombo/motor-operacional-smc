@@ -6,12 +6,12 @@ function boot(storage = new Map()) {
     const nodes = new Map(), cloud = new Map();
     let seq = 0;
     const node = id => {
-        if (!nodes.has(id)) nodes.set(id, {value: id === 'btTarget' ? '1' : '', innerHTML:'', textContent:'', scrollIntoView(){}, click(){}});
+        if (!nodes.has(id)) nodes.set(id, {value: id === 'btTarget' ? '1' : '', innerHTML:'', textContent:'', scrollIntoView(){}, focus(){}, click(){}});
         return nodes.get(id);
     };
     const ctx = {
         console, Blob, URL, Date, Math, JSON, Map, Number, String, Boolean,
-        document: {getElementById:node, querySelector:s => s === '.main' ? {insertAdjacentHTML(){}} : {value:ctx.result}, querySelectorAll:()=>[], createElement:()=>node('download')},
+        document: {getElementById:node, querySelector:s => s === '.main' ? {insertAdjacentHTML(){}} : {value:ctx.result}, querySelectorAll:()=>['target','stop'].map(value=>({value,set checked(checked){if(checked)ctx.result=value;}})), createElement:()=>node('download')},
         window: {addEventListener(){}}, localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>{if(ctx.full)throw Error('quota');storage.set(k,v);},removeItem:k=>storage.delete(k)},
         setTimeout:()=>1, clearTimeout(){}, alert:msg=>ctx.alerts.push(msg), confirm:()=>true, toast(){},
         uid:()=>`id-${++seq}`, canUseCloud:()=>!!ctx.currentUser, currentUser:null, result:'target', alerts:[],
@@ -50,6 +50,23 @@ function boot(storage = new Map()) {
     const m=ctx.bt.metrics([{r:1},{r:-1},{r:-1},{r:3}]);
     assert.equal(m.total,2);assert.equal(m.dd,2);assert.equal(m.wins,2);
     assert.deepEqual(Array.from(m.points),[0,1,0,-1,2]);
+    assert.equal(m.count,4);assert.equal(m.losses,2);assert.equal(m.winRate,50);
+    assert.equal(m.grossWins,4);assert.equal(m.grossLosses,2);assert.equal(m.expectancy,0.5);
+    assert.equal(m.avgWin,2);assert.equal(m.avgLoss,-1);assert.equal(m.profitFactor,2);
+    assert.equal(m.largestWin,3);assert.equal(m.largestLoss,-1);
+    assert.equal(m.bestWinStreak,1);assert.equal(m.worstLossStreak,2);
+    const mixed=ctx.bt.metrics([1,2,-1,-1,-1,0,3,3].map(r=>({r})));
+    assert.equal(mixed.count,8);assert.equal(mixed.breakevens,1);assert.equal(mixed.total,6);
+    assert.equal(mixed.dd,3);assert.equal(mixed.bestWinStreak,2);assert.equal(mixed.worstLossStreak,3);
+    assert.equal(mixed.winRate,400/7);assert.equal(mixed.expectancy,0.75);assert.equal(mixed.profitFactor,3);
+    assert.deepEqual({...mixed.targets},{1:1,2:1,3:2});
+    const empty=ctx.bt.metrics([]),onlyWins=ctx.bt.metrics([{r:2},{r:3}]),onlyLosses=ctx.bt.metrics([{r:-1},{r:-1}]);
+    assert.equal(empty.count,0);assert.equal(empty.winRate,0);assert.equal(empty.expectancy,null);assert.equal(empty.profitFactor,null);
+    assert.equal(onlyWins.winRate,100);assert.equal(onlyWins.profitFactor,null);assert.equal(onlyWins.avgLoss,null);assert.equal(onlyWins.dd,0);
+    assert.equal(onlyLosses.winRate,0);assert.equal(onlyLosses.profitFactor,0);assert.equal(onlyLosses.avgWin,null);assert.equal(onlyLosses.dd,2);
+    assert.match(node('btStats').innerHTML,/Quantidade de trades/);
+    assert.match(node('btStats').innerHTML,/Média por trade/);
+    assert.doesNotMatch(node('btStats').innerHTML,/NaN|Infinity/);
     const session=app.rows('guest').find(x=>x.kind==='session');
     const resumed=boot(app.storage);resumed.click({open:session.id});
     assert.match(resumed.node('btCurve').innerHTML,/4 trades · \+5R/);
@@ -75,7 +92,34 @@ function boot(storage = new Map()) {
     assert.match(node('btCurve').innerHTML,/3 trades · \+3R/);
     assert.match(node('btHistory').innerHTML,/POI/);
     assert.match(node('btHistory').innerHTML,/FVG/,'Tags survive the Supabase reload');
+    const aliceTrade=app.rows('alice').find(x=>x.kind==='trade'&&x.r===-1&&!x.deleted);
+    click({edit:aliceTrade.id});
+    assert.equal(ctx.result,'stop');assert.equal(node('btTarget').disabled,true);assert.equal(node('btSetupTag').value,'FVG');
+    assert.equal(node('btSaveTrade').textContent,'Salvar alterações');assert.equal(node('btCancelEdit').hidden,false);
+    ctx.result='target';node('btTarget').value='2';node('btSetupTag').value=' FVG corrigido ';submit('btTrade');
+    let edited=app.rows('alice').find(x=>x.id===aliceTrade.id);
+    assert.equal(edited.r,2);assert.equal(edited.setupTag,'FVG corrigido');assert.equal(edited.created,aliceTrade.created);
+    assert.ok(edited.updated);assert.equal(edited.dirty,true);
+    assert.equal(app.rows('alice').filter(x=>x.kind==='trade'&&!x.deleted).length,3,'Editing never creates a duplicate');
+    assert.match(node('btCurve').innerHTML,/3 trades · \+6R/,'Editing recalculates the chronological curve');
+    assert.match(node('btStats').innerHTML,/Sem perdas/);
+    assert.equal(node('btSaveTrade').textContent,'Registrar trade');assert.equal(node('btCancelEdit').hidden,true);
+    click({edit:aliceTrade.id});assert.equal(ctx.result,'target');assert.equal(node('btTarget').value,'2');
+    node('btSetupTag').value='Descartar';node('btCancelEdit').onclick();
+    assert.equal(app.rows('alice').find(x=>x.id===aliceTrade.id).setupTag,'FVG corrigido','Cancelling leaves the record untouched');
+    click({edit:aliceTrade.id});ctx.result='stop';node('btSetupTag').value='Tentar novamente';ctx.full=true;submit('btTrade');ctx.full=false;
+    assert.equal(app.rows('alice').find(x=>x.id===aliceTrade.id).r,2);
+    assert.equal(node('btSetupTag').value,'Tentar novamente');assert.equal(node('btSaveTrade').textContent,'Salvar alterações','Failed edits stay open');
+    submit('btTrade');await node('btSync').onclick();
+    edited=app.cloud.get(aliceTrade.id).payload;
+    assert.equal(edited.r,-1);assert.equal(edited.setupTag,'Tentar novamente');assert.equal(edited.created,aliceTrade.created);
+    const cloudReload=boot(new Map([['diarioBacktests_v1_alice',JSON.stringify(app.rows('alice'))]]));
+    cloudReload.ctx.currentUser={id:'alice'};cloudReload.ctx.bt.authChanged();cloudReload.click({open:aliceSession.id});
+    assert.match(cloudReload.node('btCurve').innerHTML,/3 trades · \+3R/);
+    assert.match(cloudReload.node('btHistory').innerHTML,/Tentar novamente/,'Edited result and tag survive reload');
+    click({edit:aliceTrade.id});
     ctx.currentUser={id:'bob'};ctx.bt.authChanged();await node('btSync').onclick();assert.equal(app.rows('bob').length,0);
+    assert.equal(node('btCancelEdit').hidden,true,'Changing accounts ends editing');
     ctx.currentUser={id:'alice'};ctx.bt.authChanged();click({delete:aliceSession.id});await node('btSync').onclick();
     assert.ok(app.rows('alice').every(x=>x.deleted));
     // A stale remote update cannot revive a deletion marker in the merge.
@@ -86,5 +130,5 @@ function boot(storage = new Map()) {
     const html=fs.readFileSync(__dirname+'/diario-pro-plus.html','utf8');
     for(const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);
     assert.equal((html.match(/data-view="backtests"/g)||[]).length,1);
-    console.log('PASS: newest-first history with chronological totals, R, drawdown, per-trade setup tags, optional/legacy tags, reload/resume, escaping, deletion, storage failure, offline retry, account isolation, import, Supabase payload/reload and inline syntax.');
+    console.log('PASS: backtest statistics, empty/wins/losses/breakeven cases, streaks, edit/cancel/failure without duplicates, cloud update/reload, newest-first history with chronological totals, tags, deletion, offline retry, account isolation and inline syntax.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
