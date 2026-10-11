@@ -197,15 +197,28 @@
 .pro-plus .cal-cell.loss-3 { background: #d89595; border-color: #d89595; color: #301418; }
 .pro-plus #btCurve polyline { stroke: #a8bfd7; }
 .pro-plus #btCurve circle { fill: #82bea5; }
-.pro-plus #btTrade .actions { align-items: center; }
+.pro-plus .bt-trade-fieldset { min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: 6px; }
+.pro-plus .bt-result-controls { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+.pro-plus .bt-result-controls .btn { display: inline-flex; align-items: center; gap: 6px; }
+.pro-plus .bt-result-controls .selected { background: #2b333d; border-color: #9eb2c8; }
+.pro-plus .bt-trade-fields { display: grid; grid-template-columns: minmax(130px,1fr) minmax(130px,1fr) minmax(130px,1fr) minmax(170px,1.3fr) auto; gap: 12px; align-items: end; }
+.pro-plus .bt-trade-fields > .field { min-width: 0; margin: 0; }
+.pro-plus .bt-trade-fields input, .pro-plus .bt-trade-actions .btn { box-sizing: border-box; height: 42px; }
+.pro-plus .bt-trade-actions { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; }
+.pro-plus .bt-form-help { margin: 12px 0 0; font-size: 11px; line-height: 1.5; }
+.pro-plus #btLegacyEditNote { margin: 0 0 14px; }
 .pro-plus .bt-unit-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 .pro-plus .bt-unit-tools > span { color: var(--muted); font-size: 12px; }
 .pro-plus .bt-unit-buttons { display: flex; gap: 4px; }
 .pro-plus .bt-unit-buttons .btn { min-width: 48px; }
 .pro-plus .bt-unit-buttons .selected { background: #2b333d; border-color: #9eb2c8; box-shadow: inset 0 -2px #9eb2c8; }
-.pro-plus .bt-unit-note { margin: -4px 0 18px; font-size: 12px; line-height: 1.5; }
-.pro-plus .bt-cash-field { flex: 0 1 290px; min-width: 0; }
-.pro-plus .bt-cash-field small { display: block; font-size: 11px; margin-top: 6px; line-height: 1.4; }
+.pro-plus .bt-pending-values { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin: 0 0 18px; padding: 12px 14px; background: #28251f; border: 1px solid #66563b; border-radius: 6px; color: #dec49b; font-size: 12px; line-height: 1.5; }
+.pro-plus .bt-pending-values > span { flex: 1 1 240px; }
+.pro-plus .bt-pending-label { color: #dec49b; font-size: 11px; }
+.pro-plus .bt-complete-values { border-color: #66563b; color: #dec49b; }
+.pro-plus .bt-history-note { margin: 0; padding: 12px 16px; font-size: 11px; line-height: 1.5; }
+.pro-plus .bt-history-table > table { min-width: 1320px; }
+.pro-plus .bt-history-table td:nth-child(n+5):nth-child(-n+10) { white-space: nowrap; }
 .pro-plus .bt-day-tools { margin-bottom: 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 6px; }
 .pro-plus .bt-day-top { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
 .pro-plus .bt-day-top h3 { margin: 0; font-size: 13px; font-weight: 600; }
@@ -225,7 +238,7 @@
 .pro-plus .bt-weekday-table > table { min-width: 980px; }
 .pro-plus .bt-weekday-table .win-text { color: var(--green); }
 .pro-plus .bt-weekday-table .loss-text { color: var(--red); }
-.pro-plus .bt-setup-field { flex: 0 1 220px; min-width: 0; }
+.pro-plus .bt-setup-field { min-width: 0; }
 .pro-plus .bt-history-setup { min-width: 140px; }
 .pro-plus .bt-history-setup .tag { max-width: 240px; white-space: normal; overflow-wrap: anywhere; }
 .pro-plus .bt-history-actions { display: flex; gap: 8px; }
@@ -240,6 +253,8 @@
 .pro-plus #btTrade input[type=radio] { accent-color: #a8bfd7; }
 .pro-plus #btCreate { align-items: end; }
 @media (max-width: 1200px) {
+    .pro-plus .bt-trade-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .pro-plus .bt-trade-actions { grid-column: 1 / -1; }
     .pro-plus .main { padding: 24px; }
     .pro-plus .grid-2 { grid-template-columns: 1fr; }
     .pro-plus .grid-2.stats-grid { grid-template-columns: 1fr; }
@@ -276,10 +291,8 @@
     .pro-plus .table-scroll td:last-child .btn { min-width: 44px; min-height: 44px; }
     .pro-plus .chart-frame { height: 250px; }
     .pro-plus #btCreate > .field { min-width: 0 !important; flex-basis: 100% !important; }
-    .pro-plus .bt-setup-field { flex: 1 1 160px; }
-    .pro-plus .bt-setup-field input { font-size: 16px; }
-    .pro-plus .bt-cash-field { flex: 1 1 240px; }
-    .pro-plus .bt-cash-field input { font-size: 16px; }
+    .pro-plus .bt-trade-fields input { font-size: 16px; height: 44px; }
+    .pro-plus .bt-trade-actions .btn, .pro-plus .bt-result-controls .btn { min-height: 44px; }
     .pro-plus .bt-unit-buttons .btn { min-height: 44px; }
     .pro-plus .bt-stats-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
     .pro-plus .bt-weekday { min-height: 44px; }
