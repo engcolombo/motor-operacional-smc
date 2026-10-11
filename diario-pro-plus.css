@@ -198,6 +198,14 @@
 .pro-plus #btCurve polyline { stroke: #a8bfd7; }
 .pro-plus #btCurve circle { fill: #82bea5; }
 .pro-plus #btTrade .actions { align-items: center; }
+.pro-plus .bt-unit-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.pro-plus .bt-unit-tools > span { color: var(--muted); font-size: 12px; }
+.pro-plus .bt-unit-buttons { display: flex; gap: 4px; }
+.pro-plus .bt-unit-buttons .btn { min-width: 48px; }
+.pro-plus .bt-unit-buttons .selected { background: #2b333d; border-color: #9eb2c8; box-shadow: inset 0 -2px #9eb2c8; }
+.pro-plus .bt-unit-note { margin: -4px 0 18px; font-size: 12px; line-height: 1.5; }
+.pro-plus .bt-cash-field { flex: 0 1 290px; min-width: 0; }
+.pro-plus .bt-cash-field small { display: block; font-size: 11px; margin-top: 6px; line-height: 1.4; }
 .pro-plus .bt-day-tools { margin-bottom: 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 6px; }
 .pro-plus .bt-day-top { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
 .pro-plus .bt-day-top h3 { margin: 0; font-size: 13px; font-weight: 600; }
@@ -270,6 +278,9 @@
     .pro-plus #btCreate > .field { min-width: 0 !important; flex-basis: 100% !important; }
     .pro-plus .bt-setup-field { flex: 1 1 160px; }
     .pro-plus .bt-setup-field input { font-size: 16px; }
+    .pro-plus .bt-cash-field { flex: 1 1 240px; }
+    .pro-plus .bt-cash-field input { font-size: 16px; }
+    .pro-plus .bt-unit-buttons .btn { min-height: 44px; }
     .pro-plus .bt-stats-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
     .pro-plus .bt-weekday { min-height: 44px; }
     .pro-plus .bt-day-date { flex: 1 1 180px; }
