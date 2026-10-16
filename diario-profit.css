@@ -224,3 +224,27 @@
     #view-profit .pf-desk-chapter .pf-desk-index { display:inline;margin-left:0!important; }
     #view-profit .pf-tabs button { padding:8px 10px; }
 }
+
+/* Preparation, measurable commitments and descriptive comparisons. */
+#view-profit .pf-filters { flex-wrap:wrap; }
+#view-profit .pf-tabs { flex-wrap:wrap; gap:2px; }
+#view-profit .pf-guide-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin-top:18px; }
+#view-profit .pf-guide-grid h3 { color:var(--pf-blue);font-size:12px; }
+#view-profit .pf-guide-grid p { font-size:12px; }
+#view-profit .pf-insight-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px; }
+#view-profit .pf-comparison { margin:0; }
+#view-profit .pf-insight-grid { margin-bottom:18px; }
+#view-profit .pf-comparison table { min-width:480px; }
+#view-profit .pf-weekly table { min-width:550px; }
+#view-profit .pf-preparation { max-width:1000px; }
+#view-profit .pf-preparation form > label,#view-profit .pf-followup > label { margin:16px 0; }
+#view-profit .pf-preparation > label { max-width:230px;margin-bottom:16px; }
+#view-profit .pf-followup { margin-top:20px;padding-top:18px;border-top:1px solid var(--line); }
+#view-profit .pf-followup p { font-size:12px; }
+#view-profit .pf-guide-grid>div,#view-profit .pf-insight-grid>* { min-width:0;overflow-wrap:anywhere; }
+@media(max-width:1100px){#view-profit .pf-insight-grid { grid-template-columns:1fr; }}
+@media(max-width:650px){#view-profit .pf-guide-grid { grid-template-columns:1fr;gap:8px; }#view-profit .pf-tabs { width:100%; }#view-profit .pf-tabs button { padding:8px 10px; }}
+
+#view-profit .pf-preparation fieldset { min-width:0;border:0;padding:0;margin:0; }
+#view-profit .pf-preparation fieldset > label { margin:16px 0; }
+#view-profit .pf-preparation fieldset:disabled button { opacity:.45;cursor:default; }

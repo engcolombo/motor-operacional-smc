@@ -1,7 +1,7 @@
 /* Trades Profit: browser-local records, isolated by diary login and broker account. */
 const ProfitTrades = (() => {
     'use strict';
-    const A=ProfitAnalysis, D=ProfitDesk, $=id=>document.getElementById(id), STORAGE='diarioProfit_v1_';
+    const A=ProfitAnalysis, D=ProfitDesk, S=ProfitSupervision, $=id=>document.getElementById(id), STORAGE='diarioProfit_v1_';
     const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const money=c=>(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
     const date=d=>d?d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4):'—';
@@ -11,11 +11,11 @@ const ProfitTrades = (() => {
     const accountKey=a=>'account:'+a;
     const masked=a=>a==='sem-conta'?'Sem conta':'Conta ••• '+a.slice(-4);
     let owner=null, data=blank(), account='', day='', tab='desk', ready=true, mounted=false, stage=null, busy=false, generation=0;
-    let status='',statusError=false,planDrafts={};
+    let status='',statusError=false,planDrafts={},prepDay='',insightAsset='';
     const localOwner=()=>typeof currentUser!=='undefined'&&currentUser?.id?currentUser.id:'guest';
-    const meta=()=>data.accounts[accountKey(account)]||{settings:{...A.DEFAULTS},reviews:{},plans:{},annotations:{}};
+    const meta=()=>data.accounts[accountKey(account)]||{settings:{...A.DEFAULTS},reviews:{},plans:{},annotations:{},preparations:{}};
     const trades=()=>data.trades.filter(t=>t.account===account);
-    const dayRules=d=>A.confirmedRules(meta().plans[d]?.rules||meta().reviews[d]?.rules||meta().settings);
+    const dayRules=d=>A.confirmedRules(meta().plans[d]?.rules||meta().reviews[d]?.rules||meta().preparations?.[d]?.rules||meta().settings);
     const analysis=d=>A.analyzeDay(trades(),d,dayRules(d),meta().annotations);
     function announce(message,error=false){status=message;statusError=error;if($('pfStatus')){$('pfStatus').textContent=message;$('pfStatus').classList.toggle('pf-error',error);}}
     function commit(next){
@@ -25,7 +25,7 @@ const ProfitTrades = (() => {
     }
     function changeAccount(mutator){
         const next=JSON.parse(JSON.stringify(data)),k=accountKey(account);
-        next.accounts[k] ||= {settings:{...A.DEFAULTS},reviews:{},plans:{},annotations:{}};
+        next.accounts[k] ||= {settings:{...A.DEFAULTS},reviews:{},plans:{},annotations:{},preparations:{}};
         mutator(next.accounts[k]);return commit(next);
     }
     function validateBackup(value){
@@ -36,7 +36,11 @@ const ProfitTrades = (() => {
         const text=v=>typeof v==='string'?v.slice(0,4000):'';
         for(const [k,m] of Object.entries(value.accounts)){
             if(!allowedKeys.has(k)||!m||typeof m!=='object')throw new Error('Conta inválida no backup.');
-            const cm={settings:A.confirmedRules(m.settings),reviews:{},plans:{},annotations:{}};
+            const cm={settings:A.confirmedRules(m.settings),reviews:{},plans:{},annotations:{},preparations:{}};
+            for(const [d,p] of Object.entries(m.preparations||{})){
+                if(!A.validDay(d))throw Error('Data de preparação inválida.');
+                cm.preparations[d]=S.preparation(p);
+            }
             for(const [d,r] of Object.entries(m.reviews||{})){
                 if(!A.validDay(d)||!r||typeof r!=='object')throw new Error('Revisão inválida.');
                 cm.reviews[d]={rules:A.confirmedRules(r.rules),desk:D.debrief(r.desk||{}),before:text(r.before),after:text(r.after),energy:text(r.energy),urge:text(r.urge),setup:text(r.setup),good:text(r.good),trigger:text(r.trigger),lesson:text(r.lesson),updated:text(r.updated),contexts:{}};
@@ -44,7 +48,7 @@ const ProfitTrades = (() => {
             }
             for(const [d,p] of Object.entries(m.plans||{})){
                 if(!A.validDay(d)||!p||!A.validDay(p.from)||!Array.isArray(p.items)||!p.items.every(x=>['count','pause','streak','time','limit','spacing','focus',...A.SMC_CHECKS].includes(x)))throw new Error('Plano inválido.');
-                cm.plans[d]={from:p.from,rules:A.confirmedRules(p.rules),items:[...new Set(p.items)],focus:text(p.focus),created:text(p.created),reflection:['yes','partial','no'].includes(p.reflection)?p.reflection:''};
+                cm.plans[d]={from:p.from,rules:A.confirmedRules(p.rules),items:[...new Set(p.items)],focus:text(p.focus),created:text(p.created),reflection:['yes','partial','no'].includes(p.reflection)?p.reflection:'',contract:S.contract(p.contract||{})};
             }
             for(const [id,n] of Object.entries(m.annotations||{})){
                 if(!clean.trades.some(t=>t.id===id&&accountKey(t.account)===k)||!n)continue;
@@ -57,7 +61,7 @@ const ProfitTrades = (() => {
     }
     function authChanged(){
         const nextOwner=localOwner();if(nextOwner===owner)return;
-        owner=nextOwner;generation++;stage=null;busy=false;planDrafts={};status='';statusError=false;ready=true;
+        owner=nextOwner;prepDay='';insightAsset='';generation++;stage=null;busy=false;planDrafts={};status='';statusError=false;ready=true;
         try{const raw=localStorage.getItem(STORAGE+owner);data=raw?validateBackup(JSON.parse(raw)):blank();}
         catch(e){data=blank();ready=false;status='Não foi possível ler os dados Profit salvos. O conteúdo original foi preservado. Use Backup para recuperá-lo.';statusError=true;}
         account=[...new Set(data.trades.map(t=>t.account))][0]||'';day=A.dates(trades()).at(-1)||'';
@@ -130,12 +134,17 @@ const ProfitTrades = (() => {
     }
     function planMarkup(a,m){
         const planChecks=A.analyzeDay(trades(),day,m.settings,m.annotations).checks;
-        const draft=planDrafts[account+'|'+day]||{},target=draft.target||A.nextWeekday(day), existing=m.plans[target], chosen=draft.items||existing?.items||planChecks.filter(c=>c.pass===false).map(c=>c.id);
+        const draft=planDrafts[account+'|'+day]||{},target=draft.target||A.nextWeekday(day), existing=m.plans[target], chosen=draft.items||existing?.items||deskReport().priority.items;
         const focus=draft.focus??existing?.focus??'';
+        const priority=deskReport().priority,contract=S.contract(draft.contract||existing?.contract||{priority:priority.primary||priority.items[0]||'focus',trigger:'Quando eu considerar uma nova entrada ou alterar a gestão',proof:priority.proof});
         return '<section class="pf-card"><span class="pf-eyebrow">INTENÇÃO EM AÇÃO</span><h3>Meu compromisso para o próximo pregão</h3><p class="pf-muted">Escolha poucas ações observáveis. Ritmo e limites são conferidos pelo CSV; setup, R, contratos e stop dependem também da revisão SMC das operações.</p>'+
         '<form id="pfPlan"><label>Data do próximo pregão<input id="pfPlanDate" type="date" value="'+target+'" min="'+A.nextWeekday(day)+'" required></label><p class="pf-small pf-muted">Sugestão pula fins de semana. Ajuste para feriados ou dias sem operar.</p>'+
         '<div class="pf-promises">'+planChecks.map(c=>'<label><input type="checkbox" name="promise" value="'+c.id+'"'+(chosen.includes(c.id)?' checked':'')+'><span>'+esc(c.label)+'</span></label>').join('')+'</div>'+
+        '<label>Uma prioridade principal<select id="pfPriority">'+selectOptions([...planChecks.map(c=>[c.id,c.label]),['focus','Ação pessoal · conferida pelo meu relato']],contract.priority)+'</select></label>'+
+        '<label>Qual situação deve acionar a resposta?<textarea id="pfTrigger" rows="2" maxlength="4000">'+esc(contract.trigger)+'</textarea></label>'+
         '<label>Se eu perceber meu gatilho, então vou…<textarea id="pfFocus" rows="3" maxlength="4000" placeholder="Escreva uma ação específica que depende de você.">'+esc(focus)+'</textarea></label>'+
+        '<label>Qual evidência permitirá conferir a mudança?<textarea id="pfProof" rows="2" maxlength="4000">'+esc(contract.proof)+'</textarea></label>'+
+        '<p class="pf-small pf-muted">A prioridade é a cobrança principal; as demais regras dão suporte. O critério escolhido é conferido separadamente do seu relato pessoal.</p>'+
         '<button class="btn btn-primary" type="submit">Salvar compromisso</button><p class="pf-muted" id="pfPlanSaved">'+(existing?'Existe um compromisso salvo para '+date(target)+'.':'O resultado financeiro não é uma promessa de processo.')+'</p></form></section>';
     }
     function dueMarkup(a,m){
@@ -143,7 +152,7 @@ const ProfitTrades = (() => {
         const checks=new Map(A.analyzeDay(trades(),day,p.rules,m.annotations).checks.map(c=>[c.id,c]));
         return '<section class="pf-card pf-due"><span class="pf-eyebrow">COMBINADO EM '+date(p.from)+'</span><h3>Compromissos para hoje</h3>'+
         p.items.filter(id=>id!=='focus').map(id=>{const c=checks.get(id);return c?checkRow(c,!a.entries.length&&!a.closed.length):'';}).join('')+
-        (p.focus?'<p class="pf-quote">'+esc(p.focus)+'</p><label>Consegui cumprir minha ação pessoal?<select id="pfReflection">'+selectOptions([['','Ainda não avaliei'],['yes','Sim'],['partial','Parcialmente'],['no','Não']],p.reflection||'')+'</select></label>':'')+'</section>';
+        (p.focus?'<p class="pf-quote">'+esc(p.focus)+'</p><label>Consegui cumprir minha ação pessoal?<select id="pfReflection">'+selectOptions([['','Ainda não avaliei'],['yes','Sim'],['partial','Parcialmente'],['no','Não']],p.reflection||'')+'</select></label>':'')+followupMarkup(p,a)+'</section>';
     }
     function tableMarkup(a,m){
         const rows=[...new Map([...a.closed,...a.entries].map(t=>[t.id,t])).values()].sort((x,y)=>x.open.localeCompare(y.open));
@@ -256,13 +265,13 @@ const ProfitTrades = (() => {
         reports.slice().reverse().map(a=>'<tr><td><button class="pf-link" data-day="'+a.day+'">'+date(a.day)+'</button></td><td class="'+tone(a.pnl)+'">'+money(a.pnl)+'</td><td>'+(a.score===null?'—':a.score+'%')+'</td><td>'+a.entries.length+'</td><td>'+a.afterLoss.length+'</td><td>'+a.maxStreak+'</td><td>'+money(a.afternoonGiveback)+'</td><td>'+(m.reviews[a.day]?'Iniciada':'Pendente')+'</td></tr>').join('')+'</tbody></table></div></section>';
     }
 
-    const deskReport=()=>D.report({trades:trades(),day,settings:meta().settings,annotations:meta().annotations,reviews:meta().reviews,plans:meta().plans});
+    const deskReport=()=>D.report({trades:trades(),day,settings:meta().settings,annotations:meta().annotations,reviews:meta().reviews,plans:meta().plans,preparations:meta().preparations||{}});
     function deskMarkup(m){
         const d=deskReport(),a=d.a,rv=d.saved;
         const badge=d.reviewed?'Debrief concluído':d.stale?'Dados mudaram · reconferir':'Debrief pendente';
         const levels={critical:'Quebra de controle relatada ou limite confirmado',deviation:'Desvio a revisar',pending:'Evidência incompleta',review:'Verificação de processo'};
         const nextPlans=Object.entries(m.plans).filter(([target,p])=>target>day&&p.from===day);
-        return '<section class="pf-card pf-desk-verdict pf-desk-'+d.status+'"><div class="pf-section-title"><div><span class="pf-eyebrow">MESA · REUNIÃO DE FECHAMENTO · '+date(day)+'</span><h2>'+esc(d.title)+'</h2></div><span class="pf-badge" id="pfDeskBadge">'+badge+'</span></div>'+
+        return dailyGuideMarkup(d,m)+'<section class="pf-card pf-desk-verdict pf-desk-'+d.status+'"><div class="pf-section-title"><div><span class="pf-eyebrow">MESA · REUNIÃO DE FECHAMENTO · '+date(day)+'</span><h2>'+esc(d.title)+'</h2></div><span class="pf-badge" id="pfDeskBadge">'+badge+'</span></div>'+
         '<p class="pf-desk-lead">'+esc(d.opening)+'</p><p class="pf-desk-result">'+esc(d.resultReading)+'</p>'+
         '<div class="pf-desk-numbers"><div><span>Operações sinalizadas</span><strong>'+d.flaggedCount+'<small> / '+d.coverage.total+'</small></strong></div><div><span>Revisão SMC suficiente</span><strong>'+d.coverage.complete+'<small> / '+d.coverage.total+'</small></strong></div><div><span>Resultado da sessão</span><strong class="'+tone(a.pnl)+'">'+money(a.pnl)+'</strong></div></div>'+
         (!a.rules.configured?'<p class="pf-small pf-muted">Intervalo de 10 min e referência de 2R confirmados no seu plano. Os demais limites ainda são referências iniciais; revise-os em “Regras do meu plano”.</p>':'')+
@@ -309,6 +318,77 @@ const ProfitTrades = (() => {
         return ok;
     }
 
+
+    const localStamp=()=>{const d=new Date(),pad=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());};
+    const supervisionInput=()=>({trades:trades(),day,settings:meta().settings,reviews:meta().reviews,plans:meta().plans,annotations:meta().annotations,preparations:meta().preparations||{},asset:insightAsset});
+    function preparationMarkup(m){
+        prepDay=prepDay||localStamp().slice(0,10);
+        const p=m.preparations?.[prepDay],v=S.preparation(p||{}),plan=m.plans[prepDay],c=S.contract(plan?.contract||{}),r=dayRules(prepDay);
+        const state=S.prepStatus(p,prepDay,trades()),locked=!!p&&trades().some(t=>t.open.slice(0,10)===prepDay);
+        const known=trades().filter(t=>t.open.slice(0,10)===prepDay).map(t=>A.smcTrade(t,m.annotations[t.id],r)).filter(x=>x.riskCents!==null);
+        const excess=p?.riskCents?known.filter(x=>x.riskCents>p.riskCents).length:0;
+        return '<section class="pf-card pf-preparation"><span class="pf-eyebrow">ANTES DA PRIMEIRA ORDEM</span><h2>Preparação do pregão</h2><p class="pf-muted">Defina o que pretende executar e sua resposta ao principal gatilho. É possível preparar uma data futura antes de importar as operações.</p>'+
+            '<label>Data da preparação<input type="date" id="pfPrepDate" value="'+prepDay+'"></label><p class="pf-note" id="pfPrepState">'+esc(state.label)+'. Horários locais do navegador; registros feitos depois não comprovam planejamento prévio.</p>'+
+            (plan?'<div class="pf-quote"><strong>Compromisso trazido da revisão de '+date(plan.from)+'</strong><p>'+esc(plan.focus)+'</p><p>Gatilho: '+esc(c.trigger||'não registrado')+'<br>Como conferir: '+esc(c.proof||'não registrado')+'</p></div>':'<p class="pf-muted">Ainda não há compromisso anterior para esta data. Defina uma resposta específica abaixo.</p>')+
+            '<p class="pf-small pf-muted">Regras de referência para esta sessão: intervalo '+r.quickMinutes+' min; alvo '+r.minTargetR+'R; até '+r.maxTrades+' entradas; pausa após perda '+r.pauseMinutes+' min; sequência máxima '+r.maxLosses+' perdas; última entrada '+r.endTime+'. '+(r.configured?'Limites personalizados.':'Revise os limites iniciais em “Regras do meu plano”.')+'</p>'+
+            (p?'<p class="pf-small">Conferência posterior: '+known.length+' operações com risco inicial informado; '+excess+' acima do teto por operação registrado. O risco do CSV não é estimado.</p>':'')+
+            '<form id="pfPrepForm" novalidate><fieldset'+(locked?' disabled':'')+'><div class="pf-form-grid"><label>Como dormi?<select name="sleep">'+selectOptions([['','Não informado'],['rested','Descansado'],['regular','Regular'],['poor','Mal descansado']],v.sleep)+'</select></label>'+
+            ['tension','urge'].map((k,i)=>'<label>'+(i?'Vontade de recuperar dinheiro':'Tensão percebida')+'<select name="'+k+'">'+selectOptions([['','Não informada'],...Array.from({length:11},(_,n)=>[String(n),n+' / 10'])],v[k])+'</select></label>').join('')+
+            '<label>Risco máximo planejado por operação (R$)<input name="riskCents" inputmode="decimal" placeholder="Defina no seu plano" value="'+(v.riskCents===null?'':esc((v.riskCents/100).toFixed(2).replace('.',',')))+'"></label></div>'+
+            [['setups','Quais setups e condições autorizam uma entrada?','Estrutura, contexto, invalidação e gatilho.'],['exceptions','Quais exceções permitem uma saída positiva abaixo do alvo?','Descreva as regras previstas. Se não há exceções, registre “Nenhuma”.'],['trigger','Qual gatilho exige atenção hoje?','Ex.: vontade de recuperar após uma perda.'],['response','Se esse gatilho aparecer, o que farei antes da próxima ordem?','Ação observável e coerente com seu plano.']].map(([k,label,placeholder])=>'<label>'+label+'<textarea name="'+k+'" rows="3" maxlength="4000" placeholder="'+placeholder+'">'+esc(p?v[k]:k==='trigger'?c.trigger:k==='response'?plan?.focus||'':v[k])+'</textarea></label>').join('')+
+            '<p class="pf-small pf-muted">Esses relatos dão contexto à revisão. Nenhuma resposta recebe diagnóstico ou autorização automática para operar.</p><p id="pfPrepError" role="alert" class="pf-error"></p><button type="submit" class="btn btn-primary">Salvar preparação</button></fieldset>'+(locked?'<p class="pf-note">Esta preparação foi preservada porque o pregão já tem entradas importadas. Registre a correção no debrief e prepare a mudança para a próxima sessão.</p>':'')+'</form></section>';
+    }
+    function followupMarkup(p,a){
+        const c=S.contract(p.contract||{}),result=S.planResult(p,a);
+        return '<div class="pf-followup"><h4>'+esc(result.label)+'</h4><p class="pf-small pf-muted">'+esc(result.detail||'Critério observável e relato da ação pessoal são avaliados separadamente.')+'</p>'+
+            '<p><strong>Gatilho combinado:</strong> '+esc(c.trigger||'Não registrado no plano anterior.')+'<br><strong>Prova esperada:</strong> '+esc(c.proof||'Não registrada no plano anterior.')+'</p>'+
+            '<div class="pf-form-grid"><label>Quando percebi o gatilho?<select data-followup="noticed">'+selectOptions([['','Ainda não revisei'],['before','Antes da decisão'],['after','Depois da decisão'],['not','Não percebi no momento'],['none','O gatilho não ocorreu']],c.noticed)+'</select></label>'+
+            '<label>O que dificultou a resposta combinada?<select data-followup="barrier">'+selectOptions([['','Ainda não revisei'],['none','Sem dificuldade relatada'],['unclear','Regra pouco clara'],['impractical','Ação difícil de executar'],['late','Percebi tarde'],['notused','Percebi, mas não usei a ação'],['other','Outro motivo']],c.barrier)+'</select></label></div>'+
+            '<label>Qual episódio comprova o que você conseguiu fazer?<textarea data-followup="evidence" rows="3" maxlength="4000" placeholder="Horário, operação e ação executada. Seu relato será identificado como relato.">'+esc(c.evidence)+'</textarea></label>'+
+            '<label>O que precisa mudar para a ação funcionar melhor?<textarea data-followup="barrierNote" rows="2" maxlength="4000">'+esc(c.barrierNote)+'</textarea></label><p class="pf-small pf-muted">Relatos salvos ao preencher. Marcar que cumpriu a ação não apaga um descumprimento observado.</p></div>';
+    }
+    function dailyGuideMarkup(d,m){
+        const p=m.plans[day],c=S.contract(p?.contract||{}),prep=m.preparations?.[day];
+        const decision=p?(c.priority?d.a.checks.find(x=>x.id===c.priority)?.label||'Executar a ação pessoal combinada':'Revisar o compromisso anterior'):d.priority.title;
+        return '<section class="pf-card pf-daily-guide"><span class="pf-eyebrow">TRÊS RESPOSTAS PARA AGIR</span><div class="pf-guide-grid">'+
+            '<div><h3>Qual decisão melhorar?</h3><p>'+esc(decision)+'</p></div><div><h3>O que fazer no gatilho?</h3><p>'+esc(p?.focus||d.priority.demand)+'</p></div><div><h3>Como comprovar?</h3><p>'+esc(c.proof||(p?'Registre uma evidência específica no compromisso.':d.priority.proof))+'</p></div></div>'+
+            '<p class="pf-small pf-muted">'+esc(S.prepStatus(m.preparations?.[day],day,trades()).label)+'. A cobrança descreve o processo; não exige uma promessa de lucro.</p>'+
+            (prep?'<details><summary>Confrontar a execução com minha preparação</summary><p><strong>Condições previstas:</strong> '+esc(prep.setups)+'</p><p><strong>Gatilho e resposta:</strong> '+esc(prep.trigger)+' → '+esc(prep.response)+'</p><p><strong>Estado relatado:</strong> tensão '+esc(prep.tension)+'/10; urgência '+esc(prep.urge)+'/10.</p><p><strong>Teto por operação:</strong> '+money(prep.riskCents||0)+'. Compare com o risco inicial de cada entrada; risco ausente continua pendente.</p></details>':'')+'</section>'+dueMarkup(d.a,m);
+    }
+    function insightsMarkup(){
+        const r=S.report(supervisionInput()),pct=n=>n===null?'—':Math.round(n*100)+'%',avg=n=>n===null?'—':money(Math.round(n)),rv=n=>n===null?'—':n.toFixed(2).replace('.',',')+'R';
+        const line=(label,a,b)=>'<tr><th scope="row">'+label+'</th><td>'+a+'</td><td>'+b+'</td></tr>';
+        const coverage=x=>x.failed+' desvios / '+x.known+' revisadas';
+        const current=r.current,previous=r.previous;
+        const barrierNames={unclear:'Regra pouco clara',impractical:'Ação difícil de executar',late:'Gatilho percebido tarde',notused:'Ação não utilizada',other:'Outro motivo'};
+        return '<section class="pf-card"><span class="pf-eyebrow">SEU HISTÓRICO COMO EVIDÊNCIA</span><h2>Insights e acompanhamento semanal</h2><p class="pf-muted">Comparações exploratórias dos últimos '+r.windowDays.length+' pregões importados até '+date(day)+'. Só entram operações já encerradas até a data selecionada.</p>'+
+            '<label>Ativo nas comparações<select id="pfInsightAsset">'+selectOptions([['','Todos os ativos'],...r.assets.map(x=>[x,x])],insightAsset)+'</select></label>'+
+            '<p class="pf-note">Diferenças entre grupos não demonstram causa nem lucro recuperável. Ativo, quantidade, contexto, plano e cobertura das revisões podem mudar. Menos de 10 operações em qualquer grupo recebe aviso de amostra pequena; isso não é um teste de significância.</p>'+
+            (r.ruleVariants>1?'<p class="pf-warning">Há '+r.ruleVariants+' conjuntos de regras no período. Cada operação usa o plano de seu dia; mudanças de critério afetam a comparação.</p>':'')+'</section>'+
+            '<div class="pf-insight-grid">'+r.pairs.map(p=>'<section class="pf-card pf-comparison"><h3>'+esc(p.title)+'</h3>'+(p.small?'<p class="pf-warning">Amostra pequena: não concluir tendência.</p>':'')+
+            '<div class="pf-table-scroll"><table><thead><tr><th>Indicador</th><th>'+esc(p.leftLabel)+'</th><th>'+esc(p.rightLabel)+'</th></tr></thead><tbody>'+
+            line('Operações',p.left.n,p.right.n)+line('Resultado líquido',money(p.left.pnl),money(p.right.pnl))+line('Média líquida / operação',avg(p.left.meanNet),avg(p.right.meanNet))+
+            line('Operações positivas',pct(p.left.winRate),pct(p.right.winRate))+line('R bruto médio conhecido',rv(p.left.meanR),rv(p.right.meanR))+
+            line('Risco inicial informado',p.left.riskKnown+'/'+p.left.n,p.right.riskKnown+'/'+p.right.n)+
+            line('Setup',coverage(p.left.setup),coverage(p.right.setup))+line('Contratos',coverage(p.left.contracts),coverage(p.right.contracts))+line('Stop',coverage(p.left.stop),coverage(p.right.stop))+
+            '</tbody></table></div><p class="pf-small pf-muted">'+esc(p.note)+' '+p.excluded+' operações fora da comparação por falta de fechamento anterior.</p></section>').join('')+'</div>'+
+            '<section class="pf-card"><h3>Alvo e dimensão da posição</h3><p>'+r.rr.positiveKnown+'/'+r.rr.positive+' ganhos com risco inicial conhecido; '+r.rr.below+' ganhos abaixo da referência sem exceção; '+r.rr.exceptions+' exceções documentadas.</p><p>'+r.rr.contracts.failed+' divergências de contratos em '+r.rr.contracts.known+' operações revisadas de '+r.rr.total+'.</p><p class="pf-small pf-muted">O cálculo de R usa o risco inicial informado, nunca o prejuízo posterior. Ganhos menores que 2R não provam, sozinhos, alteração de stop ou erro de quantidade.</p></section>'+
+            '<section class="pf-card pf-weekly"><span class="pf-eyebrow">REUNIÃO SEMANAL · TODOS OS ATIVOS</span><h3>A reflexão está mudando a execução?</h3><p class="pf-muted">Semana atual até '+date(day)+' comparada à semana anterior. Dias sem arquivo importado não contam como dias disciplinados.</p>'+
+            '<div class="pf-table-scroll"><table><thead><tr><th>Evidência</th><th>'+date(current.start)+' a '+date(current.end)+'</th><th>'+date(previous.start)+' a '+date(previous.end)+'</th></tr></thead><tbody>'+
+            line('Pregões importados',current.days,previous.days)+line('Entradas consecutivas',current.rapid+'/'+current.entries+' · '+pct(current.rapidRate),previous.rapid+'/'+previous.entries+' · '+pct(previous.rapidRate))+
+            line('Documentação SMC suficiente',current.reviewed+'/'+current.operations+' · '+pct(current.reviewRate),previous.reviewed+'/'+previous.operations+' · '+pct(previous.reviewRate))+
+            line('Preparação antes da primeira entrada',current.prepBefore+'/'+current.prepTotal,previous.prepBefore+'/'+previous.prepTotal)+
+            line('Prioridades cumpridas / descumpridas',current.met+' / '+current.failed,previous.met+' / '+previous.failed)+
+            line('Prioridades pendentes / aguardando importação',current.pending,previous.pending)+
+            line('Sem operação aplicável / prioridade pessoal',current.notApplicable+' / '+current.personal,previous.notApplicable+' / '+previous.personal)+
+            line('Ação cumprida segundo seu relato',current.reportedUsed,previous.reportedUsed)+
+            line('Planos com evidência relatada',current.withEvidence,previous.withEvidence)+
+            '</tbody></table></div><p class="pf-note">'+(r.comparable?'Há pelo menos 3 pregões em cada semana. Compare também a cobertura das revisões e as regras; estes números não comprovam mudança psicológica.':'Amostra inicial: menos de 3 pregões em uma das semanas. A comparação é descritiva, sem conclusão de evolução.')+'</p>'+
+            '<p class="pf-small pf-muted">Documentação suficiente significa risco, setup, alvo, contratos e stop informados; não significa critérios cumpridos. Ações pessoais e critérios sem operações aplicáveis não entram como cumprimento automático.</p>'+
+            '<h3>O que está dificultando o compromisso?</h3>'+ (Object.keys(r.barriers).length?'<ul>'+Object.entries(r.barriers).map(([k,n])=>'<li>'+barrierNames[k]+': '+n+' relato(s).</li>').join('')+'</ul>':'<p class="pf-muted">Ainda não há dificuldades registradas no acompanhamento dos compromissos.</p>')+
+            '<p class="pf-muted">'+r.failedRecent+' prioridades descumpridas nos últimos até 10 dias importados com plano.</p><ul>'+r.prompts.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></section>';
+    }
+
     function render(force=false){
         if(!mounted||(!force&&$('pfCSV')))return; // Resizes must not replace focused forms.
         const days=A.dates(trades()),m=meta();if(day&&!days.includes(day))day=days.at(-1)||'';
@@ -316,10 +396,10 @@ const ProfitTrades = (() => {
         let body=headerMarkup()+previewMarkup();
         if(!days.length)body+=emptyMarkup();
         else {
-            body+='<div class="pf-filters"><label>Conta do Profit<select id="pfAccount">'+selectOptions(accounts.map(a=>[a,masked(a)]),account)+'</select></label><label>Pregão<select id="pfDay">'+selectOptions(days.slice().reverse().map(d=>[d,date(d)]),day)+'</select></label><div class="pf-tabs" role="group" aria-label="Visão Profit"><button data-tab="desk" aria-pressed="'+(tab==='desk')+'" class="'+(tab==='desk'?'active':'')+'">Mesa</button><button data-tab="day" aria-pressed="'+(tab==='day')+'" class="'+(tab==='day'?'active':'')+'">Revisão diária</button><button data-tab="evolution" aria-pressed="'+(tab==='evolution')+'" class="'+(tab==='evolution'?'active':'')+'">Evolução</button></div></div>'+settingsMarkup();
+            body+='<div class="pf-filters"><label>Conta do Profit<select id="pfAccount">'+selectOptions(accounts.map(a=>[a,masked(a)]),account)+'</select></label><label>Pregão<select id="pfDay">'+selectOptions(days.slice().reverse().map(d=>[d,date(d)]),day)+'</select></label><div class="pf-tabs" role="group" aria-label="Visão Profit"><button data-tab="preparation" aria-pressed="'+(tab==='preparation')+'" class="'+(tab==='preparation'?'active':'')+'">Preparação</button><button data-tab="desk" aria-pressed="'+(tab==='desk')+'" class="'+(tab==='desk'?'active':'')+'">Mesa</button><button data-tab="day" aria-pressed="'+(tab==='day')+'" class="'+(tab==='day'?'active':'')+'">Revisão diária</button><button data-tab="evolution" aria-pressed="'+(tab==='evolution')+'" class="'+(tab==='evolution'?'active':'')+'">Evolução</button><button data-tab="insights" aria-pressed="'+(tab==='insights')+'" class="'+(tab==='insights'?'active':'')+'">Insights</button></div></div>'+settingsMarkup();
             body+='<p class="pf-note">Plano SMC declarado: esperar um novo setup e buscar o alvo mínimo definido no plano (referência inicial de 2R). Entradas consecutivas são um sinal de desvio do método. Risco, contratos de entrada e gestão do stop precisam da sua revisão; os números não revelam a intenção.</p>';
             if(trades().every(t=>t.feeCents===0))body+='<p class="pf-small pf-muted">Comissões zeradas no histórico importado. Custos não exportados pelo Profit não entram no resultado.</p>';
-            body+=tab==='desk'?deskMarkup(m):tab==='day'?dayMarkup(analysis(day),m):evolutionMarkup(days,m);
+            body+=tab==='preparation'?preparationMarkup(m):tab==='insights'?insightsMarkup():tab==='desk'?deskMarkup(m):tab==='day'?dayMarkup(analysis(day),m):evolutionMarkup(days,m);
             body+='<details class="pf-card pf-method"><summary>Importação e critérios de leitura</summary><p>Datas e horários são mantidos como exportados pelo Profit, sem conversão de fuso. O resultado diário considera o fechamento. Entradas, pausas e limites consideram a abertura e apenas perdas já conhecidas naquele instante.</p><p>Res. Operação é o resultado bruto por operação. Descontamos o valor absoluto de Comissões, quando presente. A coluna Total é acumulada e não é somada. TET não é usado como intervalo. Qtd Compra/Venda é volume agregado, não risco ou exposição máxima.</p><p>Uma operação é identificada por conta, ativo, abertura, fechamento e lado. Reimportações idênticas são ignoradas; valores corrigidos são mostrados antes da atualização. Alterar os horários no arquivo gera outra identidade. Operações abertas e linhas inválidas não entram na análise.</p><p>O resultado descreve apenas os arquivos importados. Não infere motivo de saída, intenção, stop planejado nem lucro potencial. Acompanhamento comportamental não garante desempenho financeiro.</p>'+
             '<h4>Últimas importações neste perfil</h4>'+data.imports.slice(-5).reverse().map(x=>'<p>'+esc(x.name)+' · '+x.count+' registros · '+esc(x.at.slice(0,10))+'</p>').join('')+'</details>';
         }
@@ -359,9 +439,9 @@ const ProfitTrades = (() => {
     function click(e){
         const b=e.target.closest('button');if(!b)return;
         if(b.dataset.deskEpisode!==undefined){const x=deskReport().episodes[Number(b.dataset.deskEpisode)];if(x&&$('pfDeskForm')){$('pfDeskForm').elements.moment.value=x.trigger+' '+x.decision;saveDeskDraft();$('pfDeskForm').scrollIntoView({behavior:'smooth',block:'start'});$('pfDeskForm').elements.thought.focus();}return;}
-        if(b.dataset.action==='desk-plan'){const p=deskReport().priority;if($('pfPlan')){$('pfFocus').value=p.demand+' Verificação: '+p.proof;$('pfPlan').querySelectorAll('input[name="promise"]').forEach(x=>x.checked=p.items.includes(x.value));rememberDraft();$('pfPlan').scrollIntoView({behavior:'smooth',block:'center'});$('pfFocus').focus();announce('Compromisso preparado. Revise e salve para confirmar.');}return;}
+        if(b.dataset.action==='desk-plan'){const p=deskReport().priority;if($('pfPlan')){$('pfFocus').value=p.demand+' Verificação: '+p.proof;$('pfPlan').querySelectorAll('input[name="promise"]').forEach(x=>x.checked=p.items.includes(x.value));setContractProposal(p.items,p.proof,p.primary);rememberDraft();$('pfPlan').scrollIntoView({behavior:'smooth',block:'center'});$('pfFocus').focus();announce('Compromisso preparado. Revise e salve para confirmar.');}return;}
         if(b.dataset.editSmc){openSMC(b.dataset.editSmc);return;}
-        if(b.dataset.adoptCoach!==undefined){const tip=A.coaching(analysis(day))[Number(b.dataset.adoptCoach)];if(tip&&$('pfPlan')){$('pfFocus').value=tip.action;$('pfPlan').querySelectorAll('input[name="promise"]').forEach(x=>x.checked=tip.items.includes(x.value));rememberDraft();$('pfPlan').scrollIntoView({behavior:'smooth',block:'center'});$('pfFocus').focus();announce('Sugestão colocada no compromisso. Revise e salve para confirmar.');}return;}
+        if(b.dataset.adoptCoach!==undefined){const tip=A.coaching(analysis(day))[Number(b.dataset.adoptCoach)];if(tip&&$('pfPlan')){$('pfFocus').value=tip.action;$('pfPlan').querySelectorAll('input[name="promise"]').forEach(x=>x.checked=tip.items.includes(x.value));setContractProposal(tip.items,'Conferir '+tip.items.map(id=>analysis(day).checks.find(c=>c.id===id)?.label||id).join('; '));rememberDraft();$('pfPlan').scrollIntoView({behavior:'smooth',block:'center'});$('pfFocus').focus();announce('Sugestão colocada no compromisso. Revise e salve para confirmar.');}return;}
         if(b.dataset.action==='close-smc'){$('pfSMCDialog').close();return;}
         if(b.dataset.tab){tab=b.dataset.tab;render(true);return;}
         if(b.dataset.day){day=b.dataset.day;tab='day';render(true);return;}
@@ -373,7 +453,7 @@ const ProfitTrades = (() => {
         if(action==='confirm-import'&&stage){
             const merged=A.mergeTrades(data.trades,stage.parsed.trades),next=JSON.parse(JSON.stringify(data));
             next.trades=merged.trades;const k=accountKey(stage.parsed.account);
-            next.accounts[k]||={settings:{...A.DEFAULTS},reviews:{},plans:{},annotations:{}};
+            next.accounts[k]||={settings:{...A.DEFAULTS},reviews:{},plans:{},annotations:{},preparations:{}};
             next.imports=[...next.imports,{name:stage.name,at:new Date().toISOString(),count:stage.parsed.trades.length}].slice(-30);
             if(commit(next)){account=stage.parsed.account;day=A.dates(trades()).at(-1);stage=null;announce(merged.added+' novas operações, '+merged.updated+' atualizações e '+merged.duplicates+' repetidas ignoradas.');render(true);}
         }
@@ -388,11 +468,23 @@ const ProfitTrades = (() => {
         });
         if(ok&&$('pfReviewSaved'))$('pfReviewSaved').textContent='Revisão salva neste navegador.';
     }
+    function saveFollowup(target){
+        if(!meta().plans[day]||!['noticed','barrier','evidence','barrierNote'].includes(target.dataset.followup))return;
+        if(changeAccount(m=>{const p=m.plans[day];p.contract=S.contract({...p.contract,[target.dataset.followup]:target.value});}))announce('Acompanhamento salvo. O relato não altera a avaliação dos critérios.');
+    }
+    function setContractProposal(items,proof,primary){
+        const priority=primary||(items.includes('stop')&&analysis(day).smc.stop.length?'stop':items[0]||'focus');
+        $('pfPriority').value=priority;
+        $('pfTrigger').value=priority==='pause'||priority==='streak'?'Após uma perda, quando surgir vontade de entrar novamente':'Quando eu considerar uma nova operação ou alterar sua gestão';
+        $('pfProof').value=proof;
+    }
+
     function rememberDraft(){
         if(!$('pfPlan'))return;
-        planDrafts[account+'|'+day]={target:$('pfPlanDate').value,focus:$('pfFocus').value,items:[...$('pfPlan').querySelectorAll('input[name="promise"]:checked')].map(x=>x.value)};
+        planDrafts[account+'|'+day]={target:$('pfPlanDate').value,focus:$('pfFocus').value,contract:S.contract({priority:$('pfPriority').value,trigger:$('pfTrigger').value,proof:$('pfProof').value}),items:[...$('pfPlan').querySelectorAll('input[name="promise"]:checked')].map(x=>x.value)};
     }
     function input(e){
+        if(e.target.dataset.followup){saveFollowup(e.target);return;}
         if(e.target.closest('#pfDeskForm')){if(e.target.name)saveDeskDraft();return;}
         if(e.target.closest('#pfSMCForm')){previewSMC();return;}
         if(e.target.dataset.review)saveReview(e.target.dataset.review,e.target.value);
@@ -410,8 +502,11 @@ const ProfitTrades = (() => {
         const t=e.target;
         if(t.id==='pfCSV'){readFile(t.files[0]);t.value='';}
         else if(t.id==='pfBackup'){readFile(t.files[0],true);t.value='';}
-        else if(t.id==='pfAccount'){account=t.value;day=A.dates(trades()).at(-1)||'';render(true);}
+        else if(t.id==='pfAccount'){account=t.value;insightAsset='';prepDay='';day=A.dates(trades()).at(-1)||'';render(true);}
         else if(t.id==='pfDay'){day=t.value;render(true);}
+        else if(t.id==='pfPrepDate'){if(A.validDay(t.value)){prepDay=t.value;render(true);}}
+        else if(t.id==='pfInsightAsset'){insightAsset=t.value;render(true);}
+        else if(t.dataset.followup)saveFollowup(t);
         else if(t.dataset.context)saveReview('context:'+t.dataset.context,t.value);
         else if(t.dataset.review)saveReview(t.dataset.review,t.value);
         else if(t.dataset.field)saveAnnotation(t);
@@ -419,13 +514,26 @@ const ProfitTrades = (() => {
         else if(t.closest('#pfPlan')){
             if(t.id==='pfPlanDate'){
                 const p=meta().plans[t.value];
-                if(p){planDrafts[account+'|'+day]={target:t.value,focus:p.focus,items:p.items};render(true);return;}
+                if(p){planDrafts[account+'|'+day]={target:t.value,focus:p.focus,items:p.items,contract:p.contract};render(true);return;}
             }
             rememberDraft();
         }
     }
     function submit(e){
         e.preventDefault();
+        if(e.target.id==='pfPrepForm'){
+            try{
+                if(!A.validDay(prepDay))throw Error('Escolha uma data válida.');
+                if(meta().preparations?.[prepDay]&&trades().some(t=>t.open.slice(0,10)===prepDay))throw Error('Preparação preservada: este pregão já tem entradas importadas. Registre mudanças no debrief e no próximo pregão.');
+                const values=Object.fromEntries(new FormData(e.target).entries());
+                const cents=values.riskCents.trim()?Math.round(A.numberBR(values.riskCents)*100):null;
+                const stamp=localStamp(),old=meta().preparations?.[prepDay];
+                const record=S.preparation({...values,riskCents:cents,rules:dayRules(prepDay),created:old?.created||stamp,updated:stamp});
+                if(S.prepStatus(record,prepDay,[]).kind==='incomplete')throw Error('Preencha condições do setup, exceções, risco, estado percebido, gatilho e resposta antes de salvar.');
+                if(changeAccount(m=>{m.preparations||={};m.preparations[prepDay]=record;})){announce('Preparação salva para '+date(prepDay)+'. O horário será comparado com a primeira entrada importada.');render(true);}
+                else $('pfPrepError').textContent='Não foi possível salvar. Os campos continuam disponíveis.';
+            }catch(err){$('pfPrepError').textContent=err.message;}return;
+        }
         if(e.target.id==='pfDeskForm'){
             const values=Object.fromEntries(new FormData(e.target).entries());
             const required=['moment','thought','choice','alternative','action','proof'];
@@ -447,10 +555,12 @@ const ProfitTrades = (() => {
         if(e.target.id==='pfPlan'){
             rememberDraft();const d=planDrafts[account+'|'+day],items=[...d.items];
             if(!A.validDay(d.target)||d.target<=day){announce('Escolha uma data posterior ao pregão revisado.',true);return;}
-            if(d.focus.trim())items.push('focus');
+            if(!d.contract.priority||!d.contract.trigger||!d.contract.proof||!d.focus.trim()){announce('Defina uma prioridade, um gatilho, uma ação e sua evidência de cumprimento.',true);return;}
+            if(!items.includes(d.contract.priority))items.push(d.contract.priority);
+            if(d.focus.trim()&&!items.includes('focus'))items.push('focus');
             if(!items.length){announce('Escolha uma regra ou descreva uma ação concreta.',true);return;}
             if(meta().plans[d.target]&&!confirm('Já existe um compromisso para '+date(d.target)+'. Substituir pelo plano exibido?'))return;
-            if(changeAccount(m=>m.plans[d.target]={from:day,rules:{...meta().settings},items,focus:d.focus.trim(),created:new Date().toISOString(),reflection:''})){
+            if(changeAccount(m=>m.plans[d.target]={from:day,rules:{...meta().settings},items,focus:d.focus.trim(),created:new Date().toISOString(),reflection:'',contract:d.contract})){
                 announce('Compromisso salvo para '+date(d.target)+'. Importe esse pregão para conferir o cumprimento.');
                 $('pfPlanSaved').textContent='Compromisso salvo para '+date(d.target)+'.';
                 if($('pfDeskPlanHint')){$('pfDeskPlanHint').textContent='Compromisso salvo para '+date(d.target)+'.';const report=deskReport();if(report.stale)$('pfDeskBadge').textContent='Plano mudou · reconferir';}

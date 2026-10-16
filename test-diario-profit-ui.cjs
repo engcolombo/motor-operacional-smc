@@ -47,7 +47,7 @@ fs.mkdirSync(out,{recursive:true});
  const nextCsv=path.join(out,'next-session.csv');fs.writeFileSync(nextCsv,'Conta: '+acct+'\n'+head+'\n'+make('09:00:00','09:10:00','-100,00','C')+'\n'+make('09:11:00','09:20:00','-50,00','V'),'latin1');
  await upload('#pfCSV',nextCsv);await wait("!!document.querySelector('[data-action=\"confirm-import\"]')");await click('[data-action="confirm-import"]');await click('[data-tab="day"]');
  assert.match(await ev("document.querySelector('.pf-due').textContent"),/Compromissos para hoje/);
- assert.match(await ev("document.querySelector('.pf-due').textContent"),/1 reentradas antes da pausa/);
+ assert.match(await ev("document.querySelector('.pf-due').textContent"),/1 entradas próximas/);
  await ev('document.querySelector(".pf-table-card").open=true;var n=document.querySelector("[data-field=exit]");n.value="stop";n.dispatchEvent(new Event("change",{bubbles:true}));');
  await ev('document.querySelector(".pf-table-card").open=true;var n=document.querySelectorAll("[data-field=exit]")[1];n.value="stop";n.dispatchEvent(new Event("change",{bubbles:true}));');
  assert.match(await ev("document.querySelector('.pf-kpis').textContent"),/2 stops consecutivos/);
@@ -169,9 +169,58 @@ fs.mkdirSync(out,{recursive:true});
   await click('[data-tab="day"]');
  }
  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+
+ // Preparation, concrete priority, self-report and comparisons.
+ await click('[data-tab="day"]');
+ await ev('document.querySelector("#pfDay").value="2026-10-16";document.querySelector("#pfDay").dispatchEvent(new Event("change",{bubbles:true}));');
+ await ev('var n=document.querySelector("[data-followup=noticed]");n.value="before";n.dispatchEvent(new Event("change",{bubbles:true}));var b=document.querySelector("[data-followup=barrier]");b.value="notused";b.dispatchEvent(new Event("change",{bubbles:true}));var t=document.querySelector("[data-followup=evidence]");t.value="Percebi a pressa <img src=x onerror=alert(1)>";t.dispatchEvent(new Event("input",{bubbles:true}));');
+ assert.equal((await stored()).accounts[key].plans['2026-10-16'].contract.barrier,'notused');
+ await click('[data-tab="preparation"]');
+ await ev('document.querySelector("#pfPrepDate").value="2026-10-19";document.querySelector("#pfPrepDate").dispatchEvent(new Event("change",{bubbles:true}));');
+ await ev('document.querySelector("#pfPrepForm").requestSubmit()');
+ assert.match(await ev("document.querySelector('#pfPrepError').textContent"),/Preencha/);
+ const prepValues={sleep:'rested',tension:'2',urge:'0',riskCents:'100,00',setups:'Estrutura e novo gatilho <img src=x onerror=alert(1)>',exceptions:'Somente minha exceção prevista',trigger:'Urgência de recuperar',response:'Cumprir a pausa e registrar novo setup antes da ordem'};
+ await ev('Object.entries('+JSON.stringify(prepValues)+').forEach(([k,v])=>document.querySelector("#pfPrepForm [name="+k+"]").value=v);document.querySelector("#pfPrepForm").requestSubmit();');
+ assert.equal((await stored()).accounts[key].preparations['2026-10-19'].riskCents,10000);
+ assert.match(await ev("document.querySelector('#pfPrepState').textContent"),/aguardando operações/);
+ const prepBefore=JSON.stringify((await stored()).accounts[key].preparations);
+ await ev('document.querySelector("#pfPrepForm [name=riskCents]").value="-1";document.querySelector("#pfPrepForm").requestSubmit()');
+ assert.match(await ev("document.querySelector('#pfPrepError').textContent"),/positivo/);
+ assert.equal(JSON.stringify((await stored()).accounts[key].preparations),prepBefore);
+ await reload();await click('[data-tab="preparation"]');
+ await ev('document.querySelector("#pfPrepDate").value="2026-10-19";document.querySelector("#pfPrepDate").dispatchEvent(new Event("change",{bubbles:true}));');
+ assert.equal(await ev("document.querySelector('#pfPrepForm [name=response]').value"),prepValues.response);
+ assert.equal(await ev("document.querySelectorAll('#view-profit img').length"),0);
+ await shot('profit-preparation-desktop');
+ await ev('document.querySelector("#pfPrepDate").value="2026-10-15";document.querySelector("#pfPrepDate").dispatchEvent(new Event("change",{bubbles:true}));');
+ await ev('Object.entries('+JSON.stringify(prepValues)+').forEach(([k,v])=>document.querySelector("#pfPrepForm [name="+k+"]").value=v);document.querySelector("#pfPrepForm").requestSubmit();');
+ assert.match(await ev("document.querySelector('#pfPrepState').textContent"),/após a primeira entrada/);
+ assert.equal(await ev("document.querySelector('#pfPrepForm fieldset').disabled"),true);
+ const lockedPrep=JSON.stringify((await stored()).accounts[key].preparations['2026-10-15']);
+ await ev("document.querySelector('#pfPrepForm').requestSubmit()");
+ assert.match(await ev("document.querySelector('#pfPrepError').textContent"),/preservada/);
+ assert.equal(JSON.stringify((await stored()).accounts[key].preparations['2026-10-15']),lockedPrep);
+ await click('[data-tab="insights"]');
+ assert.equal(await ev("document.querySelectorAll('.pf-comparison').length"),3);
+ assert.match(await ev("document.querySelector('.pf-weekly').textContent"),/Ação não utilizada/);
+ await ev('document.querySelector("#pfInsightAsset").value="WDOX26";document.querySelector("#pfInsightAsset").dispatchEvent(new Event("change",{bubbles:true}));');
+ assert.equal(await ev("document.querySelector('#pfInsightAsset').value"),'WDOX26');
+ await shot('profit-insights-desktop');
+ for(const width of [390,320]){
+  await send('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true});
+  await ev("document.querySelector('.pf-comparison').scrollIntoView()");
+  await shot('profit-insights-'+width);
+  assert.equal(await ev('document.documentElement.scrollWidth<=innerWidth'),true,'Insights fit '+width);
+  await click('[data-tab="preparation"]');
+  await ev("document.querySelector('#pfPrepForm').scrollIntoView()");await shot('profit-preparation-'+width);
+  assert.equal(await ev('document.documentElement.scrollWidth<=innerWidth'),true,'Preparation fits '+width);
+  await click('[data-tab="insights"]');
+ }
+ await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+
  await click('[data-view="dashboard"]');assert.equal(await ev("document.querySelector('#view-dashboard').classList.contains('active')"),true);
  await click('[data-view="profit"]');
  assert.equal(errors.length,0,JSON.stringify(errors));
- console.log('Browser checks passed: CSV import, deduplication, persistent review, rule snapshots, next-day plan evaluation, confirmed stops, quota preservation, profile isolation, backup round-trip, corrupt backup rejection, mobile 390/320, navigation, desk narrative, evidence episodes, completed debrief, reload stability and stale-data detection.');
+ console.log('Browser checks passed: CSV import, deduplication, persistent review, rule snapshots, next-day plan evaluation, confirmed stops, quota preservation, profile isolation, backup round-trip, corrupt backup rejection, mobile 390/320, navigation, desk narrative, evidence episodes, completed debrief, reload stability, stale-data detection, preparation, priority follow-up and historical insights.');
  socket.close();
 })().catch(e=>{console.error(e);process.exit(1);});

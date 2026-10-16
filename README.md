@@ -80,13 +80,14 @@ Nenhum CSV pessoal foi incorporado ao código do site. O titular do relatório n
 
 ### Arquivos e validação
 
-Publique junto com a página os arquivos `diario-profit-analysis.js`, `diario-profit-desk.js`, `diario-profit.js` e `diario-profit.css`. A navegação e os pontos de integração estão em `diario-pro-plus.html` e `diario-core.js`.
+Publique junto com a página os arquivos `diario-profit-analysis.js`, `diario-profit-desk.js`, `diario-profit-supervision.js`, `diario-profit.js` e `diario-profit.css`. A navegação e os pontos de integração estão em `diario-pro-plus.html` e `diario-core.js`.
 
 Teste unitário, com casos sintéticos:
 
 ```text
 node test-diario-profit.cjs
 node test-diario-profit-desk.cjs
+node test-diario-profit-supervision.cjs
 ```
 
 Para conferir também uma exportação de referência de 76 operações em cinco pregões:
@@ -94,6 +95,7 @@ Para conferir também uma exportação de referência de 76 operações em cinco
 ```text
 node test-diario-profit.cjs "CAMINHO_DO_CSV"
 node test-diario-profit-desk.cjs "CAMINHO_DO_CSV"
+node test-diario-profit-supervision.cjs "CAMINHO_DO_CSV"
 ```
 
 O teste opcional `test-diario-profit-ui.cjs` recebe porta de depuração do Chrome, URL da prévia local, caminho do CSV de referência e diretório de artefatos. Execute-o somente em um perfil isolado de testes: ele limpa o armazenamento Profit desse perfil e testa importação, duplicatas, revisões, planos, isolamento por login, falha de armazenamento, backup/restauração e telas de 390/320 px.
@@ -133,3 +135,19 @@ Os episódios mostram apenas resultados conhecidos antes da entrada. A recorrên
 No debrief, registre um episódio, pensamento, estado percebido, decisão, alternativa, ação substituta e evidência de cumprimento. Os rascunhos são salvos automaticamente. Para concluir, preencha os campos obrigatórios, confirme a revisão dos fatos e salve um compromisso futuro originado nessa sessão. **Preparar compromisso cobrado** preenche a proposta; revise e salve. A conclusão do debrief registra a revisão, sem apagar os desvios nem as pendências. Alterações nos dados que sustentam o parecer exigem reconferência. O debrief também integra o backup.
 
 O teste de navegador cobre a conclusão do debrief, sua preservação ao recarregar, a reconferência após mudança de evidência, backup e visualização em celular.
+
+### Preparação, prioridade e insights
+
+Em **Preparação**, escolha uma data, inclusive futura, e registre condições dos setups, exceções, risco máximo por operação, sono, tensão, urgência, gatilho e resposta planejada. É necessário importar um histórico uma primeira vez para identificar a conta do Profit. O horário local de salvamento é comparado com a primeira entrada: registros posteriores não comprovam um plano prévio. Uma preparação salva fica preservada na interface quando já existem entradas importadas para sua data; registre ajustes no debrief e no próximo pregão. O horário vem do navegador e não é uma auditoria externa.
+
+A Mesa mostra o plano preparado junto da execução. Um risco inicial informado acima do teto registrado antes da primeira entrada gera cobrança de controle; comparação com preparação retrospectiva é identificada como retrospectiva. Riscos ausentes não são reconstruídos pelo resultado. A preparação também conserva uma fotografia das regras, respeitando a precedência de planos e revisões existentes.
+
+O compromisso futuro tem **uma prioridade principal, um gatilho, uma ação e uma evidência esperada**. As outras regras selecionadas dão suporte. No pregão seguinte, o critério prioritário é avaliado separadamente do relato pessoal. Registre quando percebeu o gatilho, se executou a ação, o episódio que sustenta a resposta e a dificuldade encontrada. Um relato positivo não apaga um desvio observado; prioridades pessoais, critérios não aplicáveis, ausência de importação e falta de evidência são separados. Compromissos antigos permanecem compatíveis, sem inventar uma prioridade retroativa.
+
+Em **Insights**, compare entradas abaixo/acima do intervalo, após perda/após ganho ou zero e manhã/tarde, com filtro por ativo. A janela considera até 20 pregões importados até a data selecionada, somente operações encerradas até essa data. O agrupamento de manhã/tarde usa a entrada; o resultado integral da operação pode encerrar em outro período. Cada grupo mostra operações, resultado líquido, média, proporção positiva, R bruto conhecido e cobertura/desvios de setup, contratos e stop. Primeiras entradas sem fechamento anterior conhecido ficam fora das comparações de pausa e perda.
+
+Amostras menores que dez operações em qualquer grupo recebem um aviso exploratório; isso não é teste estatístico nem comprovação de causalidade. Diferenças de ativo, quantidade, plano e contexto afetam a comparação. O painel não estima lucro recuperável nem transforma associação em diagnóstico psicológico.
+
+A reunião semanal compara a semana da data selecionada, até esse dia, com a semana anterior, começando na segunda-feira. Mostra frequência de entradas consecutivas, documentação SMC, preparação prévia, prioridades cumpridas/descumpridas/pendentes e ações/evidências relatadas. O filtro de ativo vale para as comparações; a reunião semanal considera todos os ativos da conta. Sem pelo menos três pregões em cada semana, não há conclusão de tendência. Dias não importados não são considerados dias disciplinados. A documentação suficiente não implica execução correta.
+
+Preparações, prioridades e acompanhamento entram no backup/restauração da própria aba e continuam separados por login e conta. Não há alteração de tabelas, SQL ou sincronização Supabase nesta atualização.

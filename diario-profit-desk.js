@@ -25,7 +25,7 @@
     }
     function report(input){
         const {trades,day,annotations={},reviews={},plans={},settings={}}=input;
-        const rulesAt=d=>A.confirmedRules(plans[d]?.rules||reviews[d]?.rules||settings);
+        const rulesAt=d=>A.confirmedRules(plans[d]?.rules||reviews[d]?.rules||input.preparations?.[d]?.rules||settings);
         const a=A.analyzeDay(trades,day,rulesAt(day),annotations),s=a.smc,r=a.rules,review=reviews[day]||{};
         const timing=a.timingChecks.filter(c=>!c.pass),smcFails=s.checks.filter(c=>c.pass===false);
         const all=[...new Map([...a.entries,...a.closed].map(t=>[t.id,t])).values()];
@@ -40,7 +40,12 @@
         coverage.complete=rows.filter(x=>x.riskCents!==null&&['setup','rr','contracts','stop'].every(k=>x.checks[k]!==null)&&x.checks.exitR!==null).length;
         const criticalStops=rows.filter(x=>['widened','removed'].includes(x.note.stopChange));
         const quantityExcess=rows.filter(x=>x.qtyMismatch&&x.actualQty>x.note.plannedQty);
-        const violations=new Set();
+        const prep=input.preparations?.[day];
+        const budgetReviewed=rows.filter(x=>x.trade.open.slice(0,10)===day&&x.riskCents!==null);
+        const budgetExcess=prep?.riskCents?budgetReviewed.filter(x=>x.riskCents>prep.riskCents):[];
+        const budgetConfirmed=!!(prep?.updated&&a.entries.length&&prep.updated<a.entries[0].open);
+        const budgetBreaches=budgetConfirmed?budgetExcess:[];
+        const violations=new Set(budgetBreaches.map(x=>x.trade.id));
         [...a.rapid,...a.afterLoss,...a.afterStreak,...a.afterLimit,...a.afterHours].forEach(t=>violations.add(t.id));
         if(a.entries.length>r.maxTrades)a.entries.slice(r.maxTrades).forEach(t=>violations.add(t.id));
         rows.filter(x=>Object.values(x.checks).some(v=>v===false)).forEach(x=>violations.add(x.trade.id));
@@ -48,7 +53,7 @@
         // Financial sum only on the selected day's closed trades; never an estimate of avoidable loss.
         const flaggedClosed=a.closed.filter(t=>violations.has(t.id));
         const flaggedPnl=flaggedClosed.reduce((n,t)=>n+t.netCents,0);
-        const critical=!!((r.configured&&(a.afterLimit.length||a.afterStreak.length))||criticalStops.length||quantityExcess.length);
+        const critical=!!((r.configured&&(a.afterLimit.length||a.afterStreak.length))||criticalStops.length||quantityExcess.length||budgetBreaches.length);
         const incomplete=coverage.complete<coverage.total;
         const status=!all.length?'empty':critical?'intervention':timing.length||smcFails.length?'correction':incomplete?'pending':'consistent';
         const statusTitles={empty:'Sem sessão para avaliar',intervention:'Quebra de controle: correção obrigatória',correction:'Execução fora do plano: revisão obrigatória',pending:'Conclusão pendente: falta evidência do processo',consistent:'Execução consistente nos critérios revisados'};
@@ -96,12 +101,12 @@
             'Parcial prevista, quantidade menor, slippage ou exceção documentada podem explicar o resultado. Um ganho bruto de 2R não vira saída antecipada apenas pelas comissões.',
             'Registrar o risco inicial e o alvo antes da operação. Justificar saídas positivas abaixo de '+r.minTargetR+'R somente por uma exceção que já fazia parte do plano.',
             'Risco e alvo documentados em todas as operações; nenhum ganho abaixo da referência sem exceção permitida e registrada.',['rr','exitR']);
-        chapter('risk','Integridade de contratos e stop estrutural',criticalStops.length||quantityExcess.length?'critical':s.contracts.length||s.stop.length?'deviation':coverage.contracts<coverage.total||coverage.stop<coverage.total?'pending':'review',
-            coverage.contracts+'/'+coverage.total+' quantidades revisadas; '+s.contracts.length+' divergências de contratos; '+s.stop.length+' desvios de stop relatados; '+s.loss.length+' perdas maiores que 1R.',
+        chapter('risk','Integridade de contratos e stop estrutural',criticalStops.length||quantityExcess.length||budgetBreaches.length?'critical':s.contracts.length||s.stop.length?'deviation':coverage.contracts<coverage.total||coverage.stop<coverage.total?'pending':'review',
+            coverage.contracts+'/'+coverage.total+' quantidades revisadas; '+s.contracts.length+' divergências de contratos; '+s.stop.length+' desvios de stop relatados; '+s.loss.length+' perdas maiores que 1R.'+(prep?.riskCents?' Risco máximo preparado: '+cash(prep.riskCents)+'; '+budgetExcess.length+' acima desse teto em '+budgetReviewed.length+' riscos iniciais informados. '+(budgetConfirmed?'Preparação anterior à primeira entrada.':'Preparação retrospectiva: essa comparação não comprova quebra de um limite prévio.') :''),
             criticalStops.length?'Afastar ou remover o stop fora do plano, conforme seu relato, pode ser uma tentativa de adiar a aceitação da invalidação. A motivação precisa ser confirmada por você.':'Investigue se tamanho e stop foram escolhidos pela estrutura e pelo plano, ou para ajustar o desconforto com o resultado.',
             'Perda acima de 1R também pode decorrer da execução ou de slippage. O relatório não prova alteração do stop. O volume do CSV não equivale automaticamente à quantidade inicial.',
-            'Conferir contratos e risco total antes da ordem; manter o stop na invalidação definida e documentar qualquer alteração autorizada pelo plano.',
-            'Quantidade inicial confirmada igual à planejada; zero alteração de stop fora do plano.',['contracts','stop']);
+            (prep?.riskCents?'Conferir o risco inicial com o teto de '+cash(prep.riskCents)+' registrado na preparação. ':'')+'Conferir contratos e risco total antes da ordem; manter o stop na invalidação definida e documentar qualquer alteração autorizada pelo plano.',
+            (prep?.riskCents?'Nenhuma entrada acima do teto preparado; risco inicial informado em todas as operações. ':'')+'Quantidade inicial confirmada igual à planejada; zero alteração de stop fora do plano.',['contracts','stop']);
         chapter('gains','Devolução de lucro e mudança de critério durante o dia',a.afternoonGiveback>0&&a.entries.some(t=>t.open.slice(11,16)>=r.afternoon&&violations.has(t.id))?'deviation':'review',
             'Manhã: '+cash(a.morning)+'; tarde: '+cash(a.afternoon)+'; pico realizado: '+cash(a.peak)+'; devolução do pico: '+cash(a.giveback)+(a.peak>0?' ('+Math.round(a.givebackPct)+'%)':'')+'.',
             a.afternoonGiveback>0?'Investigue se o lucro passou a funcionar como permissão para relaxar a seleção, ou se a tentativa de preservar um saldo mudou suas decisões. Devolução, sozinha, não confirma nenhuma dessas causas.':'Um pico de lucro não é uma previsão do fechamento. A avaliação deve verificar se os critérios continuaram iguais, sem exigir um resultado financeiro específico.',
@@ -140,12 +145,13 @@
         });
         const commitments={failed:previousPlans.reduce((n,x)=>n+x.items.filter(c=>c.pass===false).length,0),pending:previousPlans.reduce((n,x)=>n+x.items.filter(c=>c.pass===null&&c.applicable!==false).length,0),met:previousPlans.reduce((n,x)=>n+x.items.filter(c=>c.pass===true).length,0),days:previousPlans.length};
         const priority=chapters.find(c=>c.level==='critical')||chapters.find(c=>c.level==='deviation')||chapters.find(c=>c.level==='pending')||chapters[0];
+        priority.primary=priority.id==='risk'?(budgetBreaches.length?'focus':criticalStops.length?'stop':'contracts'):priority.items[0];
         const pendingSteps=[
             ...(coverage.complete<coverage.total?[{id:'evidence',label:'Completar a revisão SMC das '+(coverage.total-coverage.complete)+' operações com evidência incompleta.'}]:[]),
             {id:'episode',label:'Registrar no debrief uma decisão específica e sua alternativa dentro do plano.'},
             {id:'commitment',label:'Salvar um compromisso para o próximo pregão com ação e critério verificável.'}
         ];
-        const signature=fingerprint([day,r,all.map(t=>[t.id,t.grossCents,t.feeCents,t.qty,A.annotation(annotations[t.id])]),{before:clean(review.before),after:clean(review.after),urge:clean(review.urge),trigger:clean(review.trigger),lesson:clean(review.lesson)},recurrence,commitments,Object.entries(plans).filter(([target,p])=>target>day&&p.from===day).map(([target,p])=>[target,p.rules,p.items,p.focus])]);
+        const signature=fingerprint([day,r,input.preparations?.[day]||null,all.map(t=>[t.id,t.grossCents,t.feeCents,t.qty,A.annotation(annotations[t.id])]),{before:clean(review.before),after:clean(review.after),urge:clean(review.urge),trigger:clean(review.trigger),lesson:clean(review.lesson)},recurrence,commitments,Object.entries(plans).filter(([target,p])=>target>day&&p.from===day).map(([target,p])=>[target,p.rules,p.items,p.focus,p.contract?.priority||'',p.contract?.trigger||'',p.contract?.proof||''])]);
         const saved=debrief(review.desk||{});
         const stale=saved.completed&&saved.signature!==signature;
         const strengths=[];
