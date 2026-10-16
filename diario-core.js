@@ -723,6 +723,7 @@ function switchView(view) {
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
     const titles = {
+        profit: ["Trades Profit", "Psicologia da execução · revisão diária e evolução"],
         backtests: ["Backtests", "Teste manual por estratégia · resultado em R"],
         dashboard: ["Dashboard", "Visão geral da performance"],
         trades: ["Trades", `${filteredManualTrades().length} operações registradas`],
@@ -1861,6 +1862,7 @@ function renderJournal() {
 
 function renderAll() {
     renderAssetFilters();
+    if (state.view === "profit" && typeof ProfitTrades !== "undefined") ProfitTrades.render();
     if (state.view === "backtests") Backtests.render();
     if (state.view === "dashboard") {
         renderKPIs();
@@ -2321,6 +2323,7 @@ function setCloudUi(stateName, label) {
 
 function updateCloudUi() {
     Backtests.authChanged();
+    if (typeof ProfitTrades !== "undefined") ProfitTrades.authChanged();
     const logged = canUseCloud();
     const hasPendingDeletes = Boolean(state.pendingCloudDeletes?.length);
     $("cloudFormBox").hidden = logged;
@@ -2675,6 +2678,7 @@ function bindCloudEvents() {
 }
 
 Backtests.init();
+if (typeof ProfitTrades !== "undefined") ProfitTrades.init();
 state.fees = loadFees();
 state.robot = loadRobotConfig();
 bindNav();
