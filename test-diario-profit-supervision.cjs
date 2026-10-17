@@ -81,7 +81,7 @@ test('Repeated failed commitments trigger questions about feasibility and use',(
  const r=report(ts,{plans});assert.equal(r.failedRecent,2);assert.match(r.prompts.join(' '),/executável/);
 });
 test('Backup preserves future preparations, priority and evidence without fabricating old fields',()=>{
- const ctx={ProfitAnalysis:A,ProfitDesk:D,ProfitSupervision:S};vm.createContext(ctx);vm.runInContext(fs.readFileSync(__dirname+'/diario-profit.js','utf8')+'\nthis.P=ProfitTrades;',ctx);
+ const ctx={ProfitAnalysis:A,ProfitDesk:D,ProfitJournal:require('./diario-profit-journal.js'),ProfitSupervision:S};vm.createContext(ctx);vm.runInContext(fs.readFileSync(__dirname+'/diario-profit.js','utf8')+'\nthis.P=ProfitTrades;',ctx);
  const backup={version:1,trades:[trade()],accounts:{'account:QA':{settings:A.DEFAULTS,reviews:{},annotations:{},plans:{'2026-10-15':plan},preparations:{'2026-10-19':S.preparation(prep)}}},imports:[]};
  const m=ctx.P.validateBackup(backup).accounts['account:QA'];
  assert.equal(m.preparations['2026-10-19'].riskCents,10000);assert.equal(m.plans['2026-10-15'].contract.evidence,plan.contract.evidence);

@@ -92,6 +92,68 @@
         if(!trades.length)throw new Error('Nenhuma operação fechada válida encontrada. '+openCount+' aberta(s), '+rejected.length+' linha(s) inválida(s).');
         return {account,trades:trades.sort((a,b)=>a.close.localeCompare(b.close)||a.open.localeCompare(b.open)),warnings,rejected,openCount,duplicates,hasFees};
     }
+
+    function numberDecimal(value) {
+        const s=String(value??'').trim();
+        if(!/^[+-]?\d+(?:\.\d+)?$/.test(s))return null;
+        const n=Number(s);return Number.isFinite(n)?n:null;
+    }
+    function dateTradingView(value) {
+        const s=normalize(value),m=s.match(/^(\d{1,2}) de ([a-z]+)\.? de (\d{4}),?\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+        if(!m)return null;
+        const month=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'].indexOf(m[2].slice(0,3))+1;
+        if(!month)return null;
+        return dateBR(m[1].padStart(2,'0')+'/'+String(month).padStart(2,'0')+'/'+m[3]+' '+m[4]+':'+m[5]+':'+(m[6]||'00'));
+    }
+    function parseTradingView(text) {
+        const rows=csvRows(String(text).replace(/^\uFEFF/,''),',');
+        const headers=rows[0]?.cells.map(normalize)||[],idx=n=>headers.indexOf(n);
+        for(const name of ['simbolo','numero da negociacao','tipo','data e hora','tamanho (qtd)','l&p liquido usd','comissao usd'])
+            if(idx(name)<0)throw Error('Cabeçalho TradingView inválido: falta '+name+'. Use o CSV Histórico de negociação do Paper Trading em USD.');
+        const groups=new Map(),trades=[],rejected=[],warnings=[
+            'Paper Trading · simulação · USD. Histórico e limites separados do Profit; não há conversão para reais.',
+            'Entrada e saída são agrupadas por símbolo e número da negociação. L&P líquido e Comissão são lidos uma vez, na saída. Bruto = líquido + comissão informada. Acumulados e Tamanho (valor) não são somados nem representam risco inicial.',
+            'Horários preservados como exportados, sem conversão de fuso. Posições abertas não participam das métricas de operações encerradas.'
+        ];
+        let openCount=0,duplicates=0;
+        const account='tradingview:paper:USD';
+        for(const row of rows.slice(1)){
+            const get=n=>String(row.cells[idx(n)]??'').trim();
+            const symbol=get('simbolo'),number=get('numero da negociacao'),type=normalize(get('tipo'));
+            const m=type.match(/^(entrada|saida) (long|short)$/);
+            if(row.cells.length!==headers.length||!symbol||symbol.length>40||!/^\d+$/.test(number)||!m){
+                rejected.push({line:row.line,reason:'Linha inválida: símbolo, número da negociação, tipo ou colunas.'});continue;
+            }
+            const key=JSON.stringify([symbol,number]);
+            if(!groups.has(key))groups.set(key,{symbol,number,rows:[]});
+            const g=groups.get(key);
+            if(g.rows.some(x=>JSON.stringify(x.row.cells)===JSON.stringify(row.cells))){duplicates++;continue;}
+            g.rows.push({row,get,kind:m[1],side:m[2]==='long'?'C':'V'});
+        }
+        const seen=new Set();
+        for(const g of groups.values()){
+            const entries=g.rows.filter(x=>x.kind==='entrada'),exits=g.rows.filter(x=>x.kind==='saida');
+            const reject=reason=>rejected.push({line:g.rows[0].row.line,reason:'Negociação '+g.number+': '+reason});
+            if(entries.length!==1||exits.length>1){reject('pares ambíguos ou parciais não suportadas; confira o relatório.');continue;}
+            const e=entries[0],x=exits[0],open=dateTradingView(e.get('data e hora')),qty=numberDecimal(e.get('tamanho (qtd)'));
+            if(!open||qty===null||qty<=0){reject('entrada com data ou quantidade inválida.');continue;}
+            if(!x||normalize(x.get('data e hora'))==='abertura'){openCount++;continue;}
+            const close=dateTradingView(x.get('data e hora')),exitQty=numberDecimal(x.get('tamanho (qtd)'));
+            const net=numberDecimal(x.get('l&p liquido usd')),fee=numberDecimal(x.get('comissao usd'));
+            if(!close||close.ms<open.ms||x.side!==e.side||exitQty!==qty||net===null||fee===null){
+                reject('saída, quantidade, lado ou valores inconsistentes; confira o par entrada/saída.');continue;
+            }
+            const netCents=Math.round(net*100),feeCents=Math.round(Math.abs(fee)*100),grossCents=netCents+feeCents;
+            const t={account,source:'tradingview',simulation:true,currency:'USD',symbol:g.symbol,open:open.iso,close:close.iso,day:close.day,side:e.side,buy:qty,sell:qty,qty,grossCents,feeCents,netCents,averaged:false};
+            t.id=identity(t);
+            if(!validateTrade(t)){reject('valores fora do intervalo permitido.');continue;}
+            if(seen.has(t.id)){reject('mais de uma negociação com a mesma identidade; não importada para evitar duplicidade.');continue;}
+            seen.add(t.id);trades.push(t);
+        }
+        if(!trades.length)throw Error('Nenhuma operação encerrada válida no TradingView. '+openCount+' aberta(s), '+rejected.length+' grupo(s)/linha(s) inválido(s).');
+        return {account,source:'tradingview',currency:'USD',trades:trades.sort((a,b)=>a.close.localeCompare(b.close)||a.open.localeCompare(b.open)),warnings,rejected,openCount,duplicates,hasFees:true};
+    }
+
     function mergeTrades(existing,incoming) {
         const map=new Map(existing.map(t=>[t.id,t]));let added=0,updated=0,duplicates=0;
         for(const t of incoming){
@@ -131,7 +193,7 @@
         for(const k of ['riskCents','targetCents','plannedQty','entryQty']){
             const v=input[k];
             if(v===null||v===undefined||v===''){out[k]=null;continue;}
-            if(typeof v!=='number'||!Number.isSafeInteger(v)||v<=0||v>(k.endsWith('Cents')?10000000000:1000000))throw new Error('Valor inválido na revisão: '+k);
+            if(typeof v!=='number'||!Number.isFinite(v)||(k.endsWith('Cents')&&!Number.isSafeInteger(v))||v<=0||v>(k.endsWith('Cents')?10000000000:1000000))throw new Error('Valor inválido na revisão: '+k);
             out[k]=v;
         }
         const enums={exit:['unknown','stop','target','manual','breakeven'],execution:['unknown','simple','scaled'],newSetup:['unknown','yes','no'],stopBasis:['unknown','structure','arbitrary'],stopChange:['unknown','unchanged','planned','tightened','widened','removed'],earlyReason:['unknown','planned','fear','recover','manual'],emotion:['unknown','calm','fomo','revenge','fear','euphoria','impatience']};
@@ -255,7 +317,7 @@
             {id:'streak',label:'Encerrar após '+r.maxLosses+' perdas consecutivas',pass:afterStreak.length===0,detail:afterStreak.length+' entradas após o limite'},
             {id:'time',label:'Não abrir trades após '+r.endTime,pass:afterHours.length===0,detail:afterHours.length+' entradas após o horário'}
         ];
-        if(r.lossLimit>0)checks.push({id:'limit',label:'Encerrar ao atingir perda de R$ '+r.lossLimit.toLocaleString('pt-BR'),pass:afterLimit.length===0,detail:afterLimit.length+' entradas após o limite'});
+        if(r.lossLimit>0)checks.push({id:'limit',label:'Encerrar ao atingir perda de '+(all[0]?.currency==='USD'?'US$ ':'R$ ')+r.lossLimit.toLocaleString('pt-BR'),pass:afterLimit.length===0,detail:afterLimit.length+' entradas após o limite'});
         const alerts=[];
         const add=(id,title,detail,count,kind='attention')=>alerts.push({id,title,detail,count,kind});
         if(rapid.length)add('rapid','Entradas consecutivas fora do ritmo SMC',rapid.length+' entradas a menos de '+r.quickMinutes+' min do último fechamento. Seu plano não prevê trades consecutivos: investigue antecipação, impaciência ou recuperação e registre o novo setup.',rapid.length);
@@ -285,9 +347,10 @@
         return d.toISOString().slice(0,10);
     }
     function validateTrade(t) {
+        if(t?.source==='tradingview'?(t.account!=='tradingview:paper:USD'||t.currency!=='USD'||t.simulation!==true):(t?.account==='tradingview:paper:USD'||(t?.source&&t.source!=='profit')||(t?.currency&&t.currency!=='BRL')))return false;
         if(!t||typeof t.account!=='string'||!t.account||t.account.length>120||typeof t.symbol!=='string'||!t.symbol||t.symbol.length>40||!['C','V'].includes(t.side))return false;
         if(![t.open,t.close].every(x=>typeof x==='string'&&/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$/.test(x)&&dateBR(x.slice(8,10)+'/'+x.slice(5,7)+'/'+x.slice(0,4)+' '+x.slice(11))))return false;
         return t.close>=t.open&&t.day===t.close.slice(0,10)&&t.id===identity(t)&&[t.buy,t.sell,t.qty].every(x=>typeof x==='number'&&Number.isFinite(x)&&x>=0)&&t.qty===Math.max(t.buy,t.sell)&&t.qty>0&&[t.grossCents,t.feeCents,t.netCents].every(Number.isSafeInteger)&&t.feeCents>=0&&t.netCents===t.grossCents-t.feeCents;
     }
-    return {confirmedRules,DEFAULTS,SMC_CHECKS,SMC_SIGNALS,annotation,smcTrade,coaching,numberBR,dateBR,validDay,parseCSV,mergeTrades,rules,analyzeDay,dates,nextWeekday,validateTrade};
+    return {confirmedRules,DEFAULTS,SMC_CHECKS,SMC_SIGNALS,annotation,smcTrade,coaching,numberBR,dateBR,validDay,parseCSV,parseTradingView,dateTradingView,mergeTrades,rules,analyzeDay,dates,nextWeekday,validateTrade};
 });

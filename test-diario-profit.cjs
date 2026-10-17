@@ -86,7 +86,7 @@ test('Bad rules and invalid backup trade identities are rejected',()=>{
  assert.equal(A.validateTrade({...t,day:'2026-10-16'}),false);assert.equal(A.validateTrade({...t,id:'fake'}),false);
 });
 test('UI backup validation preserves reviews, plans and rules and rejects arbitrary data',()=>{
- const ctx={ProfitAnalysis:A,ProfitDesk:D,ProfitSupervision:require('./diario-profit-supervision.js')};vm.createContext(ctx);vm.runInContext(fs.readFileSync(__dirname+'/diario-profit.js','utf8')+'\nthis.P=ProfitTrades;',ctx);
+ const ctx={ProfitAnalysis:A,ProfitDesk:D,ProfitJournal:require('./diario-profit-journal.js'),ProfitSupervision:require('./diario-profit-supervision.js')};vm.createContext(ctx);vm.runInContext(fs.readFileSync(__dirname+'/diario-profit.js','utf8')+'\nthis.P=ProfitTrades;',ctx);
  const ts=parse([row()]);const source={version:1,trades:ts,accounts:{'account:TESTE-1':{settings:A.DEFAULTS,reviews:{'2026-10-15':{rules:A.DEFAULTS,good:'Pausa respeitada',contexts:{revenge:'planned'}}},plans:{'2026-10-16':{from:'2026-10-15',rules:{...A.DEFAULTS,maxTrades:4},items:['count','focus'],focus:'Rever checklist'}},annotations:{[ts[0].id]:{exit:'stop',note:'Confirmado'}}}},imports:[]};
  const result=ctx.P.validateBackup(source);assert.equal(result.accounts['account:TESTE-1'].plans['2026-10-16'].rules.maxTrades,4);
  assert.equal(result.accounts['account:TESTE-1'].reviews['2026-10-15'].good,'Pausa respeitada');
@@ -156,13 +156,13 @@ test('SMC: plans stay pending until entry risk, target, setup, contracts and sto
  const reported=A.analyzeDay([t],t.day,{}, {[t.id]:{...note,emotion:'fear'}});assert.equal(reported.smc.emotions.fear,1);assert.equal(reported.smc.below.length,0);assert.ok(A.coaching(reported).some(c=>c.evidence.includes('1 relatos de medo')));
 });
 test('SMC: legacy and new backups preserve compatible review fields without assuming missing data',()=>{
- const ctx={ProfitAnalysis:A,ProfitDesk:D,ProfitSupervision:require('./diario-profit-supervision.js')};vm.createContext(ctx);vm.runInContext(fs.readFileSync(__dirname+'/diario-profit.js','utf8')+'\nthis.P=ProfitTrades;',ctx);
+ const ctx={ProfitAnalysis:A,ProfitDesk:D,ProfitJournal:require('./diario-profit-journal.js'),ProfitSupervision:require('./diario-profit-supervision.js')};vm.createContext(ctx);vm.runInContext(fs.readFileSync(__dirname+'/diario-profit.js','utf8')+'\nthis.P=ProfitTrades;',ctx);
  const t=parse([row()])[0],note={riskCents:10000,targetCents:20000,plannedQty:1,entryQty:1,execution:'simple',newSetup:'yes',setupEvidence:'<img src=x>',stopBasis:'structure',stopChange:'planned',stopReason:'Regra documentada',emotion:'fomo'};
  const original={version:1,trades:[t],accounts:{'account:TESTE-1':{settings:{maxTrades:8,quickMinutes:2},reviews:{},plans:{'2026-10-16':{from:'2026-10-15',rules:A.DEFAULTS,items:['spacing','rr','exitR','contracts','stop','setup'],focus:'Meu plano'}},annotations:{[t.id]:note}}},imports:[]};
  const b=ctx.P.validateBackup(original),n=b.accounts['account:TESTE-1'].annotations[t.id];
  assert.equal(n.riskCents,10000);assert.equal(n.emotion,'fomo');assert.equal(n.setupEvidence,'<img src=x>');
  assert.equal(b.accounts['account:TESTE-1'].settings.minTargetR,2);assert.equal(b.accounts['account:TESTE-1'].settings.quickMinutes,10,'Applies trader-confirmed interval to legacy profiles');
- assert.throws(()=>A.annotation({riskCents:-1}),/inválido/);assert.throws(()=>A.annotation({plannedQty:1.5}),/inválido/);
+ assert.throws(()=>A.annotation({riskCents:-1}),/inválido/);assert.equal(A.annotation({plannedQty:1.5}).plannedQty,1.5);
  assert.equal(A.annotation({exit:'stop',note:'Legado'}).riskCents,null);
 });
 

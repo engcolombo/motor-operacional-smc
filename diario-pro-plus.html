@@ -908,7 +908,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 </style>
 <link rel="stylesheet" href="diario-pro-plus.css?v=20261011-backtest-unified">
 <link rel="stylesheet" href="diario-attachments.css?v=20261008-image-viewer">
-<link rel="stylesheet" href="diario-profit.css?v=20261016-profit-supervision">
+<link rel="stylesheet" href="diario-profit.css?v=20261016-psychology-tradingview">
 </head>
 <body class="pro-plus">
 <div class="app">
@@ -925,12 +925,12 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
         <button class="nav-item" data-view="calendar" type="button">Calendário</button>
         <button class="nav-item" data-view="stats" type="button">Estatísticas</button>
         <button class="nav-item" data-view="journal" type="button">Diário</button>
-        <button class="nav-item" data-view="profit" type="button">Trades Profit</button>
         <button class="nav-item" data-view="fees" type="button">Taxas</button>
         <button class="nav-item" data-view="robot" type="button">Robô SMC</button>
         <button class="nav-item" data-view="backtests" type="button">Backtests</button>
         <div class="nav-divider"></div>
         <a class="nav-item" href="checklist.html" style="text-decoration:none;">Checklist de Trade</a>
+        <button class="nav-item nav-psychology" data-view="profit" type="button">Psicologia · revisão diária e evolução</button>
         <div class="nav-divider"></div>
 
         <details class="pro-cloud"><summary>Conta e sincronização</summary>
@@ -1353,12 +1353,13 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 <input type="file" id="importFile" accept=".json,.csv,application/json,text/csv" hidden>
 <div class="toast" id="toast"></div>
 
-<script src="diario-profit-analysis.js?v=20261016-profit-supervision"></script>
-<script src="diario-profit-desk.js?v=20261016-profit-supervision"></script>
-<script src="diario-profit-supervision.js?v=20261016-profit-supervision"></script>
-<script src="diario-profit.js?v=20261016-profit-supervision"></script>
+<script src="diario-profit-analysis.js?v=20261016-psychology-tradingview"></script>
+<script src="diario-profit-desk.js?v=20261016-psychology-tradingview"></script>
+<script src="diario-profit-supervision.js?v=20261016-psychology-tradingview"></script>
+<script src="diario-profit-journal.js?v=20261016-psychology-tradingview"></script>
+<script src="diario-profit.js?v=20261016-psychology-tradingview"></script>
 <script src="diario-backtests.js?v=20261011-backtest-unified"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="diario-core.js?v=20261016-profit-supervision"></script>
+<script src="diario-core.js?v=20261016-psychology-tradingview"></script>
 </body>
 </html>

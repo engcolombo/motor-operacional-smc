@@ -47,9 +47,9 @@ No Diário Pro+, abra ou crie um trade e use **Imagem do gráfico**. O arquivo �
 
 O SQL cria o bucket e as políticas de Storage automaticamente. Os metadados do anexo ficam no `payload` já existente de `trades_pro`; não é necessário criar outra coluna nem colocar chave administrativa no site. O backup JSON inclui os caminhos dos anexos, mas não contém os arquivos de imagem. Alterações locais precisam ser publicadas para aparecer no site do GitHub Pages.
 
-## Trades Profit — revisão da execução
+## Psicologia · revisão diária e evolução
 
-A aba lateral **Trades Profit** importa o CSV do relatório de operações do Profit. Abra o Diário Pro+, escolha **Importar CSV do Profit**, confira a prévia e clique em **Importar e analisar**. Não é necessário alterar as colunas nem apagar as linhas de cabeçalho da conta.
+A aba lateral **Psicologia · revisão diária e evolução**, imediatamente abaixo de **Checklist de Trade**, importa relatórios do Profit e do TradingView e usa os registros já existentes no diário. Abra o Diário Pro+, escolha **Importar CSV do Profit**, confira a prévia e clique em **Importar e analisar**. Não é necessário alterar as colunas nem apagar as linhas de cabeçalho da conta.
 
 O módulo inclui:
 
@@ -72,15 +72,15 @@ As regras iniciais são referências editáveis. A primeira revisão salva uma f
 
 ### Armazenamento e backup
 
-**Trades Profit salva apenas neste navegador; não sincroniza com o Supabase.** Os dados são separados pelo login do diário (ou perfil sem login) e pela conta do Profit. Entrar ou sair da conta muda o perfil exibido; não transfere dados automaticamente.
+**As importações, revisões e vínculos da Psicologia são salvos apenas neste navegador; não sincronizam com o Supabase.** O diário original mantém sua sincronização existente; o módulo lê esses registros depois de confirmar que pertencem ao login atual. Os dados são separados pelo login do diário (ou perfil sem login) e pela conta do Profit. Entrar ou sair da conta muda o perfil exibido; não transfere dados automaticamente.
 
-Use os botões **Backup** e **Restaurar** da própria aba. Eles incluem operações, regras, revisões, motivos de saída e compromissos. O botão geral de exportação do diário não inclui esse módulo. Restaurar exige confirmação e substitui apenas os dados Profit do perfil atual. Faça backup antes de limpar o navegador ou mudar de dispositivo/endereço do site.
+Use os botões **Backup** e **Restaurar** da própria aba. Eles incluem operações, regras, revisões, motivos de saída e compromissos. O botão geral de exportação do diário não inclui esse módulo. Restaurar exige confirmação e substitui apenas os dados da Psicologia do perfil atual. Faça backup antes de limpar o navegador ou mudar de dispositivo/endereço do site.
 
 Nenhum CSV pessoal foi incorporado ao código do site. O titular do relatório não é armazenado. Este módulo não envia o arquivo para serviços externos e não executa nem bloqueia ordens no Profit.
 
 ### Arquivos e validação
 
-Publique junto com a página os arquivos `diario-profit-analysis.js`, `diario-profit-desk.js`, `diario-profit-supervision.js`, `diario-profit.js` e `diario-profit.css`. A navegação e os pontos de integração estão em `diario-pro-plus.html` e `diario-core.js`.
+Publique junto com a página os arquivos `diario-profit-analysis.js`, `diario-profit-desk.js`, `diario-profit-supervision.js`, `diario-profit-journal.js`, `diario-profit.js` e `diario-profit.css`. A navegação e os pontos de integração estão em `diario-pro-plus.html` e `diario-core.js`.
 
 Teste unitário, com casos sintéticos:
 
@@ -88,6 +88,8 @@ Teste unitário, com casos sintéticos:
 node test-diario-profit.cjs
 node test-diario-profit-desk.cjs
 node test-diario-profit-supervision.cjs
+node test-diario-profit-journal.cjs
+node test-diario-tradingview.cjs
 ```
 
 Para conferir também uma exportação de referência de 76 operações em cinco pregões:
@@ -98,7 +100,7 @@ node test-diario-profit-desk.cjs "CAMINHO_DO_CSV"
 node test-diario-profit-supervision.cjs "CAMINHO_DO_CSV"
 ```
 
-O teste opcional `test-diario-profit-ui.cjs` recebe porta de depuração do Chrome, URL da prévia local, caminho do CSV de referência e diretório de artefatos. Execute-o somente em um perfil isolado de testes: ele limpa o armazenamento Profit desse perfil e testa importação, duplicatas, revisões, planos, isolamento por login, falha de armazenamento, backup/restauração e telas de 390/320 px.
+O teste opcional `test-diario-profit-ui.cjs` recebe porta de depuração do Chrome, URL da prévia local, caminho do CSV de referência e diretório de artefatos. Execute-o somente em um perfil isolado de testes: ele limpa o armazenamento da Psicologia e do diário desse perfil e testa importação, duplicatas, revisões, planos, isolamento por login, falha de armazenamento, backup/restauração e telas de 390/320 px.
 
 
 ### Revisão comportamental orientada ao SMC
@@ -108,7 +110,7 @@ A leitura agora segue o método declarado: novo setup antes de cada entrada, sem
 Em **Operações e evidências → Revisão SMC**, registre:
 
 - Novo setup, nome, evidência da estrutura/invalidação/gatilho e o estado emocional relatado.
-- Risco **inicial total** em reais (1R), alvo financeiro original, contratos planejados e contratos efetivos na entrada.
+- Risco **inicial total** na moeda da origem selecionada — BRL no Profit, USD no TradingView — (1R), alvo financeiro original, contratos planejados e contratos efetivos na entrada.
 - Execução simples ou com parciais/adições, justificativa de eventual exceção abaixo do alvo.
 - Base estrutural do stop, manutenção ou tipo de alteração, regra que autorizava a alteração e motivo de saída.
 
@@ -126,7 +128,7 @@ Backups anteriores continuam compatíveis. Os novos campos e compromissos SMC s�
 
 ### Mesa — reunião de fechamento
 
-A visão inicial **Mesa** apresenta um parecer de processo, episódios concretos da sessão e seis frentes de cobrança: seleção e espera, resposta às perdas, sustentação do alvo, contratos e stop, devolução de lucro e resposta aos gatilhos relatados. Cada frente separa evidência observada, hipótese a investigar, explicações alternativas, ação exigida e prova de cumprimento. O texto é calculado localmente por regras e relatos; não usa um serviço de IA externo nem constitui avaliação clínica.
+A visão inicial **Mesa** apresenta um parecer de processo, episódios concretos da sessão e uma auditoria documental seguida de seis frentes de cobrança: seleção e espera, resposta às perdas, sustentação do alvo, contratos e stop, devolução de lucro e resposta aos gatilhos relatados. Cada frente separa evidência observada, hipótese a investigar, explicações alternativas, ação exigida e prova de cumprimento. O texto é calculado localmente por regras e relatos; não usa um serviço de IA externo nem constitui avaliação clínica.
 
 A conclusão distingue quebra de controle, execução fora do plano, falta de evidência e execução consistente. Lucro não apaga desvio e prejuízo não comprova indisciplina. Limites ainda não personalizados são identificados como referências. O resultado das operações sinalizadas é uma soma descritiva, sem atribuir causalidade ao comportamento ou estimar lucro que poderia ter sido obtido.
 
@@ -138,7 +140,7 @@ O teste de navegador cobre a conclusão do debrief, sua preservação ao recarre
 
 ### Preparação, prioridade e insights
 
-Em **Preparação**, escolha uma data, inclusive futura, e registre condições dos setups, exceções, risco máximo por operação, sono, tensão, urgência, gatilho e resposta planejada. É necessário importar um histórico uma primeira vez para identificar a conta do Profit. O horário local de salvamento é comparado com a primeira entrada: registros posteriores não comprovam um plano prévio. Uma preparação salva fica preservada na interface quando já existem entradas importadas para sua data; registre ajustes no debrief e no próximo pregão. O horário vem do navegador e não é uma auditoria externa.
+Em **Preparação**, escolha uma data, inclusive futura, e registre condições dos setups, exceções, risco máximo por operação, sono, tensão, urgência, gatilho e resposta planejada. Com registros do diário, a revisão também funciona antes da primeira importação, no grupo Diário · sem CSV. Importar uma origem cria seu grupo próprio de preparação e acompanhamento. O horário local de salvamento é comparado com a primeira entrada: registros posteriores não comprovam um plano prévio. Uma preparação salva fica preservada na interface quando já existem entradas importadas para sua data; registre ajustes no debrief e no próximo pregão. O horário vem do navegador e não é uma auditoria externa.
 
 A Mesa mostra o plano preparado junto da execução. Um risco inicial informado acima do teto registrado antes da primeira entrada gera cobrança de controle; comparação com preparação retrospectiva é identificada como retrospectiva. Riscos ausentes não são reconstruídos pelo resultado. A preparação também conserva uma fotografia das regras, respeitando a precedência de planos e revisões existentes.
 
@@ -151,3 +153,29 @@ Amostras menores que dez operações em qualquer grupo recebem um aviso explorat
 A reunião semanal compara a semana da data selecionada, até esse dia, com a semana anterior, começando na segunda-feira. Mostra frequência de entradas consecutivas, documentação SMC, preparação prévia, prioridades cumpridas/descumpridas/pendentes e ações/evidências relatadas. O filtro de ativo vale para as comparações; a reunião semanal considera todos os ativos da conta. Sem pelo menos três pregões em cada semana, não há conclusão de tendência. Dias não importados não são considerados dias disciplinados. A documentação suficiente não implica execução correta.
 
 Preparações, prioridades e acompanhamento entram no backup/restauração da própria aba e continuam separados por login e conta. Não há alteração de tabelas, SQL ou sincronização Supabase nesta atualização.
+
+
+### Diário × execução: documentação e contexto
+
+A conferência usa o dia da **entrada** e a família do ativo. No Profit, todas as contas importadas do perfil são consideradas para evitar que um mesmo registro cubra execuções de contas diferentes. O diário pode ter mais registros, mas nunca menos por data/ativo. Também comparamos as categorias de resultado — alvo/positivo, stop/negativo e zero — sem exigir igualdade monetária. Um ativo diferente não cobre uma falta.
+
+Menos registros ou distribuição incompatível recebe cobrança grave na Mesa e impede concluir o debrief, preservando o rascunho. Resultado positivo/negativo é apenas um indicador quando o motivo de saída não foi confirmado. Registros abertos, parciais com resultado misto, dados inválidos e vínculos desatualizados exigem revisão, sem inventar intenção ou aprovar resultados desconhecidos.
+
+Em **Diário × execução**, confirme os pares sugeridos por horário (até dois minutos), lado e ativo. Não há vínculo automático; um registro só pode se vincular a uma execução. Os vínculos trazem setup, justificativa, quantidade e motivo de saída para campos ausentes da revisão SMC; risco/alvo só são aproveitados quando a moeda é compatível. Não somamos novamente o resultado do diário. Campos já revisados prevalecem. Alterações posteriores no diário atualizam a leitura e exigem reconferir um debrief concluído.
+
+A presença de setup e texto significa documentação, não comprova qualidade técnica nem que o racional foi escrito antes da ordem. O painel também mostra erros relatados, cobertura de risco e alvos abaixo do plano. Sem CSV, mostra contexto do diário sem certificar completude da execução. Os vínculos entram no backup da Psicologia; os registros originais do diário continuam no seu próprio armazenamento/backup.
+
+### Importar do TradingView
+
+Use **Importar CSV do TradingView**, selecione o CSV **Histórico de negociação** do **Paper Trading em USD**, confira a prévia e confirme a importação. O formato aceito tem Símbolo, Número da negociação, Tipo, Data e hora, Tamanho (qtd), L&P líquido USD e Comissão USD. Arquivos de posições e outras moedas são recusados com orientação.
+
+- Entrada e saída são agrupadas por símbolo e número da negociação; o líquido e a comissão são lidos uma única vez na saída. A comissão não é descontada novamente do líquido. O bruto usado em R é recomposto como líquido + comissão informada na saída.
+- Tamanho (valor), percentuais e acumulados não são somados e não são tratados como risco inicial. Quantidades fracionárias são preservadas.
+- Datas como “15 de out. de 2026, 03:11” são mantidas no horário exportado. Saída “Abertura” indica posição aberta e fica fora das métricas; a prévia informa a quantidade ignorada.
+- Pares ambíguos, datas inválidas ou quantidades incompatíveis são listados para revisão, sem fabricar uma execução simples.
+- A origem **TradingView · Paper Trading · USD** tem regras, revisões e resultados separados do Profit em BRL. Não há conversão cambial nem soma entre as origens. O arquivo não identifica a conta simulada: este grupo representa um único histórico de Paper Trading por perfil; não misture exportações de contas simuladas distintas.
+- Na conciliação da simulação, confirme manualmente quais registros do diário pertencem a ela. Apenas os vinculados cobrem a contagem simulada; vínculos de outra origem não são reutilizados. Valores em reais do diário não preenchem risco/alvo em USD: informe os valores originais em dólares na revisão SMC.
+
+Não é necessário executar SQL ou ajustar o Supabase para esta atualização. Use o backup da Psicologia para preservar os dados locais.
+
+O teste de navegador aceita um quinto argumento opcional com o CSV TradingView de referência (2 operações encerradas, 1 aberta). Ele valida as duas importações, moedas, quantidades fracionárias, vínculos, persistência e layout em celular.

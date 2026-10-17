@@ -13,6 +13,8 @@ let supabaseClient = null;
 let currentUser = null;
 let currentSession = null;
 let cloudBusy = false;
+let psychologyLoadedUser = null;
+let psychologyDiaryLoadError = false;
 
 const state = {
     trades: loadTrades(),
@@ -44,6 +46,30 @@ function persistRobotConfig() {
 function isRobotTrade(t) { return t?.source === ROBOT_SOURCE; }
 function manualTrades() { return state.trades.filter((t) => !isRobotTrade(t)); }
 function robotTrades() { return state.trades.filter(isRobotTrade); }
+
+function openPsychologyDiaryTrade(id) {
+    if(!psychologyDiarySnapshot().ready)return false;
+    const trade=state.trades.find(t=>t.id===id&&!isRobotTrade(t));
+    if(!trade)return false;
+    openModal(trade);return true;
+}
+
+function psychologyDiarySnapshot() {
+    const waiting = cloudBusy || (currentUser ? psychologyLoadedUser !== currentUser.id : psychologyLoadedUser !== null);
+    if (waiting || psychologyDiaryLoadError) return {ready:false,rows:[],source:'Diário aguardando sincronização',reason:'Carregue os registros do diário deste login em Conta e sincronização. Não comparamos dados remanescentes de outro login nem tratamos falha de carga como ausência de trades.'};
+    if (!Array.isArray(state.trades)) return {ready:false,rows:[],source:'Diário indisponível',reason:'Os registros locais do diário precisam ser recuperados.'};
+    const rows=state.trades.filter(t=>t&&t.source!==ROBOT_SOURCE).map(t=>{
+        let openLocal='';
+        try { if (parseDateTimeLocal(t.dateLocal) || Number.isFinite(new Date(t.date).getTime())) openLocal=tradeLocalDateTime(t); } catch {}
+        let registeredLocal='';
+        if(t.createdAt&&Number.isFinite(new Date(t.createdAt).getTime())) registeredLocal=localDateTimeValue(t.createdAt);
+        return {id:t.id,openLocal,registeredLocal,symbol:t.symbol,side:t.side,status:t.status,pnl:t.pnl,r:t.r,
+            stopMoney:t.stopMoney,riskMoney:t.riskMoney,targetMoney:t.targetMoney,initQty:t.initQty,qty:t.qty,
+            partials:t.partials,setup:t.setup,notes:t.notes,tags:t.tags,mistakes:t.mistakes,source:t.source,attachment:!!t.attachment};
+    });
+    return {ready:true,rows,source:currentUser?'Diário sincronizado do login atual':'Diário local deste navegador'};
+}
+
 
 const ASSET_FILTERS = { all: "Todos", win: "WIN", cripto: "Cripto", wdo: "WDO", forex: "Forex" };
 const ASSET_FILTER_VIEWS = new Set(["dashboard", "trades", "calendar", "stats", "journal"]);
@@ -723,7 +749,7 @@ function switchView(view) {
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
     const titles = {
-        profit: ["Trades Profit", "Psicologia da execução · revisão diária e evolução"],
+        profit: ["Psicologia · revisão diária e evolução", "Diário, Profit e TradingView · documentação, comportamento e acompanhamento"],
         backtests: ["Backtests", "Teste manual por estratégia · resultado em R"],
         dashboard: ["Dashboard", "Visão geral da performance"],
         trades: ["Trades", `${filteredManualTrades().length} operações registradas`],
@@ -2433,6 +2459,7 @@ async function loadCloudTrades() {
     if (!canUseCloud()) return;
     if (dateRepairRequested() && (cloudBusy || dateRepairBusy)) return;
     const loadingUserId = currentUser.id;
+    psychologyDiaryLoadError = false;
     cloudBusy = true;
     updateCloudUi();
     let data = null;
@@ -2452,13 +2479,17 @@ async function loadCloudTrades() {
     }
     if (currentUser?.id !== loadingUserId) return;
     if (error) {
+        psychologyDiaryLoadError = true;
         updateCloudUi();
+        if (state.view === "profit" && typeof ProfitTrades !== "undefined") ProfitTrades.render(true);
         if (dateRepairRequested()) setDateRepairStatus("Não foi possível carregar os trades. Use Atualizar nuvem para tentar a correção novamente.");
         alert(`Falha ao carregar nuvem: ${error.message || error}`);
         return;
     }
     clearPendingCloudDeletes();
     state.trades = (data || []).map((row) => ({ ...(row.payload || {}), id: row.id }));
+    psychologyLoadedUser = loadingUserId;
+    psychologyDiaryLoadError = false;
     saveTrades();
     updateCloudUi();
     renderAll();

@@ -1,6 +1,6 @@
 /* Optional browser integration test: node test-diario-profit-ui.cjs DEBUG_PORT BASE_URL CSV_PATH ARTIFACT_DIR */
 const fs=require('node:fs'),assert=require('node:assert/strict'),path=require('node:path');
-const [port,base,csvPath,out]=process.argv.slice(2);
+const [port,base,csvPath,out,tvPath]=process.argv.slice(2);
 if(!port||!base||!csvPath||!out)throw Error('Provide DEBUG_PORT BASE_URL CSV_PATH ARTIFACT_DIR for an isolated Chrome profile.');
 fs.mkdirSync(out,{recursive:true});
 (async()=>{
@@ -19,8 +19,15 @@ fs.mkdirSync(out,{recursive:true});
  const reload=async()=>{await send('Page.navigate',{url:base+'/diario-pro-plus.html'});await wait("typeof ProfitTrades!=='undefined' && !!document.querySelector('#pfCSV')");await click('[data-view="profit"]');await ev('window.confirm=()=>true');if(await ev("!!document.querySelector('[data-tab=day]')"))await click('[data-tab="day"]');};
  await send('Page.enable');await send('Runtime.enable');await send('DOM.enable');
  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
- await reload();await ev("localStorage.removeItem('diarioProfit_v1_guest')");await reload();
+ await reload();await ev("localStorage.removeItem('diarioProfit_v1_guest');localStorage.removeItem('diarioProTrades_v1')");await reload();
  await shot('profit-empty-desktop');
+ assert.equal(await ev('document.querySelector("[data-view=profit]").previousElementSibling.textContent.trim()'),'Checklist de Trade');
+ assert.equal(await ev('document.querySelector("[data-view=profit]").textContent.trim()'),'Psicologia · revisão diária e evolução');
+ await ev('state.trades=[{id:"journal-only-qa",dateLocal:"2026-10-15T09:00",symbol:"WIN",side:"long",status:"target",pnl:200,r:2,setup:"POI",notes:"Estrutura registrada",stopMoney:100,targetMoney:200}];saveTrades();ProfitTrades.render(true);');
+ assert.match(await ev("document.querySelector('.pf-diary-context').textContent"),/1 registros/);
+ assert.equal(await ev("document.querySelector('#pfAccount').value"),'__diary__');
+ await ev('state.trades=[];saveTrades();ProfitTrades.render(true);');
+
  await upload('#pfCSV',csvPath);await wait("!!document.querySelector('[data-action=\"confirm-import\"]')");
  assert.match(await ev("document.querySelector('.pf-import-preview').textContent"),/76 operações fechadas/);
  await click('[data-action="confirm-import"]');await click('[data-tab="day"]');assert.equal((await stored()).trades.length,76);
@@ -37,7 +44,7 @@ fs.mkdirSync(out,{recursive:true});
  await ev('document.querySelector(".pf-settings").open=true;document.querySelector("[name=maxTrades]").value="6";document.querySelector("[name=pauseMinutes]").value="10";document.querySelector("#pfRules").requestSubmit();');
  saved=await stored();assert.equal(saved.accounts[key].settings.maxTrades,6);assert.equal(saved.accounts[key].reviews['2026-10-15'].rules.maxTrades,8,'Historical review keeps original rules');
  assert.match(await ev("document.querySelector('.pf-promises').textContent"),/até 6 entradas/);
- await ev('document.querySelector("#pfPlanDate").value="2026-10-16";document.querySelector("#pfFocus").value="Se sentir urgência, rever checklist e esperar.";document.querySelector("#pfPlan").requestSubmit();');
+ await ev('document.querySelector("#pfPlanDate").value="2026-10-16";document.querySelector("#pfFocus").value="Se sentir urgência, rever checklist e esperar.";document.querySelector("#pfPriority").value="spacing";document.querySelector("#pfPlan").requestSubmit();');
  saved=await stored();assert.equal(saved.accounts[key].plans['2026-10-16'].rules.maxTrades,6);assert.equal(saved.accounts[key].plans['2026-10-16'].rules.pauseMinutes,10);
  await click('[data-tab="evolution"]');assert.match(await ev("document.querySelector('#view-profit').textContent"),/16\/10\/2026/);
  await shot('profit-evolution-desktop');
@@ -119,11 +126,17 @@ fs.mkdirSync(out,{recursive:true});
  await shot('profit-smc-day-desktop');
 
 
+ // Reconciliation is severe until the journal covers the executions.
+ await click('[data-tab="desk"]');
+ assert.match(await ev("document.querySelector('.pf-reconciliation').textContent"),/Falha grave/);
+ await shot('psychology-missing-records');
+ await ev('state.trades=JSON.parse(localStorage.getItem("diarioProfit_v1_guest")).trades.map((t,i)=>({id:"journal-"+i,qaProfitId:t.id,dateLocal:t.open.slice(0,16),date:t.open+"Z",symbol:t.symbol,side:t.side==="C"?"long":"short",status:t.grossCents>0?"target":t.grossCents<0?"stop":"breakeven",pnl:t.grossCents/100,r:t.grossCents>0?2:t.grossCents<0?-1:0,initQty:t.qty,setup:"Setup registrado",notes:"Estrutura e gatilho descritos no diário",mistakes:[]}));saveTrades();ProfitTrades.render(true);');
+
  // Desk report and accountability workflow.
  await click('[data-tab="desk"]');
  assert.match(await ev("document.querySelector('.pf-desk-verdict').textContent"),/Quebra de controle/);
  assert.equal(await ev("document.querySelector('[name=quickMinutes]').value"),'10');
- assert.equal(await ev("document.querySelectorAll('.pf-desk-chapter').length"),6);
+ assert.equal(await ev("document.querySelectorAll('.pf-desk-chapter').length"),7);
  assert.match(await ev("document.querySelector('.pf-desk-episode').textContent"),/Antes da entrada/);
  await shot('profit-desk-desktop');
  await ev("document.querySelector('.pf-desk-chapter').scrollIntoView()");await shot('profit-desk-chapters-desktop');
@@ -137,6 +150,11 @@ fs.mkdirSync(out,{recursive:true});
  assert.match(await ev("document.querySelector('#pfDeskError').textContent"),/Confirme/);
  await click('[data-action="desk-plan"]');await ev("document.querySelector('#pfPlan').requestSubmit()");
  assert.ok((await stored()).accounts[key].plans['2026-10-16'].items.includes('stop'));
+ // A completed narrative cannot bypass a real reconciliation gap.
+ await ev('window.qaSavedDiary=state.trades;state.trades=state.trades.filter((t,i)=>i!==state.trades.findIndex(x=>x.dateLocal.startsWith("2026-10-15")));ProfitTrades.render(true);document.querySelector("#pfDeskAck").checked=true;document.querySelector("#pfDeskForm").requestSubmit();');
+ assert.match(await ev("document.querySelector('#pfDeskError').textContent"),/Conciliação obrigatória/);
+ await ev('state.trades=window.qaSavedDiary;ProfitTrades.render(true);');
+
  await ev("document.querySelector('#pfDeskAck').checked=true;document.querySelector('#pfDeskForm').requestSubmit()");
  assert.match(await ev("document.querySelector('#pfDeskBadge').textContent"),/Debrief concluído/);
  assert.equal((await stored()).accounts[key].reviews['2026-10-15'].desk.completed,true);
@@ -218,9 +236,85 @@ fs.mkdirSync(out,{recursive:true});
  }
  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
 
+
+ // Confirmed journal links enrich absent data without duplicating PnL.
+ const candidate=(await stored()).trades.find(t=>t.day==='2026-10-15'&&t.grossCents>0&&t.id!==positive.id);
+ await ev('var t=state.trades.find(x=>x.qaProfitId==='+JSON.stringify(candidate.id)+');t.stopMoney=123;t.targetMoney=246;t.notes="Racional registrado <img src=x onerror=alert(1)>";saveTrades();');
+ const diaryId=await ev('state.trades.find(x=>x.qaProfitId==='+JSON.stringify(candidate.id)+').id');
+ await click('[data-tab="journal"]');
+ await ev('document.querySelector("#pfDay").value="2026-10-15";document.querySelector("#pfDay").dispatchEvent(new Event("change",{bubbles:true}));');
+ await ev('var row=Array.from(document.querySelectorAll("[data-profit-row]")).find(x=>x.dataset.profitRow==='+JSON.stringify(candidate.id)+');row.querySelector("[data-journal-choice]").value='+JSON.stringify(diaryId)+';row.querySelector("[data-journal-link]").click();');
+ assert.equal((await stored()).journalLinks[candidate.id].diaryId,diaryId);
+ assert.equal(await ev("document.querySelectorAll('#view-profit img').length"),0);
+ await shot('psychology-journal-desktop');
+ await click('[data-tab="day"]');
+ await ev('Array.from(document.querySelectorAll("[data-edit-smc]")).find(x=>x.dataset.editSmc==='+JSON.stringify(candidate.id)+').click()');
+ assert.equal(await ev("document.querySelector('#pfSMCForm [name=riskCents]').value"),'123,00');
+ assert.equal(await ev("document.querySelector('#pfSMCForm [name=newSetup]').value"),'unknown');
+ assert.equal(await ev("document.querySelector('#pfSMCForm [name=stopBasis]').value"),'unknown');
+ await click('#pfSMCDialog [data-action="close-smc"]');
+ assert.match(await ev("document.querySelector('.pf-kpis').textContent"),/332/);
+ await click('[data-tab="journal"]');
+ await ev('state.trades.find(x=>x.id==='+JSON.stringify(diaryId)+').notes="Contexto atualizado pelo diário";saveTrades();renderAll();');
+ assert.match(await ev("document.querySelector('.pf-journal-links').textContent"),/Contexto atualizado pelo diário/);
+ await reload();await click('[data-tab="journal"]');
+ await ev('document.querySelector("#pfDay").value="2026-10-15";document.querySelector("#pfDay").dispatchEvent(new Event("change",{bubbles:true}));');
+ assert.equal((await stored()).journalLinks[candidate.id].diaryId,diaryId);
+ for(const width of [390,320]){
+  await send('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true});
+  await ev("document.querySelector('.pf-reconciliation').scrollIntoView()");await shot('psychology-journal-'+width);
+  assert.equal(await ev('document.documentElement.scrollWidth<=innerWidth'),true,'Journal reconciliation fits '+width);
+ }
+ await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+
  await click('[data-view="dashboard"]');assert.equal(await ev("document.querySelector('#view-dashboard').classList.contains('active')"),true);
  await click('[data-view="profit"]');
+
+ if(tvPath){
+  const beforeTV=await stored(),profitCount=beforeTV.trades.length,profitKey=key;
+  assert.equal(await ev('document.querySelector("[data-action=import-tv]").textContent'),'Importar CSV do TradingView');
+  await upload('#pfTVCSV',tvPath);await wait("!!document.querySelector('[data-action=\"confirm-import\"]')");
+  assert.match(await ev("document.querySelector('.pf-import-preview').textContent"),/2 operações fechadas/);
+  assert.match(await ev("document.querySelector('.pf-import-preview').textContent"),/1 abertas ignoradas/);
+  await click('[data-action="confirm-import"]');await click('[data-tab="day"]');
+  assert.equal((await stored()).trades.length,profitCount+2);
+  assert.equal(await ev("document.querySelector('#pfAccount').value"),'tradingview:paper:USD');
+  assert.match(await ev("document.querySelector('.pf-kpis').textContent"),/US\$.*4,76/);
+  assert.doesNotMatch(await ev("document.querySelector('.pf-kpis').textContent"),/R\$/);
+  assert.match(await ev("document.querySelector('#pfRules').textContent"),/USD/);
+  assert.match(await ev("document.querySelector('#view-profit').textContent"),/Paper Trading/);
+  await upload('#pfTVCSV',tvPath);await wait("!!document.querySelector('[data-action=\"confirm-import\"]')");
+  assert.match(await ev("document.querySelector('.pf-import-preview').textContent"),/2 repetidas ignoradas/);
+  await click('[data-action="confirm-import"]');assert.equal((await stored()).trades.length,profitCount+2);
+  const tvTrade=(await stored()).trades.find(t=>t.source==='tradingview');
+  await ev('state.trades.push({id:"tv-diary-qa",dateLocal:'+JSON.stringify(tvTrade.open)+',symbol:"BTCUSDT",side:"short",status:"stop",pnl:-20,stopMoney:100,targetMoney:200,initQty:0.01,setup:"POI simulado",notes:"Estrutura revisada no Paper Trading"});saveTrades();ProfitTrades.render(true);');
+  await click('[data-tab="journal"]');
+  assert.match(await ev("document.querySelector('.pf-reconciliation').textContent"),/Faltam pelo menos 2/);
+  await ev('var row=Array.from(document.querySelectorAll("[data-profit-row]")).find(x=>x.dataset.profitRow==='+JSON.stringify(tvTrade.id)+');row.querySelector("[data-journal-choice]").value="tv-diary-qa";row.querySelector("[data-journal-link]").click();');
+  assert.equal((await stored()).journalLinks[tvTrade.id].diaryId,'tv-diary-qa');
+  assert.match(await ev("document.querySelector('.pf-reconciliation').textContent"),/Faltam pelo menos 1/);
+  await click('[data-tab="day"]');
+  await ev('Array.from(document.querySelectorAll("[data-edit-smc]")).find(x=>x.dataset.editSmc==='+JSON.stringify(tvTrade.id)+').click()');
+  assert.equal(await ev("document.querySelector('#pfSMCForm [name=riskCents]').value"),'');
+  assert.equal(await ev("document.querySelector('#pfSMCForm [name=entryQty]').value"),'0.01');
+  await ev('document.querySelector("#pfSMCForm [name=riskCents]").value="1,00";document.querySelector("#pfSMCForm [name=plannedQty]").value="0.01";document.querySelector("#pfSMCForm").requestSubmit();');
+  const tvKey='account:tradingview:paper:USD';
+  assert.equal((await stored()).accounts[tvKey].annotations[tvTrade.id].riskCents,100);
+  assert.equal((await stored()).accounts[tvKey].annotations[tvTrade.id].plannedQty,.01);
+  assert.deepEqual((await stored()).accounts[profitKey],beforeTV.accounts[profitKey],'TV review does not change Profit plan');
+  await shot('psychology-tradingview-desktop');
+  for(const width of [390,320]){
+   await send('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true});
+   await ev('window.scrollTo(0,0)');await shot('psychology-tradingview-'+width);
+   assert.equal(await ev('document.documentElement.scrollWidth<=innerWidth'),true,'TradingView fits '+width);
+  }
+  await reload();
+  await ev('document.querySelector("#pfAccount").value="tradingview:paper:USD";document.querySelector("#pfAccount").dispatchEvent(new Event("change",{bubbles:true}));document.querySelector("#pfDay").value="2026-10-15";document.querySelector("#pfDay").dispatchEvent(new Event("change",{bubbles:true}));');
+  assert.match(await ev("document.querySelector('.pf-kpis').textContent"),/US\$.*4,76/);
+  assert.equal((await stored()).accounts[tvKey].annotations[tvTrade.id].plannedQty,.01);
+ }
+
  assert.equal(errors.length,0,JSON.stringify(errors));
- console.log('Browser checks passed: CSV import, deduplication, persistent review, rule snapshots, next-day plan evaluation, confirmed stops, quota preservation, profile isolation, backup round-trip, corrupt backup rejection, mobile 390/320, navigation, desk narrative, evidence episodes, completed debrief, reload stability, stale-data detection, preparation, priority follow-up and historical insights.');
+ console.log('Browser checks passed: CSV import, deduplication, persistent review, rule snapshots, next-day plan evaluation, confirmed stops, quota preservation, profile isolation, backup round-trip, corrupt backup rejection, mobile 390/320, navigation, desk narrative, evidence episodes, completed debrief, reload stability, stale-data detection, preparation, priority follow-up, historical insights, journal-only mode, required reconciliation, linked evidence and diary refresh.');
  socket.close();
 })().catch(e=>{console.error(e);process.exit(1);});

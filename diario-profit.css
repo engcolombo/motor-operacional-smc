@@ -248,3 +248,14 @@
 #view-profit .pf-preparation fieldset { min-width:0;border:0;padding:0;margin:0; }
 #view-profit .pf-preparation fieldset > label { margin:16px 0; }
 #view-profit .pf-preparation fieldset:disabled button { opacity:.45;cursor:default; }
+
+/* Psychology navigation and journal reconciliation. */
+.nav-item.nav-psychology { white-space:normal;line-height:1.5; }
+#view-profit .pf-reconciliation-critical { border-left:3px solid #dc8d8d; }
+#view-profit .pf-reconciliation .pf-guide-grid { margin-bottom:20px; }
+#view-profit .pf-reconciliation .pf-guide-grid strong { font-size:25px;font-weight:500; }
+#view-profit .pf-reconciliation table { min-width:780px; }
+#view-profit .pf-journal-pair { padding:18px 0;border-top:1px solid var(--line);overflow-wrap:anywhere; }
+#view-profit .pf-journal-pair .pf-buttons { margin-top:12px; }
+#view-profit .pf-journal-record { padding:15px 0;border-top:1px solid var(--line);overflow-wrap:anywhere; }
+#view-profit .pf-diary-context p { overflow-wrap:anywhere; }

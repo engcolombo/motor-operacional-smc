@@ -53,18 +53,19 @@
         // Financial sum only on the selected day's closed trades; never an estimate of avoidable loss.
         const flaggedClosed=a.closed.filter(t=>violations.has(t.id));
         const flaggedPnl=flaggedClosed.reduce((n,t)=>n+t.netCents,0);
-        const critical=!!((r.configured&&(a.afterLimit.length||a.afterStreak.length))||criticalStops.length||quantityExcess.length||budgetBreaches.length);
-        const incomplete=coverage.complete<coverage.total;
+        const journal=input.journal||null,documentationCritical=!!journal&&['missing','mismatch'].includes(journal.status);
+        const critical=!!(documentationCritical||(r.configured&&(a.afterLimit.length||a.afterStreak.length))||criticalStops.length||quantityExcess.length||budgetBreaches.length);
+        const incomplete=coverage.complete<coverage.total||!!journal&&(['unavailable','pending'].includes(journal.status)||journal.withoutRationale>0);
         const status=!all.length?'empty':critical?'intervention':timing.length||smcFails.length?'correction':incomplete?'pending':'consistent';
-        const statusTitles={empty:'Sem sessão para avaliar',intervention:'Quebra de controle: correção obrigatória',correction:'Execução fora do plano: revisão obrigatória',pending:'Conclusão pendente: falta evidência do processo',consistent:'Execução consistente nos critérios revisados'};
+        const statusTitles={empty:'Sem sessão para avaliar',intervention:documentationCritical?journal.title:'Quebra de controle: correção obrigatória',correction:'Execução fora do plano: revisão obrigatória',pending:'Conclusão pendente: falta evidência do processo',consistent:'Execução consistente nos critérios revisados'};
         const opening={
             empty:'Importe operações antes de solicitar um parecer.',
-            intervention:'A prioridade desta sessão é restabelecer o controle do processo. Os limites ou a gestão de risco foram ultrapassados em critérios verificáveis. Um resultado favorável não muda esse registro. O próximo compromisso deve corrigir a decisão que permitiu continuar fora do plano.',
+            intervention:documentationCritical?journal.feedback:'A prioridade desta sessão é restabelecer o controle do processo. Os limites ou a gestão de risco foram ultrapassados em critérios verificáveis. Um resultado favorável não muda esse registro. O próximo compromisso deve corrigir a decisão que permitiu continuar fora do plano.',
             correction:'O histórico contém decisões incompatíveis com o plano SMC declarado. A cobrança é sobre essas decisões, não sobre sua capacidade como pessoa. Escolha o primeiro desvio que abriu espaço para os seguintes e transforme-o em uma regra verificável.',
             pending:'Os dados temporais não mostram quebra nas regras avaliadas, mas ainda falta documentar a qualidade das entradas e da gestão. Ausência de informação não será tratada como disciplina comprovada. Complete a revisão antes de tirar uma conclusão sobre a sessão.',
             consistent:a.pnl<0?'A sessão teve resultado negativo, mas os critérios revisados foram respeitados. Não mude o método apenas para eliminar o desconforto de uma perda. Preserve o que foi executado conforme o plano e acompanhe a repetição desse processo.':'Nos dados disponíveis, a sessão respeitou os critérios revisados. O próximo objetivo é repetir a execução, sem transformar o resultado em autorização para antecipar entradas ou alterar risco.'
         }[status];
-        const resultReading=a.pnl>0&&violations.size?'O lucro não valida as '+violations.size+' operações sinalizadas fora do plano. Repetir uma decisão porque ela deu certo financeiramente pode manter o desvio no processo.':
+        const resultReading=documentationCritical?'A divergência de registro impede validar a execução, independentemente do saldo financeiro. Não atribuímos um prejuízo estimado à falta de documentação.':a.pnl>0&&violations.size?'O lucro não valida as '+violations.size+' operações sinalizadas fora do plano. Repetir uma decisão porque ela deu certo financeiramente pode manter o desvio no processo.':
             a.pnl<0&&!violations.size&&!incomplete?'A perda financeira não é, por si, falha de disciplina. A revisão desta sessão sustenta a execução nos critérios disponíveis.':
             'Resultado financeiro e qualidade de execução são avaliados separadamente. As operações sinalizadas fecharam '+cash(flaggedPnl)+' neste dia; esse valor não demonstra quanto foi causado pelo comportamento nem quanto seria evitado.';
         const entryMap=new Map(a.entries.map(t=>[t.id,t]));
@@ -83,6 +84,12 @@
         }).sort((x,y)=>y.weight-x.weight||x.at.localeCompare(y.at)).slice(0,4).sort((x,y)=>x.at.localeCompare(y.at));
         const chapters=[];
         const chapter=(id,title,level,facts,hypothesis,alternatives,demand,proof,items)=>chapters.push({id,title,level,facts,hypothesis,alternatives,demand,proof,items});
+        if(journal)chapter('documentation','Integridade do registro e racional auditável',documentationCritical?'critical':['unavailable','pending'].includes(journal.status)||journal.withoutRationale>0?'pending':'review',
+            !journal.ready?'Diário indisponível: a quantidade de registros ainda não foi avaliada.':journal.profitCount+' execuções na fonte selecionada; '+journal.missing+' registros em falta no recorte por ativo; '+journal.linked+' vínculos confirmados; '+journal.withoutRationale+' registros do diário sem setup e justificativa completos.',
+            'Registro incompleto impede avaliar o processo. Investigue se você deixou de registrar por pressa, desconforto com o resultado ou falha de rotina; os números não determinam o motivo.',
+            'Confira sincronização, data, ativo, operações ainda abertas, saídas manuais e parciais. Menos registros é uma divergência observável; não comprova sozinho que você entrou sem racional.',
+            'Registrar cada execução e seu racional com honestidade, sem inventar justificativas depois. Conferir quantidade e categoria de resultado antes de concluir a sessão.',
+            'Diário com quantidade igual ou maior que a exportação em cada ativo e dia; resultados conciliados; setup e justificativa documentados.',['focus']);
         chapter('rhythm','Seleção de oportunidades e capacidade de esperar',a.rapid.length||s.noSetup.length?'deviation':'review',
             a.entries.length+' entradas; '+a.rapid.length+' abaixo de '+r.quickMinutes+' min ('+percent(a.rapid.length,a.entries.length)+'); '+s.noSetup.length+' sem novo setup, conforme sua revisão.',
             a.rapid.length?'O ritmo é compatível com ação reativa e merece investigar impaciência, FOMO ou necessidade de estar operando. O CSV não escolhe entre essas explicações.':'O intervalo observado não demonstra, sozinho, que os setups eram válidos. A qualidade da espera depende também da estrutura registrada.',
@@ -147,11 +154,12 @@
         const priority=chapters.find(c=>c.level==='critical')||chapters.find(c=>c.level==='deviation')||chapters.find(c=>c.level==='pending')||chapters[0];
         priority.primary=priority.id==='risk'?(budgetBreaches.length?'focus':criticalStops.length?'stop':'contracts'):priority.items[0];
         const pendingSteps=[
+            ...(documentationCritical?[{id:'journal',label:'Resolver a divergência em Diário × execução antes de concluir o debrief.'}]:[]),
             ...(coverage.complete<coverage.total?[{id:'evidence',label:'Completar a revisão SMC das '+(coverage.total-coverage.complete)+' operações com evidência incompleta.'}]:[]),
             {id:'episode',label:'Registrar no debrief uma decisão específica e sua alternativa dentro do plano.'},
             {id:'commitment',label:'Salvar um compromisso para o próximo pregão com ação e critério verificável.'}
         ];
-        const signature=fingerprint([day,r,input.preparations?.[day]||null,all.map(t=>[t.id,t.grossCents,t.feeCents,t.qty,A.annotation(annotations[t.id])]),{before:clean(review.before),after:clean(review.after),urge:clean(review.urge),trigger:clean(review.trigger),lesson:clean(review.lesson)},recurrence,commitments,Object.entries(plans).filter(([target,p])=>target>day&&p.from===day).map(([target,p])=>[target,p.rules,p.items,p.focus,p.contract?.priority||'',p.contract?.trigger||'',p.contract?.proof||''])]);
+        const signature=fingerprint([day,r,journal?.signature||null,input.preparations?.[day]||null,all.map(t=>[t.id,t.grossCents,t.feeCents,t.qty,A.annotation(annotations[t.id])]),{before:clean(review.before),after:clean(review.after),urge:clean(review.urge),trigger:clean(review.trigger),lesson:clean(review.lesson)},recurrence,commitments,Object.entries(plans).filter(([target,p])=>target>day&&p.from===day).map(([target,p])=>[target,p.rules,p.items,p.focus,p.contract?.priority||'',p.contract?.trigger||'',p.contract?.proof||''])]);
         const saved=debrief(review.desk||{});
         const stale=saved.completed&&saved.signature!==signature;
         const strengths=[];

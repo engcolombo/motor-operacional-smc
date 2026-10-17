@@ -83,7 +83,7 @@ test('Review notes never become inferred clinical labels',()=>{
  assert.match(chapter.alternatives,/Não atribuímos personalidade/);
 });
 test('Backup preserves a completed desk debrief and rejects invalid shapes',()=>{
- const ctx={ProfitAnalysis:A,ProfitDesk:D,ProfitSupervision:require('./diario-profit-supervision.js')};vm.createContext(ctx);vm.runInContext(fs.readFileSync(__dirname+'/diario-profit.js','utf8')+'\nthis.P=ProfitTrades;',ctx);
+ const ctx={ProfitAnalysis:A,ProfitDesk:D,ProfitJournal:require('./diario-profit-journal.js'),ProfitSupervision:require('./diario-profit-supervision.js')};vm.createContext(ctx);vm.runInContext(fs.readFileSync(__dirname+'/diario-profit.js','utf8')+'\nthis.P=ProfitTrades;',ctx);
  const t=trade(),r=report([t]);
  const backup={version:1,trades:[t],accounts:{'account:QA':{settings:A.DEFAULTS,annotations:{},plans:{},reviews:{'2026-10-15':{rules:A.DEFAULTS,desk:{moment:'<img src=x>',action:'Aguardar 10 minutos',completed:true,signature:r.signature}}}}},imports:[]};
  const restored=ctx.P.validateBackup(backup);

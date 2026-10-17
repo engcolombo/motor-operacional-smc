@@ -1,22 +1,42 @@
 /* Trades Profit: browser-local records, isolated by diary login and broker account. */
 const ProfitTrades = (() => {
     'use strict';
-    const A=ProfitAnalysis, D=ProfitDesk, S=ProfitSupervision, $=id=>document.getElementById(id), STORAGE='diarioProfit_v1_';
+    const A=ProfitAnalysis, D=ProfitDesk, S=ProfitSupervision, J=ProfitJournal, $=id=>document.getElementById(id), STORAGE='diarioProfit_v1_';
     const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const money=c=>(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const isTV=()=>account==='tradingview:paper:USD';
+    const currency=()=>isTV()?'USD':'BRL';
+    const sourceName=()=>isTV()?'TradingView':'Profit';
+    const money=(c,unit=currency())=>(c/100).toLocaleString('pt-BR',{style:'currency',currency:unit});
     const date=d=>d?d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4):'—';
     const time=d=>d.slice(11,19);
     const tone=n=>n>0?'pf-positive':n<0?'pf-negative':'';
-    const blank=()=>({version:1,trades:[],accounts:{},imports:[]});
+    const blank=()=>({version:1,trades:[],accounts:{},imports:[],journalLinks:{}});
     const accountKey=a=>'account:'+a;
-    const masked=a=>a==='sem-conta'?'Sem conta':'Conta ••• '+a.slice(-4);
+    const masked=a=>a==='tradingview:paper:USD'?'TradingView · Paper Trading · USD':a==='__diary__'?'Diário · sem CSV':a==='sem-conta'?'Sem conta':'Conta ••• '+a.slice(-4);
     let owner=null, data=blank(), account='', day='', tab='desk', ready=true, mounted=false, stage=null, busy=false, generation=0;
-    let status='',statusError=false,planDrafts={},prepDay='',insightAsset='';
+    let status='',statusError=false,planDrafts={},prepDay='',insightAsset='',lastDiarySignature='';
     const localOwner=()=>typeof currentUser!=='undefined'&&currentUser?.id?currentUser.id:'guest';
     const meta=()=>data.accounts[accountKey(account)]||{settings:{...A.DEFAULTS},reviews:{},plans:{},annotations:{},preparations:{}};
     const trades=()=>data.trades.filter(t=>t.account===account);
     const dayRules=d=>A.confirmedRules(meta().plans[d]?.rules||meta().reviews[d]?.rules||meta().preparations?.[d]?.rules||meta().settings);
-    const analysis=d=>A.analyzeDay(trades(),d,dayRules(d),meta().annotations);
+
+    const diarySnapshot=()=>typeof psychologyDiarySnapshot==='function'?psychologyDiarySnapshot():{ready:false,rows:[],source:'Diário indisponível',reason:'Abra esta aba dentro do Diário Pro+ para carregar os registros.'};
+    const availableDays=()=>[...new Set([...A.dates(trades()),...J.normalize(diarySnapshot().rows).items.map(t=>t.day)])].sort();
+    const journalRows=s=>{
+        const otherIds=new Set(data.trades.filter(t=>(t.source==='tradingview')!==isTV()).map(t=>t.id));
+        const excluded=new Set(Object.entries(data.journalLinks).filter(([id])=>otherIds.has(id)).map(([,link])=>link.diaryId));
+        return s.rows.filter(t=>!excluded.has(String(t.id)));
+    };
+    const journalReport=()=>{
+        const s=diarySnapshot(),annotations=Object.assign({},...Object.values(data.accounts).map(m=>m.annotations||{}));
+        return J.report({profit:data.trades.filter(t=>(t.source==='tradingview')===isTV()),diary:journalRows(s),links:data.journalLinks,annotations,day,ready:s.ready,reason:s.reason,requireLinks:isTV()});
+    };
+    const effectiveAnnotations=()=>{
+        const s=diarySnapshot();
+        return s.ready?J.enrich(trades(),journalRows(s),data.journalLinks,meta().annotations).annotations:meta().annotations;
+    };
+
+    const analysis=d=>A.analyzeDay(trades(),d,dayRules(d),effectiveAnnotations());
     function announce(message,error=false){status=message;statusError=error;if($('pfStatus')){$('pfStatus').textContent=message;$('pfStatus').classList.toggle('pf-error',error);}}
     function commit(next){
         if(!ready){announce('O armazenamento precisa ser recuperado antes de salvar. Exporte o conteúdo atual e restaure um backup válido.',true);return false;}
@@ -32,7 +52,7 @@ const ProfitTrades = (() => {
         if(!value||value.version!==1||!Array.isArray(value.trades)||value.trades.length>50000||!value.trades.every(A.validateTrade)||new Set(value.trades.map(t=>t.id)).size!==value.trades.length)throw new Error('Backup Profit inválido ou versão incompatível.');
         const clean=blank();clean.trades=value.trades.map(t=>({...t}));
         if(!value.accounts||typeof value.accounts!=='object'||Array.isArray(value.accounts))throw new Error('Configurações ausentes no backup.');
-        const allowedKeys=new Set(clean.trades.map(t=>accountKey(t.account)));
+        const allowedKeys=new Set([...clean.trades.map(t=>accountKey(t.account)),accountKey('__diary__')]);
         const text=v=>typeof v==='string'?v.slice(0,4000):'';
         for(const [k,m] of Object.entries(value.accounts)){
             if(!allowedKeys.has(k)||!m||typeof m!=='object')throw new Error('Conta inválida no backup.');
@@ -56,6 +76,11 @@ const ProfitTrades = (() => {
             }
             clean.accounts[k]=cm;
         }
+        const linkedDiary=new Set();
+        for(const [pid,link] of Object.entries(value.journalLinks||{})){
+            if(!clean.trades.some(t=>t.id===pid)||!link||typeof link.diaryId!=='string'||!link.diaryId||link.diaryId.length>200||linkedDiary.has(link.diaryId))throw Error('Vínculo Diário × execução inválido ou duplicado.');
+            linkedDiary.add(link.diaryId);clean.journalLinks[pid]={diaryId:link.diaryId,confirmedAt:text(link.confirmedAt)};
+        }
         clean.imports=Array.isArray(value.imports)?value.imports.slice(-30).map(x=>({name:text(x.name),at:text(x.at),count:Number(x.count)||0})): [];
         return clean;
     }
@@ -64,11 +89,11 @@ const ProfitTrades = (() => {
         owner=nextOwner;prepDay='';insightAsset='';generation++;stage=null;busy=false;planDrafts={};status='';statusError=false;ready=true;
         try{const raw=localStorage.getItem(STORAGE+owner);data=raw?validateBackup(JSON.parse(raw)):blank();}
         catch(e){data=blank();ready=false;status='Não foi possível ler os dados Profit salvos. O conteúdo original foi preservado. Use Backup para recuperá-lo.';statusError=true;}
-        account=[...new Set(data.trades.map(t=>t.account))][0]||'';day=A.dates(trades()).at(-1)||'';
+        account=[...new Set(data.trades.map(t=>t.account))][0]||'';day=availableDays().at(-1)||'';
         if(mounted)render(true);
     }
     function init(){
-        document.querySelector('.main').insertAdjacentHTML('beforeend','<section class="view" id="view-profit" aria-label="Trades Profit"></section>');
+        document.querySelector('.main').insertAdjacentHTML('beforeend','<section class="view" id="view-profit" aria-label="Psicologia · revisão diária e evolução"></section>');
         mounted=true;
         $('view-profit').addEventListener('click',click);
         $('view-profit').addEventListener('change',change);
@@ -91,15 +116,15 @@ const ProfitTrades = (() => {
         const r=A.confirmedRules(meta().settings);
         return '<details class="pf-card pf-settings"><summary>Regras do meu plano <span class="pf-muted">'+(r.configured?'Personalizadas':'Referências iniciais · ajuste ao seu método')+'</span></summary>'+
         '<form id="pfRules" class="pf-rule-grid">'+
-        [['maxTrades','Máximo de entradas/dia',1,1000,1],['quickMinutes','Intervalo mínimo SMC (min)',0,240,0.5],['minTargetR','Alvo mínimo do plano (R)',0.1,20,0.1],['pauseMinutes','Pausa após perda (min)',0,240,0.5],['maxLosses','Encerrar após perdas seguidas',1,100,1],['givebackPct','Alerta de devolução do pico (%)',1,100,1],['lossLimit','Limite de perda realizado (R$) · 0 desativa',0,100000000,0.01]].map(([k,l,min,max,step])=>'<label>'+l+'<input name="'+k+'" type="number" min="'+min+'" max="'+max+'" step="'+step+'" value="'+r[k]+'" required></label>').join('')+
+        [['maxTrades','Máximo de entradas/dia',1,1000,1],['quickMinutes','Intervalo mínimo SMC (min)',0,240,0.5],['minTargetR','Alvo mínimo do plano (R)',0.1,20,0.1],['pauseMinutes','Pausa após perda (min)',0,240,0.5],['maxLosses','Encerrar após perdas seguidas',1,100,1],['givebackPct','Alerta de devolução do pico (%)',1,100,1],['lossLimit','Limite de perda realizado ('+currency()+') · 0 desativa',0,100000000,0.01]].map(([k,l,min,max,step])=>'<label>'+l+'<input name="'+k+'" type="number" min="'+min+'" max="'+max+'" step="'+step+'" value="'+r[k]+'" required></label>').join('')+
         '<label>Início da tarde<input name="afternoon" type="time" value="'+r.afternoon+'" required></label><label>Última entrada permitida<input name="endTime" type="time" value="'+r.endTime+'" required></label>'+
         '<label>Saída positiva abaixo do alvo<select name="allowEarlyException">'+selectOptions([['true','Somente com exceção prevista e justificada'],['false','Sempre sinalizar como desvio']],String(r.allowEarlyException))+'</select></label><div class="pf-rule-footer"><p class="pf-muted">Defina limites coerentes com seu método. Revisões e compromissos já salvos conservam as regras usadas naquele dia. O CSV não informa o risco planejado.</p><button class="btn btn-primary" type="submit">Salvar regras</button></div></form></details>';
     }
     function headerMarkup(){
-        return '<div class="pf-toolbar"><div><span class="pf-eyebrow">PROCESSO · DISCIPLINA · EVOLUÇÃO</span><h2>Consistência, um pregão por vez.</h2><p class="pf-muted">Transforme o histórico do Profit em decisões mais conscientes.</p></div>'+
-        '<div class="pf-buttons"><button class="btn btn-primary" data-action="import">Importar CSV do Profit</button><button class="btn btn-ghost" data-action="backup">Backup</button><button class="btn btn-ghost" data-action="restore">Restaurar</button></div></div>'+
-        '<input id="pfCSV" type="file" accept=".csv,.txt,text/csv" hidden><input id="pfBackup" type="file" accept=".json,application/json" hidden>'+
-        '<div class="pf-storage"><span class="pf-dot"></span>Salvo neste navegador · '+(owner==='guest'?'perfil local sem login':'perfil do seu login')+' · não sincroniza com o Supabase <span>Faça backup para trocar de dispositivo.</span></div>'+
+        return '<div class="pf-toolbar"><div><span class="pf-eyebrow">PROCESSO · DISCIPLINA · EVOLUÇÃO</span><h2>Consistência, um pregão por vez.</h2><p class="pf-muted">Cruze o diário e as execuções do Profit ou TradingView para revisar suas decisões.</p></div>'+
+        '<div class="pf-buttons"><button class="btn btn-primary" data-action="import">Importar CSV do Profit</button><button class="btn btn-ghost" data-action="import-tv">Importar CSV do TradingView</button><button class="btn btn-ghost" data-action="backup">Backup</button><button class="btn btn-ghost" data-action="restore">Restaurar</button></div></div>'+
+        '<input id="pfCSV" type="file" accept=".csv,.txt,text/csv" hidden><input id="pfTVCSV" type="file" accept=".csv,text/csv" hidden><input id="pfBackup" type="file" accept=".json,application/json" hidden>'+
+        '<div class="pf-storage"><span class="pf-dot"></span>Análises e CSV salvos neste navegador · '+(owner==='guest'?'perfil local sem login':'perfil do seu login')+' · não sincroniza com o Supabase <span>Faça backup para trocar de dispositivo.</span></div>'+
         '<p id="pfStatus" class="pf-status'+(statusError?' pf-error':'')+'" role="status" aria-live="polite">'+esc(status)+'</p>';
     }
     function previewMarkup(){
@@ -108,14 +133,14 @@ const ProfitTrades = (() => {
         return '<section class="pf-card pf-import-preview"><div class="pf-section-title"><div><span class="pf-eyebrow">CONFERIR IMPORTAÇÃO</span><h3>'+esc(stage.name)+'</h3></div><button class="btn btn-ghost" data-action="cancel-import">Cancelar</button></div>'+
         '<p>'+esc(masked(p.account))+' · '+p.trades.length+' operações fechadas · '+date(p.trades[0].day)+' a '+date(p.trades.at(-1).day)+'</p>'+
         '<div class="pf-import-numbers"><span><strong>'+result.added+'</strong> novas</span><span><strong>'+(result.duplicates+p.duplicates)+'</strong> repetidas ignoradas</span><span><strong>'+result.updated+'</strong> atualizações</span><span><strong>'+p.openCount+'</strong> abertas ignoradas</span><span><strong>'+p.rejected.length+'</strong> linhas inválidas</span></div>'+
-        '<p class="pf-muted">Resultado = Res. Operação − valor absoluto de Comissões. “Total” e “TET” não são usados nos cálculos. Exportações sobrepostas não duplicam operações.</p>'+
+        '<p class="pf-muted">'+(p.source==='tradingview'?'L&P líquido da saída, contado uma vez por negociação, em USD. Posições abertas ficam fora da análise.':'Resultado = Res. Operação − valor absoluto de Comissões. “Total” e “TET” não são usados nos cálculos.')+' Exportações sobrepostas não duplicam operações.</p>'+
         p.warnings.map(w=>'<p class="pf-warning">'+esc(w)+'</p>').join('')+
         (p.rejected.length?'<details><summary>Ver linhas não importadas</summary><ul>'+p.rejected.slice(0,100).map(r=>'<li>Linha '+r.line+': '+esc(r.reason)+'</li>').join('')+'</ul></details>':'')+
         (result.updated?'<p class="pf-warning">As '+result.updated+' operações identificadas pelos mesmos horários, ativo e lado terão seus valores atualizados.</p>':'')+
         '<button class="btn btn-primary" data-action="confirm-import"'+(!ready?' disabled':'')+'>Importar e analisar</button></section>';
     }
     function emptyMarkup(){
-        return '<div class="pf-empty pf-card"><div class="pf-empty-mark" aria-hidden="true">↗</div><span class="pf-eyebrow">SEU HISTÓRICO É O PONTO DE PARTIDA</span><h3>O resultado mostra o que aconteceu.<br>A revisão ajuda a entender como.</h3><p>Importe o relatório de operações do Profit com Abertura, Fechamento e Res. Operação. A cada novo arquivo, o histórico se completa sem repetir trades.</p><button class="btn btn-primary" data-action="import">Escolher exportação do Profit</button><div class="pf-empty-topics"><span>01 · Ritmo e pausas</span><span>02 · Reação às perdas</span><span>03 · Compromissos para amanhã</span></div></div>';
+        return '<div class="pf-empty pf-card"><div class="pf-empty-mark" aria-hidden="true">↗</div><span class="pf-eyebrow">SEU HISTÓRICO É O PONTO DE PARTIDA</span><h3>O resultado mostra o que aconteceu.<br>A revisão ajuda a entender como.</h3><p>Importe o relatório de operações do Profit ou o Histórico de negociação do Paper Trading do TradingView. A cada novo arquivo, o histórico se completa sem repetir trades.</p><button class="btn btn-primary" data-action="import">Escolher exportação do Profit</button><div class="pf-empty-topics"><span>01 · Ritmo e pausas</span><span>02 · Reação às perdas</span><span>03 · Compromissos para amanhã</span></div></div>';
     }
     function alertMarkup(a,m){
         if(!a.alerts.length)return '<div class="pf-good"><strong>Nenhum sinal pelas regras atuais.</strong><p>Revise também a qualidade dos setups. Ausência de alertas não garante disciplina.</p></div>';
@@ -157,7 +182,7 @@ const ProfitTrades = (() => {
     function tableMarkup(a,m){
         const rows=[...new Map([...a.closed,...a.entries].map(t=>[t.id,t])).values()].sort((x,y)=>x.open.localeCompare(y.open));
         return '<details class="pf-card pf-table-card"><summary>Operações e evidências <span class="pf-muted">'+rows.length+' registros · ordenados pela abertura</span></summary><p class="pf-muted">Resultado no dia do fechamento; frequência no dia da abertura. A pausa considera o último fechamento conhecido do dia. Perda não significa necessariamente stop.</p><div class="pf-table-scroll"><table><thead><tr><th>Ativo / lado</th><th>Abertura</th><th>Fechamento</th><th>Qtd. negociada</th><th>Pausa</th><th>Resultado</th><th>Evidências / revisão</th></tr></thead><tbody>'+
-        rows.map(t=>{const n=m.annotations[t.id]||{},info=a.entryInfo[t.id],gap=info?.gap,smc=A.smcTrade(t,n,a.rules);return '<tr><td><strong>'+esc(t.symbol)+'</strong><small>'+(t.side==='C'?'Compra':'Venda')+'</small></td><td>'+time(t.open)+'<small>'+date(t.open)+'</small></td><td>'+time(t.close)+'<small>'+date(t.close)+'</small></td><td>'+t.qty.toLocaleString('pt-BR')+(t.averaged?'<small>Com preço médio</small>':'')+'</td><td>'+(gap==null?'—':gap<60?Math.round(gap)+' s':(gap/60).toFixed(1)+' min')+'</td><td class="'+tone(t.netCents)+'">'+money(t.netCents)+'<small>'+esc(rformat(smc.realizedR))+' bruto</small></td><td><button class="btn btn-ghost" data-edit-smc="'+esc(t.id)+'">Revisão SMC</button><div class="pf-tags">'+[...(info?.tags||[]),...smc.tags].map(s=>'<span>'+esc(s)+'</span>').join('')+'</div><details><summary>Revisar operação</summary><label>Motivo de saída<select data-trade="'+esc(t.id)+'" data-field="exit">'+selectOptions([['unknown','Não informado pelo CSV'],['stop','Stop confirmado por mim'],['target','Alvo'],['manual','Saída manual'],['breakeven','Breakeven']],n.exit||'unknown')+'</select></label><label>Contexto do trade<textarea rows="2" maxlength="4000" data-trade="'+esc(t.id)+'" data-field="note">'+esc(n.note||'')+'</textarea></label></details></td></tr>';}).join('')+'</tbody></table></div></details>';
+        rows.map(t=>{const n=m.annotations[t.id]||{},info=a.entryInfo[t.id],gap=info?.gap,smc=A.smcTrade(t,n,a.rules);return '<tr><td><strong>'+esc(t.symbol)+'</strong><small>'+(t.side==='C'?'Compra':'Venda')+'</small></td><td>'+time(t.open)+'<small>'+date(t.open)+'</small></td><td>'+time(t.close)+'<small>'+date(t.close)+'</small></td><td>'+t.qty.toLocaleString('pt-BR',{maximumFractionDigits:12})+(t.averaged?'<small>Com preço médio</small>':'')+'</td><td>'+(gap==null?'—':gap<60?Math.round(gap)+' s':(gap/60).toFixed(1)+' min')+'</td><td class="'+tone(t.netCents)+'">'+money(t.netCents)+'<small>'+esc(rformat(smc.realizedR))+' bruto</small></td><td><button class="btn btn-ghost" data-edit-smc="'+esc(t.id)+'">Revisão SMC</button><div class="pf-tags">'+[...(info?.tags||[]),...smc.tags].map(s=>'<span>'+esc(s)+'</span>').join('')+'</div><details><summary>Revisar operação</summary><label>Motivo de saída<select data-trade="'+esc(t.id)+'" data-field="exit">'+selectOptions([['unknown','Não informado pelo CSV'],['stop','Stop confirmado por mim'],['target','Alvo'],['manual','Saída manual'],['breakeven','Breakeven']],n.exit||'unknown')+'</select></label><label>Contexto do trade<textarea rows="2" maxlength="4000" data-trade="'+esc(t.id)+'" data-field="note">'+esc(n.note||'')+'</textarea></label></details></td></tr>';}).join('')+'</tbody></table></div></details>';
     }
 
     const emotionLabel={calm:'calma / plano',fomo:'medo de perder movimento',revenge:'vontade de recuperar',fear:'medo de devolver ganho',euphoria:'euforia',impatience:'impaciência'};
@@ -187,20 +212,21 @@ const ProfitTrades = (() => {
     }
     function openSMC(id){
         const t=trades().find(x=>x.id===id);if(!t)return;
-        const n=A.annotation(meta().annotations[id]),dialog=$('pfSMCDialog');
+        const n=A.annotation(effectiveAnnotations()[id]),dialog=$('pfSMCDialog');
         const field=(name,label,options)=>'<label>'+label+'<select name="'+name+'">'+selectOptions(options,n[name])+'</select></label>';
         const cash=(name,label)=>'<label>'+label+'<input name="'+name+'" inputmode="decimal" autocomplete="off" value="'+(n[name]===null?'':esc((n[name]/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})))+'" placeholder="Não informado"></label>';
-        const qty=(name,label)=>'<label>'+label+'<input name="'+name+'" type="number" min="1" max="1000000" step="1" value="'+(n[name]??'')+'" placeholder="Não informado"></label>';
+        const qty=(name,label)=>'<label>'+label+'<input name="'+name+'" type="number" min="0" max="1000000" step="any" value="'+(n[name]??'')+'" placeholder="Não informado"></label>';
         dialog.innerHTML='<form id="pfSMCForm" data-id="'+esc(id)+'"><div class="pf-section-title"><div><span class="pf-eyebrow">REVISÃO POR OPERAÇÃO</span><h3 id="pfSMCTitle">'+esc(t.symbol)+' · '+date(t.open)+' '+time(t.open)+'</h3></div><button class="btn btn-ghost" type="button" data-action="close-smc" aria-label="Fechar revisão SMC">Fechar</button></div>'+
+        (data.journalLinks[id]?'<p class="pf-note">Há um registro do diário vinculado. Campos ausentes podem aparecer preenchidos com esses dados; confira o plano original antes de salvar. Isso não confirma automaticamente novo setup ou stop estrutural.</p>':'')+
         '<p class="pf-note">Informe o plano original. Não use o prejuízo ocorrido como substituto do risco inicial. Este é um relato de revisão; o CSV não comprova quando o plano foi definido.</p>'+
         '<fieldset><legend>1. Setup e intenção</legend><div class="pf-form-grid">'+
         field('newSetup','Havia um novo setup independente?',[['unknown','Ainda não conferi'],['yes','Sim, novo setup do meu plano'],['no','Não, reentrei sem novo setup']])+
         field('emotion','O que influenciou minha decisão?',[['unknown','Ainda não identifiquei'],['calm','Calma / execução do plano'],['fomo','Medo de perder o movimento'],['revenge','Vontade de recuperar'],['fear','Medo de devolver o ganho'],['euphoria','Euforia / excesso de confiança'],['impatience','Impaciência / vontade de operar']])+
         '</div><label>Nome do setup<input name="setupName" maxlength="200" value="'+esc(n.setupName)+'" placeholder="Ex.: retorno ao POI com confirmação"></label><label>Qual estrutura, invalidação e gatilho justificaram a entrada?<textarea name="setupEvidence" rows="2" maxlength="4000">'+esc(n.setupEvidence)+'</textarea></label></fieldset>'+
-        '<fieldset><legend>2. Risco, alvo e contratos</legend><div class="pf-form-grid">'+cash('riskCents','Risco inicial total da posição (R$ = 1R)')+cash('targetCents','Alvo financeiro planejado total (R$)')+qty('plannedQty','Contratos planejados na entrada')+qty('entryQty','Contratos efetivos na entrada (confirmados)')+
+        '<fieldset><legend>2. Risco, alvo e contratos</legend><div class="pf-form-grid">'+cash('riskCents','Risco inicial total da posição ('+currency()+' = 1R)')+cash('targetCents','Alvo financeiro planejado total ('+currency()+')')+qty('plannedQty','Quantidade planejada na entrada')+qty('entryQty','Quantidade efetiva na entrada (confirmada)')+
         field('execution','Como a operação foi executada?',[['unknown','Não conferi a composição'],['simple','Uma entrada e uma saída, sem parciais'],['scaled','Parciais, adições ou execução escalonada']])+
         field('earlyReason','Motivo de saída positiva abaixo do alvo',[['unknown','Não se aplica / não investiguei'],['planned','Exceção já prevista no plano'],['fear','Medo de devolver o ganho'],['recover','Queria recuperar / garantir algum lucro'],['manual','Outra decisão fora do plano']])+'</div>'+
-        '<p class="pf-small pf-muted">CSV: '+t.qty+' contratos negociados no agregado. Só usamos esse número como quantidade de entrada se você confirmar execução simples. Em parciais/adições, confira a quantidade inicial no histórico de ordens.</p>'+
+        '<p class="pf-small pf-muted">CSV: '+t.qty+' unidades negociadas no agregado. Só usamos esse número como quantidade de entrada se você confirmar execução simples. Em parciais/adições, confira a quantidade inicial no histórico de ordens.</p>'+
         '<label>Qual exceção previa sair abaixo do alvo, e qual evidência a ativou?<textarea name="exception" rows="2" maxlength="4000">'+esc(n.exception)+'</textarea></label></fieldset>'+
         '<fieldset><legend>3. Invalidação e gestão do stop</legend><div class="pf-form-grid">'+
         field('stopBasis','Onde estava o stop inicial?',[['unknown','Não conferi no gráfico'],['structure','Na invalidação estrutural do meu plano'],['arbitrary','Sem base estrutural / mal posicionado']])+
@@ -242,7 +268,7 @@ const ProfitTrades = (() => {
         '<section class="pf-card"><div class="pf-section-title"><div><h3>Padrões para investigar</h3><p class="pf-muted">O número é uma evidência. A intenção precisa da sua revisão.</p></div><span class="pf-badge">'+a.alerts.length+' sinais</span></div>'+alertMarkup(a,m)+'</section>'+
         '<details class="pf-card"><summary>Como a nota de ritmo é calculada</summary><p class="pf-muted">As regras de ritmo abaixo têm o mesmo peso. Setup, alvo, contratos e stop são avaliados separadamente no painel SMC, com pendências explícitas. A nota não mede saúde mental nem competência profissional.</p>'+
         a.timingChecks.map(c=>'<div class="pf-due-row"><span class="'+(c.pass?'pf-positive':'pf-negative')+'">'+(c.pass?'Dentro':'Rever')+'</span><div>'+esc(c.label)+'<small>'+esc(c.detail)+'</small></div></div>').join('')+
-        '<p class="pf-small pf-muted">Limites de perda e sequência usam resultados já encerrados antes de cada entrada. O módulo avalia o histórico importado; não bloqueia ordens no Profit.</p></details></div>'+
+        '<p class="pf-small pf-muted">Limites de perda e sequência usam resultados já encerrados antes de cada entrada. O módulo avalia o histórico importado; não bloqueia ordens na plataforma.</p></details></div>'+
         '<div class="pf-stack">'+coachMarkup(a)+reviewMarkup(m)+planMarkup(a,m)+'</div></div>'+tableMarkup(a,m);
     }
     function evolutionMarkup(days,m){
@@ -265,17 +291,18 @@ const ProfitTrades = (() => {
         reports.slice().reverse().map(a=>'<tr><td><button class="pf-link" data-day="'+a.day+'">'+date(a.day)+'</button></td><td class="'+tone(a.pnl)+'">'+money(a.pnl)+'</td><td>'+(a.score===null?'—':a.score+'%')+'</td><td>'+a.entries.length+'</td><td>'+a.afterLoss.length+'</td><td>'+a.maxStreak+'</td><td>'+money(a.afternoonGiveback)+'</td><td>'+(m.reviews[a.day]?'Iniciada':'Pendente')+'</td></tr>').join('')+'</tbody></table></div></section>';
     }
 
-    const deskReport=()=>D.report({trades:trades(),day,settings:meta().settings,annotations:meta().annotations,reviews:meta().reviews,plans:meta().plans,preparations:meta().preparations||{}});
+    const deskReport=()=>D.report({trades:trades(),day,settings:meta().settings,annotations:effectiveAnnotations(),reviews:meta().reviews,plans:meta().plans,preparations:meta().preparations||{},journal:journalReport()});
     function deskMarkup(m){
         const d=deskReport(),a=d.a,rv=d.saved;
+        if(!a.entries.length&&!a.closed.length)return journalMarkup(true)+reviewMarkup(m)+planMarkup(a,m);
         const badge=d.reviewed?'Debrief concluído':d.stale?'Dados mudaram · reconferir':'Debrief pendente';
         const levels={critical:'Quebra de controle relatada ou limite confirmado',deviation:'Desvio a revisar',pending:'Evidência incompleta',review:'Verificação de processo'};
         const nextPlans=Object.entries(m.plans).filter(([target,p])=>target>day&&p.from===day);
-        return dailyGuideMarkup(d,m)+'<section class="pf-card pf-desk-verdict pf-desk-'+d.status+'"><div class="pf-section-title"><div><span class="pf-eyebrow">MESA · REUNIÃO DE FECHAMENTO · '+date(day)+'</span><h2>'+esc(d.title)+'</h2></div><span class="pf-badge" id="pfDeskBadge">'+badge+'</span></div>'+
+        return journalMarkup(false)+dailyGuideMarkup(d,m)+'<section class="pf-card pf-desk-verdict pf-desk-'+d.status+'"><div class="pf-section-title"><div><span class="pf-eyebrow">MESA · REUNIÃO DE FECHAMENTO · '+date(day)+'</span><h2>'+esc(d.title)+'</h2></div><span class="pf-badge" id="pfDeskBadge">'+badge+'</span></div>'+
         '<p class="pf-desk-lead">'+esc(d.opening)+'</p><p class="pf-desk-result">'+esc(d.resultReading)+'</p>'+
         '<div class="pf-desk-numbers"><div><span>Operações sinalizadas</span><strong>'+d.flaggedCount+'<small> / '+d.coverage.total+'</small></strong></div><div><span>Revisão SMC suficiente</span><strong>'+d.coverage.complete+'<small> / '+d.coverage.total+'</small></strong></div><div><span>Resultado da sessão</span><strong class="'+tone(a.pnl)+'">'+money(a.pnl)+'</strong></div></div>'+
         (!a.rules.configured?'<p class="pf-small pf-muted">Intervalo de 10 min e referência de 2R confirmados no seu plano. Os demais limites ainda são referências iniciais; revise-os em “Regras do meu plano”.</p>':'')+
-        '<p class="pf-small pf-muted">Parecer de processo calculado localmente por regras e relatos. Não é avaliação clínica nem autorização ou bloqueio de ordens no Profit.</p></section>'+
+        '<p class="pf-small pf-muted">Parecer de processo calculado localmente por regras e relatos. Não é avaliação clínica nem autorização ou bloqueio de ordens na plataforma.</p></section>'+
         '<div class="pf-desk-columns"><div class="pf-stack"><section class="pf-card"><span class="pf-eyebrow">ANÁLISE DA SESSÃO</span><h3>O que a mesa está cobrando</h3>'+
         d.chapters.map((c,i)=>'<details class="pf-desk-chapter"'+(c.id===d.priority.id?' open':'')+'><summary><span class="pf-desk-index">'+String(i+1).padStart(2,'0')+'</span>'+esc(c.title)+'<span class="pf-badge">'+levels[c.level]+'</span></summary>'+
         '<div class="pf-desk-evidence"><span>O que está documentado</span><p>'+esc(c.facts)+'</p></div><div class="pf-desk-hypothesis"><span>Hipótese para investigar</span><p>'+esc(c.hypothesis)+'</p></div>'+
@@ -320,7 +347,7 @@ const ProfitTrades = (() => {
 
 
     const localStamp=()=>{const d=new Date(),pad=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());};
-    const supervisionInput=()=>({trades:trades(),day,settings:meta().settings,reviews:meta().reviews,plans:meta().plans,annotations:meta().annotations,preparations:meta().preparations||{},asset:insightAsset});
+    const supervisionInput=()=>({trades:trades(),day,settings:meta().settings,reviews:meta().reviews,plans:meta().plans,annotations:effectiveAnnotations(),preparations:meta().preparations||{},asset:insightAsset});
     function preparationMarkup(m){
         prepDay=prepDay||localStamp().slice(0,10);
         const p=m.preparations?.[prepDay],v=S.preparation(p||{}),plan=m.plans[prepDay],c=S.contract(plan?.contract||{}),r=dayRules(prepDay);
@@ -334,7 +361,7 @@ const ProfitTrades = (() => {
             (p?'<p class="pf-small">Conferência posterior: '+known.length+' operações com risco inicial informado; '+excess+' acima do teto por operação registrado. O risco do CSV não é estimado.</p>':'')+
             '<form id="pfPrepForm" novalidate><fieldset'+(locked?' disabled':'')+'><div class="pf-form-grid"><label>Como dormi?<select name="sleep">'+selectOptions([['','Não informado'],['rested','Descansado'],['regular','Regular'],['poor','Mal descansado']],v.sleep)+'</select></label>'+
             ['tension','urge'].map((k,i)=>'<label>'+(i?'Vontade de recuperar dinheiro':'Tensão percebida')+'<select name="'+k+'">'+selectOptions([['','Não informada'],...Array.from({length:11},(_,n)=>[String(n),n+' / 10'])],v[k])+'</select></label>').join('')+
-            '<label>Risco máximo planejado por operação (R$)<input name="riskCents" inputmode="decimal" placeholder="Defina no seu plano" value="'+(v.riskCents===null?'':esc((v.riskCents/100).toFixed(2).replace('.',',')))+'"></label></div>'+
+            '<label>Risco máximo planejado por operação ('+currency()+')<input name="riskCents" inputmode="decimal" placeholder="Defina no seu plano" value="'+(v.riskCents===null?'':esc((v.riskCents/100).toFixed(2).replace('.',',')))+'"></label></div>'+
             [['setups','Quais setups e condições autorizam uma entrada?','Estrutura, contexto, invalidação e gatilho.'],['exceptions','Quais exceções permitem uma saída positiva abaixo do alvo?','Descreva as regras previstas. Se não há exceções, registre “Nenhuma”.'],['trigger','Qual gatilho exige atenção hoje?','Ex.: vontade de recuperar após uma perda.'],['response','Se esse gatilho aparecer, o que farei antes da próxima ordem?','Ação observável e coerente com seu plano.']].map(([k,label,placeholder])=>'<label>'+label+'<textarea name="'+k+'" rows="3" maxlength="4000" placeholder="'+placeholder+'">'+esc(p?v[k]:k==='trigger'?c.trigger:k==='response'?plan?.focus||'':v[k])+'</textarea></label>').join('')+
             '<p class="pf-small pf-muted">Esses relatos dão contexto à revisão. Nenhuma resposta recebe diagnóstico ou autorização automática para operar.</p><p id="pfPrepError" role="alert" class="pf-error"></p><button type="submit" class="btn btn-primary">Salvar preparação</button></fieldset>'+(locked?'<p class="pf-note">Esta preparação foi preservada porque o pregão já tem entradas importadas. Registre a correção no debrief e prepare a mudança para a próxima sessão.</p>':'')+'</form></section>';
     }
@@ -389,23 +416,69 @@ const ProfitTrades = (() => {
             '<p class="pf-muted">'+r.failedRecent+' prioridades descumpridas nos últimos até 10 dias importados com plano.</p><ul>'+r.prompts.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></section>';
     }
 
+
+    function journalMarkup(full=false){
+        const r=journalReport(),s=diarySnapshot(),labels={win:'Alvo / positivo',loss:'Stop / negativo',zero:'Zero / breakeven',open:'Em aberto',unknown:'Sem resultado',mixed:'Parciais / resultado misto'};
+        const severe=['missing','mismatch'].includes(r.status);
+        const reviewedRisk=r.diary.filter(t=>t.status!=='open'&&t.riskCents!==null&&t.pnl!==null),meanR=reviewedRisk.length?reviewedRisk.reduce((n,t)=>n+t.pnl/t.riskCents,0)/reviewedRisk.length:null;
+        const lowTargets=r.diary.filter(t=>t.riskCents!==null&&t.targetCents!==null&&t.targetCents/t.riskCents<dayRules(day).minTargetR).length;
+        const table='<div class="pf-table-scroll"><table><thead><tr><th>Família do ativo</th><th>'+sourceName()+'</th><th>Diário</th><th>Faltam registros</th><th>Alvo / positivo Exportação : Diário</th><th>Stop / negativo Exportação : Diário</th><th>Zero Exportação : Diário</th><th>Resultado pendente no diário</th></tr></thead><tbody>'+
+            r.groups.map(g=>'<tr><th>'+esc(g.symbol)+'</th><td>'+g.profit+'</td><td>'+g.diary+'</td><td class="'+(g.missing?'pf-negative':'')+'">'+g.missing+'</td><td>'+g.pcounts.win+' : '+g.dcounts.win+'</td><td>'+g.pcounts.loss+' : '+g.dcounts.loss+'</td><td>'+g.pcounts.zero+' : '+g.dcounts.zero+'</td><td>'+g.dcounts.unknown+'</td></tr>').join('')+'</tbody></table></div>';
+        let out='<section class="pf-card pf-reconciliation'+(severe?' pf-reconciliation-critical':'')+'"><span class="pf-eyebrow">AUDITORIA DO REGISTRO · '+date(day)+'</span><h2>'+esc(r.title)+'</h2><p>'+esc(r.feedback)+'</p>'+
+            '<p class="pf-small pf-muted">'+esc(s.source)+'. Conferência por data de entrada e família de ativo, '+(isTV()?'somente registros vinculados manualmente a esta simulação. Vincule abaixo os trades do Paper Trading para confirmar a origem':'com todas as contas Profit deste perfil')+'. Registros de robô não entram. Mais trades no diário são permitidos; trades de outro ativo não cobrem uma falta.</p>'+
+            (r.ready?'<div class="pf-guide-grid"><div><h3>Execuções no '+sourceName()+'</h3><strong>'+r.profitCount+'</strong></div><div><h3>Registros nos mesmos ativos</h3><strong>'+r.groups.reduce((n,g)=>n+g.diary,0)+'</strong></div><div><h3>Vínculos confirmados</h3><strong>'+r.linked+' / '+r.profitCount+'</strong></div></div>':'')+
+            (r.invalid||r.duplicates?'<p class="pf-warning">'+r.invalid+' registros com data/ativo/identidade inválidos e '+r.duplicates+' identidades repetidas. Corrija-os antes de concluir a auditoria.</p>':'')+
+            (r.ready&&r.groups.length?table:'')+
+            '<p class="pf-note">Não exigimos igualdade de centavos. Comparamos a categoria do resultado: a exportação usa o resultado bruto (recomposto com a comissão informada no TradingView) enquanto o motivo de saída não foi revisado. Positivo não prova alvo e negativo não prova stop. Parciais, breakeven e saídas manuais precisam de contexto.</p>'+
+            (!full?'<button class="btn btn-ghost" data-tab="journal">Conferir operações e racional</button>':'')+'</section>';
+        if(!r.ready)return out;
+        out+='<section class="pf-card pf-diary-context"><span class="pf-eyebrow">EVIDÊNCIAS DO DIÁRIO · SEM SOMAR À EXPORTAÇÃO</span><h3>O que você registrou sobre suas decisões</h3>'+
+            '<p>'+r.diaryCount+' registros neste dia: '+r.outcomes.win+' positivos/alvos, '+r.outcomes.loss+' negativos/stops, '+r.outcomes.zero+' zerados, '+r.outcomes.open+' abertos e '+r.outcomes.pending+' com resultado misto ou pendente.</p>'+
+            '<p>'+reviewedRisk.length+' operações encerradas com risco e resultado informados; R bruto médio conhecido: '+(meanR===null?'pendente':meanR.toFixed(2).replace('.',',')+'R')+'. '+lowTargets+' alvos registrados abaixo da referência de '+dayRules(day).minTargetR+'R: confira o plano e as exceções.</p>'+
+            '<p class="pf-small pf-muted">O diário fornece contexto e risco. Sem horário de fechamento, não calculamos pausas entre seus registros. Uma operação vinculada continua sendo uma única execução.</p>'+
+            '<p><strong>'+r.withoutRationale+' sem setup e justificativa completos.</strong> '+r.rationale+'/'+r.linked+' vínculos confirmados têm esses dois campos preenchidos. Quantidade suficiente não substitui documentação de qualidade.</p>'+
+            '<p class="pf-small pf-muted">“Racional documentado” significa setup e texto explicativo presentes, não validação técnica da entrada. Texto automático de importação não conta. Os registros podem ser retrospectivos; não afirmamos que o racional existia antes da ordem.</p>'+
+            (r.mistakes.length?'<h4>Erros que você relatou no diário</h4><ul>'+r.mistakes.slice(0,8).map(([m,n])=>'<li>'+esc(m)+' · '+n+' registro(s)</li>').join('')+'</ul>':'<p class="pf-muted">Nenhum erro foi explicitamente marcado no diário deste dia.</p>')+'</section>';
+        if(!full)return out;
+        out+='<section class="pf-card pf-journal-links"><h3>Relacionar execução e registro</h3><p class="pf-muted">Sugestões usam data, família do ativo, lado e horário próximo (até 2 minutos), sem comparar centavos. Confirme cada vínculo. Um registro só pode corresponder a uma execução, mesmo entre fontes ou contas diferentes.</p><p class="pf-note">Após confirmar, risco, alvo, quantidade de entrada, setup, justificativa e motivo de saída do diário podem preencher informações ausentes na análise. Valores financeiros do diário em reais não preenchem risco ou alvo em USD. Revisões SMC já preenchidas prevalecem. Não somamos resultados das duas fontes e não inferimos novo setup ou stop estrutural.</p>'+
+            (r.rows.length?r.rows.map(x=>'<article class="pf-journal-pair" data-profit-row="'+esc(x.profit.id)+'"><div class="pf-section-title"><h4>'+esc(x.profit.symbol)+' · '+time(x.profit.open)+' · '+(x.profit.side==='C'?'Compra':'Venda')+'</h4><span class="pf-badge">'+esc(labels[x.outcome])+'</span></div>'+
+            '<p class="pf-small pf-muted">'+esc(masked(x.profit.account))+' · resultado bruto '+money(x.profit.grossCents)+' · '+(x.diary?'Vínculo confirmado':x.suggestion?'Sugestão por horário; ainda não confirmada':'Sem vínculo confirmado')+'</p>'+
+            (x.mismatch?'<p class="pf-error">O vínculo tem lado ou categoria de resultado divergente. Confira as duas fontes antes de concluir.</p>':'')+
+            (x.stale?'<p class="pf-warning">O registro vinculado foi removido ou mudou de data/ativo. Confira novamente.</p>':'')+
+            '<label>Registro correspondente no diário<select data-journal-choice>'+selectOptions([['','Selecione um registro'],...x.candidates.map(t=>[t.id,time(t.open)+' · '+t.symbol+' · '+labels[t.outcome]+' · '+(t.setup||'sem setup')])],x.diary?.id||x.suggestion)+'</select></label>'+
+            '<div class="pf-buttons"><button class="btn btn-primary" data-journal-link="'+esc(x.profit.id)+'">Confirmar vínculo</button>'+
+            (x.diary?'<button class="btn btn-ghost" data-diary-edit="'+esc(x.diary.id)+'">Revisar registro no diário</button>':'')+
+            (data.journalLinks[x.profit.id]?'<button class="btn btn-ghost" data-journal-unlink="'+esc(x.profit.id)+'">Desvincular</button>':'')+'</div>'+
+            (x.diary?'<p class="pf-small">'+(x.diary.hasRationale?'Setup e justificativa presentes.':'Registro com racional incompleto.')+' '+esc(x.diary.notes||'Sem justificativa escrita.')+'</p>':'')+'</article>').join(''):'<p class="pf-muted">Importe as execuções deste dia para conferir a cobertura das execuções. Os dados do diário já aparecem abaixo.</p>')+'</section>';
+        out+='<section class="pf-card"><h3>Registros do diário neste pregão</h3>'+
+            (r.diary.length?r.diary.map(t=>'<details class="pf-journal-record"><summary>'+time(t.open)+' · '+esc(t.symbol)+' · '+esc(t.setup||'Sem setup')+' · '+esc(labels[t.outcome])+'</summary><p>'+esc(t.notes||'Sem justificativa escrita.')+'</p><p class="pf-small pf-muted">Risco inicial registrado: '+(t.riskCents===null?'não informado':money(t.riskCents,'BRL'))+'; alvo: '+(t.targetCents===null?'não informado':money(t.targetCents,'BRL'))+'. '+(t.registeredLocal?'Criado em '+date(t.registeredLocal)+' '+t.registeredLocal.slice(11,16)+'.':'Horário de criação não disponível.')+'</p><button class="btn btn-ghost" data-diary-edit="'+esc(t.id)+'">Revisar no diário</button></details>').join(''):'<p class="pf-muted">Nenhum registro no diário para esta data.</p>')+'</section>';
+        return out;
+    }
+
     function render(force=false){
-        if(!mounted||(!force&&$('pfCSV')))return; // Resizes must not replace focused forms.
-        const days=A.dates(trades()),m=meta();if(day&&!days.includes(day))day=days.at(-1)||'';
+        if(!mounted)return;
+        const snapshot=diarySnapshot(),signature=D.fingerprint(snapshot);
+        if(!force&&$('pfCSV')&&signature===lastDiarySignature)return; // Preserve focused forms unless diary evidence changed.
+        lastDiarySignature=signature;
         const accounts=[...new Set(data.trades.map(t=>t.account))];
+        if((!accounts.length&&snapshot.rows.length)||data.accounts[accountKey('__diary__')])accounts.push('__diary__');
+        if(!accounts.includes(account))account=accounts[0]||'';
+        const days=availableDays();if(!days.includes(day))day=days.at(-1)||'';
+        const m={...meta(),annotations:effectiveAnnotations()};
         let body=headerMarkup()+previewMarkup();
         if(!days.length)body+=emptyMarkup();
         else {
-            body+='<div class="pf-filters"><label>Conta do Profit<select id="pfAccount">'+selectOptions(accounts.map(a=>[a,masked(a)]),account)+'</select></label><label>Pregão<select id="pfDay">'+selectOptions(days.slice().reverse().map(d=>[d,date(d)]),day)+'</select></label><div class="pf-tabs" role="group" aria-label="Visão Profit"><button data-tab="preparation" aria-pressed="'+(tab==='preparation')+'" class="'+(tab==='preparation'?'active':'')+'">Preparação</button><button data-tab="desk" aria-pressed="'+(tab==='desk')+'" class="'+(tab==='desk'?'active':'')+'">Mesa</button><button data-tab="day" aria-pressed="'+(tab==='day')+'" class="'+(tab==='day'?'active':'')+'">Revisão diária</button><button data-tab="evolution" aria-pressed="'+(tab==='evolution')+'" class="'+(tab==='evolution'?'active':'')+'">Evolução</button><button data-tab="insights" aria-pressed="'+(tab==='insights')+'" class="'+(tab==='insights'?'active':'')+'">Insights</button></div></div>'+settingsMarkup();
+            body+='<div class="pf-filters"><label>Fonte / conta de análise<select id="pfAccount">'+selectOptions(accounts.map(a=>[a,masked(a)]),account)+'</select></label><label>Pregão<select id="pfDay">'+selectOptions(days.slice().reverse().map(d=>[d,date(d)]),day)+'</select></label><div class="pf-tabs" role="group" aria-label="Visão Profit"><button data-tab="preparation" aria-pressed="'+(tab==='preparation')+'" class="'+(tab==='preparation'?'active':'')+'">Preparação</button><button data-tab="desk" aria-pressed="'+(tab==='desk')+'" class="'+(tab==='desk'?'active':'')+'">Mesa</button><button data-tab="journal" aria-pressed="'+(tab==='journal')+'" class="'+(tab==='journal'?'active':'')+'">Diário × execução</button><button data-tab="day" aria-pressed="'+(tab==='day')+'" class="'+(tab==='day'?'active':'')+'">Revisão diária</button><button data-tab="evolution" aria-pressed="'+(tab==='evolution')+'" class="'+(tab==='evolution'?'active':'')+'">Evolução</button><button data-tab="insights" aria-pressed="'+(tab==='insights')+'" class="'+(tab==='insights'?'active':'')+'">Insights</button></div></div>'+settingsMarkup();
             body+='<p class="pf-note">Plano SMC declarado: esperar um novo setup e buscar o alvo mínimo definido no plano (referência inicial de 2R). Entradas consecutivas são um sinal de desvio do método. Risco, contratos de entrada e gestão do stop precisam da sua revisão; os números não revelam a intenção.</p>';
-            if(trades().every(t=>t.feeCents===0))body+='<p class="pf-small pf-muted">Comissões zeradas no histórico importado. Custos não exportados pelo Profit não entram no resultado.</p>';
-            body+=tab==='preparation'?preparationMarkup(m):tab==='insights'?insightsMarkup():tab==='desk'?deskMarkup(m):tab==='day'?dayMarkup(analysis(day),m):evolutionMarkup(days,m);
-            body+='<details class="pf-card pf-method"><summary>Importação e critérios de leitura</summary><p>Datas e horários são mantidos como exportados pelo Profit, sem conversão de fuso. O resultado diário considera o fechamento. Entradas, pausas e limites consideram a abertura e apenas perdas já conhecidas naquele instante.</p><p>Res. Operação é o resultado bruto por operação. Descontamos o valor absoluto de Comissões, quando presente. A coluna Total é acumulada e não é somada. TET não é usado como intervalo. Qtd Compra/Venda é volume agregado, não risco ou exposição máxima.</p><p>Uma operação é identificada por conta, ativo, abertura, fechamento e lado. Reimportações idênticas são ignoradas; valores corrigidos são mostrados antes da atualização. Alterar os horários no arquivo gera outra identidade. Operações abertas e linhas inválidas não entram na análise.</p><p>O resultado descreve apenas os arquivos importados. Não infere motivo de saída, intenção, stop planejado nem lucro potencial. Acompanhamento comportamental não garante desempenho financeiro.</p>'+
+            if(isTV())body+='<p class="pf-note"><strong>TradingView · Paper Trading · simulação em USD.</strong> Use exportações de um único histórico simulado neste perfil. Não somamos este resultado ao Profit nem convertemos moedas. Revise risco, alvo e limites em USD. Para conciliar com o diário, confirme os vínculos das operações simuladas na aba Diário × execução; registros sem vínculo não cobrem a simulação.</p>';
+            if(trades().every(t=>t.feeCents===0))body+='<p class="pf-small pf-muted">Comissões zeradas no histórico importado. Custos não exportados pela plataforma não entram no resultado.</p>';
+            body+=tab==='journal'?journalMarkup(true):tab==='preparation'?preparationMarkup(m):tab==='insights'?insightsMarkup():tab==='desk'?deskMarkup(m):tab==='day'?dayMarkup(analysis(day),m):evolutionMarkup(days,m);
+            body+='<details class="pf-card pf-method"><summary>Importação e critérios de leitura</summary><p>Datas e horários são mantidos como exportados pela plataforma, sem conversão de fuso. O resultado diário considera o fechamento. Entradas, pausas e limites consideram a abertura e apenas perdas já conhecidas naquele instante.</p><p>Res. Operação é o resultado bruto por operação. Descontamos o valor absoluto de Comissões, quando presente. A coluna Total é acumulada e não é somada. TET não é usado como intervalo. Qtd Compra/Venda é volume agregado, não risco ou exposição máxima.</p><p>TradingView: use Histórico de negociação do Paper Trading em USD. Agrupamos entrada/saída por símbolo e número; contamos L&amp;P líquido uma vez, na saída, sem descontar novamente a comissão. Bruto recomposto = líquido + comissão informada na saída. Tamanho (valor) é valor da posição, não risco inicial. Quantidades fracionárias são preservadas. Pares ambíguos ou com parciais incompatíveis são apresentados como inválidos. Exportações de posições ou outras moedas não são aceitas por este botão.</p><p>Uma operação é identificada por conta, ativo, abertura, fechamento e lado. Reimportações idênticas são ignoradas; valores corrigidos são mostrados antes da atualização. Alterar os horários no arquivo gera outra identidade. Operações abertas e linhas inválidas não entram na análise.</p><p>O resultado descreve apenas os arquivos importados. Não infere motivo de saída, intenção, stop planejado nem lucro potencial. Acompanhamento comportamental não garante desempenho financeiro.</p>'+
             '<h4>Últimas importações neste perfil</h4>'+data.imports.slice(-5).reverse().map(x=>'<p>'+esc(x.name)+' · '+x.count+' registros · '+esc(x.at.slice(0,10))+'</p>').join('')+'</details>';
         }
         $('view-profit').innerHTML=body+'<dialog id="pfSMCDialog" aria-labelledby="pfSMCTitle"></dialog>';
     }
-    async function readFile(file,isBackup=false){
+    async function readFile(file,isBackup=false,source='profit'){
         if(!file)return;
         if(file.size>(isBackup?20:10)*1024*1024){announce('Arquivo maior que o limite de '+(isBackup?20:10)+' MB.',true);return;}
         const token=++generation,who=owner;busy=true;announce('Lendo '+file.name+'…');
@@ -418,12 +491,12 @@ const ProfitTrades = (() => {
             else {try{text=new TextDecoder('utf-8',{fatal:true}).decode(buffer);}catch{text=new TextDecoder('windows-1252').decode(buffer);}}
             if(isBackup){
                 const restored=validateBackup(JSON.parse(text));
-                if(!confirm('Restaurar este backup substitui somente os dados Trades Profit deste perfil no navegador. Deseja continuar?'))return;
+                if(!confirm('Restaurar este backup substitui somente as análises e os dados importados da Psicologia deste perfil no navegador. Deseja continuar?'))return;
                 const previous=ready;ready=true;
-                if(commit(restored)){account=[...new Set(data.trades.map(t=>t.account))][0]||'';day=A.dates(trades()).at(-1)||'';stage=null;planDrafts={};announce('Backup restaurado.');render(true);}
+                if(commit(restored)){account=[...new Set(data.trades.map(t=>t.account))][0]||'';day=availableDays().at(-1)||'';stage=null;planDrafts={};announce('Backup restaurado.');render(true);}
                 else ready=previous;
             } else {
-                const parsed=A.parseCSV(text);if(data.trades.length+parsed.trades.length>100000||A.mergeTrades(data.trades,parsed.trades).trades.length>50000)throw new Error('Limite de 50 mil operações neste perfil.');
+                const parsed=source==='tradingview'?A.parseTradingView(text):A.parseCSV(text);if(data.trades.length+parsed.trades.length>100000||A.mergeTrades(data.trades,parsed.trades).trades.length>50000)throw new Error('Limite de 50 mil operações neste perfil.');
                 stage={name:file.name,parsed};announce('Confira os dados antes de importar.');render(true);
             }
         }catch(e){announce('Não foi possível importar: '+e.message,true);}
@@ -438,6 +511,23 @@ const ProfitTrades = (() => {
     }
     function click(e){
         const b=e.target.closest('button');if(!b)return;
+        if(b.dataset.diaryEdit){
+            if(typeof openPsychologyDiaryTrade!=='function'||!openPsychologyDiaryTrade(b.dataset.diaryEdit))announce('Carregue o diário deste perfil para revisar esse registro.',true);
+            return;
+        }
+        if(b.dataset.journalLink){
+            const report=journalReport(),row=report.rows.find(x=>x.profit.id===b.dataset.journalLink);
+            const diaryId=b.closest('.pf-journal-pair')?.querySelector('[data-journal-choice]')?.value;
+            if(!report.ready||!row||!row.candidates.some(t=>t.id===diaryId)){announce('Selecione um registro válido do diário deste perfil.',true);return;}
+            if(Object.entries(data.journalLinks).some(([pid,link])=>pid!==row.profit.id&&link.diaryId===diaryId)){announce('Esse registro já está vinculado a outra execução. Confira antes de reutilizá-lo.',true);return;}
+            const next=JSON.parse(JSON.stringify(data));
+            next.journalLinks[row.profit.id]={diaryId,confirmedAt:new Date().toISOString()};
+            if(commit(next)){announce('Vínculo confirmado. Dados ausentes podem ser lidos do diário; nenhuma operação foi duplicada.');render(true);}return;
+        }
+        if(b.dataset.journalUnlink){
+            const next=JSON.parse(JSON.stringify(data));delete next.journalLinks[b.dataset.journalUnlink];
+            if(commit(next)){announce('Vínculo removido. Registros originais preservados.');render(true);}return;
+        }
         if(b.dataset.deskEpisode!==undefined){const x=deskReport().episodes[Number(b.dataset.deskEpisode)];if(x&&$('pfDeskForm')){$('pfDeskForm').elements.moment.value=x.trigger+' '+x.decision;saveDeskDraft();$('pfDeskForm').scrollIntoView({behavior:'smooth',block:'start'});$('pfDeskForm').elements.thought.focus();}return;}
         if(b.dataset.action==='desk-plan'){const p=deskReport().priority;if($('pfPlan')){$('pfFocus').value=p.demand+' Verificação: '+p.proof;$('pfPlan').querySelectorAll('input[name="promise"]').forEach(x=>x.checked=p.items.includes(x.value));setContractProposal(p.items,p.proof,p.primary);rememberDraft();$('pfPlan').scrollIntoView({behavior:'smooth',block:'center'});$('pfFocus').focus();announce('Compromisso preparado. Revise e salve para confirmar.');}return;}
         if(b.dataset.editSmc){openSMC(b.dataset.editSmc);return;}
@@ -447,6 +537,7 @@ const ProfitTrades = (() => {
         if(b.dataset.day){day=b.dataset.day;tab='day';render(true);return;}
         const action=b.dataset.action;
         if(action==='import')$('pfCSV').click();
+        if(action==='import-tv')$('pfTVCSV').click();
         if(action==='restore')$('pfBackup').click();
         if(action==='backup')download();
         if(action==='cancel-import'){stage=null;render(true);}
@@ -501,8 +592,9 @@ const ProfitTrades = (() => {
         if(e.target.closest('#pfSMCForm')){previewSMC();return;}
         const t=e.target;
         if(t.id==='pfCSV'){readFile(t.files[0]);t.value='';}
+        else if(t.id==='pfTVCSV'){readFile(t.files[0],false,'tradingview');t.value='';}
         else if(t.id==='pfBackup'){readFile(t.files[0],true);t.value='';}
-        else if(t.id==='pfAccount'){account=t.value;insightAsset='';prepDay='';day=A.dates(trades()).at(-1)||'';render(true);}
+        else if(t.id==='pfAccount'){account=t.value;insightAsset='';prepDay='';day=availableDays().at(-1)||'';render(true);}
         else if(t.id==='pfDay'){day=t.value;render(true);}
         else if(t.id==='pfPrepDate'){if(A.validDay(t.value)){prepDay=t.value;render(true);}}
         else if(t.id==='pfInsightAsset'){insightAsset=t.value;render(true);}
@@ -540,6 +632,8 @@ const ProfitTrades = (() => {
             if(required.some(k=>!String(values[k]||'').trim())){$('pfDeskError').textContent='Complete o episódio, pensamento, decisão, alternativa, ação e evidência de cumprimento.';return;}
             if(!$('pfDeskAck').checked){$('pfDeskError').textContent='Confirme que você conferiu os fatos antes de concluir.';return;}
             if(!Object.entries(meta().plans).some(([target,p])=>target>day&&p.from===day)){$('pfDeskError').textContent='Salve o compromisso para o próximo pregão antes de concluir o debrief.';return;}
+            const reconciliation=journalReport();
+            if(['missing','mismatch'].includes(reconciliation.status)){$('pfDeskError').textContent='Conciliação obrigatória: resolva a falta de registros ou a divergência em Diário × execução antes de concluir. Seu rascunho foi preservado.';return;}
             const d=deskReport(),record=D.debrief({...values,completed:true,signature:d.signature,updated:new Date().toISOString()});
             if(changeAccount(m=>{m.reviews[day]||={rules:{...dayRules(day)},contexts:{}};m.reviews[day].desk=record;})){announce('Debrief concluído. Os desvios e as pendências do parecer continuam registrados.');render(true);}else $('pfDeskError').textContent='Não foi possível salvar a conclusão. Tente novamente antes de sair.';return;
         }
