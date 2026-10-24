@@ -735,6 +735,21 @@ const ProfitTrades = (() => {
         return DiaryMentor.buildContext({day,diary,executions:trades(),meta:meta(),annotations:effectiveAnnotations(),
             source:account==='__diary__'?'Diário manual (BRL)':isTV()?'TradingView Paper Trading (simulado, USD)':'Profit (BRL)',currency:currency(),reconciliation:journal,question});
     }
+    function mentorAccountMarkup(){
+        const s=mentorAccountState;
+        let title='Entre na sua conta para conferir a chave no Supabase.',detail='',tone='';
+        if(localOwner()!=='guest'){
+            if(s.busy)title='Sincronizando a chave com o Supabase…';
+            else if(s.status==='error'){title='Não foi possível confirmar a chave no Supabase.';detail='Use Recarregar da conta para tentar novamente.';tone='warning';}
+            else if(s.status==='saved'){
+                title='✓ Chave API salva no Supabase e sincronizada com sua conta.';
+                detail='Confirmado em '+new Date(s.verifiedAt).toLocaleString('pt-BR')+'. Disponível ao entrar com o mesmo login em outro computador.';
+                tone='success';
+            }else if(s.status==='empty')title='Nenhuma chave API salva no Supabase para esta conta.';
+            else title='Aguardando confirmação da chave no Supabase.';
+        }
+        return '<div id="pfMentorAccountStatus" class="mentor-account-status '+tone+'" role="status" aria-live="polite"><strong>'+esc(title)+'</strong>'+(detail?'<p>'+esc(detail)+'</p>':'')+'</div>';
+    }
     function mentorMarkup(){
         if(typeof DiaryMentor==='undefined')return '<p class="pf-note">Atualize a página para carregar o Mentor de execução.</p>';
         let packet=null,reason='';try{packet=mentorContext();}catch(e){reason=e.message;}
@@ -744,6 +759,7 @@ const ProfitTrades = (() => {
         const c=packet?.coverage,readOnly=cycleScope!=='active';
         return '<section class="pf-card mentor-card"><span class="pf-eyebrow">DESENVOLVIMENTO PROFISSIONAL · GEMINI</span><h2>Transformar cada revisão em treino.</h2>'+
             '<p class="pf-muted">Um mentor para confrontar seus relatos com a execução, reconhecer acertos e definir uma prioridade prática. Cálculos e regras vêm do diário; a IA interpreta e propõe exercícios.</p>'+
+            mentorAccountMarkup()+
             '<div class="mentor-pillars"><span>Preparar</span><span>Executar o plano</span><span>Documentar</span><span>Revisar e repetir</span></div>'+
             (c?'<div class="mentor-metrics"><div><strong>'+c.days+'</strong><span>pregões na amostra</span></div><div><strong>'+c.documentedDiary+' / '+c.diaryRecords+'</strong><span>registros com racional</span></div><div><strong>'+c.knownRisk+' / '+c.executions+'</strong><span>execuções com risco informado</span></div><div><strong>'+(c.rulesEvaluated?c.rulesPassed+' / '+c.rulesEvaluated:'—')+'</strong><span>checagens dentro das regras · '+c.pendingChecks+' pendentes</span></div></div><p class="pf-small pf-muted">'+esc(c.from)+' a '+esc(c.to)+' · '+esc(packet.source)+'. Quantidade de registros não comprova qualidade técnica. '+(c.partialDetails?'Os detalhes do dia excedem o limite; a IA receberá uma amostra e os totais.':'')+'</p>':'<p class="pf-note">'+esc(reason)+'</p>')+
             (readOnly?'<p class="pf-note">Ciclo arquivado: consulte a análise salva. Novas análises são feitas no ciclo atual.</p>':

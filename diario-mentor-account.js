@@ -6,10 +6,10 @@
 })(typeof globalThis!=='undefined'?globalThis:this,()=>{
     'use strict';
     function create({getClient,getUser,onChange=()=>{}}){
-        let owner=null,epoch=0,key='',model='',saved=false,busy=false,message='';
-        const snapshot=()=>({key,model,saved,busy,message,owner});
+        let owner=null,epoch=0,key='',model='',saved=false,busy=false,message='',status='idle',verifiedAt='';
+        const snapshot=()=>({key,model,saved,busy,message,owner,status,verifiedAt});
         const emit=()=>onChange(snapshot());
-        function clear(){epoch++;key='';model='';saved=false;busy=false;message='';}
+        function clear(){epoch++;key='';model='';saved=false;busy=false;message='';status='idle';verifiedAt='';}
         async function run(kind,input){
             const user=getUser(),client=getClient();
             if(!user||!client){message='Entre na sua conta do Diário para sincronizar a chave.';emit();return false;}
@@ -31,9 +31,11 @@
                 key=kind==='save'?input.key:kind==='load'?result.data?.api_key||'':'';
                 model=kind==='save'?input.model:kind==='load'?result.data?.model||'':'';
                 saved=!!key;
+                status=saved?'saved':'empty';verifiedAt=new Date().toISOString();
                 message=kind==='remove'?'Chave removida da conta.':saved?'Chave sincronizada com sua conta. Será carregada ao entrar em outro computador.':'Nenhuma chave salva nesta conta.';
                 return true;
             }catch(error){
+                if(current())status='error';
                 if(current())message=['42P01','PGRST205'].includes(error?.code)
                     ?'Ative o armazenamento executando supabase-mentor.sql no SQL Editor do Supabase.'
                     :'Não foi possível sincronizar a chave. Confira a conexão e o login e tente novamente. A configuração anterior foi preservada.';
