@@ -26,6 +26,16 @@ Esta implementação guarda a chave no banco com controle de acesso, não em um 
 
 Referência de autorização: https://supabase.com/docs/guides/database/postgres/row-level-security
 
+### Tentativas automáticas do Mentor
+
+Ao clicar em analisar, o Mentor consulta `models.list` com a chave da conta e prioriza os modelos de texto nesta ordem: `gemini-3.8-flash`, `gemini-3-flash-preview`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-2.5-flash`, `gemma-4-31b-it`. É uma prioridade do aplicativo, não um ranking universal. Só os modelos retornados com suporte a `generateContent` são usados. Se a consulta do catálogo falhar temporariamente, tenta os identificadores conhecidos uma vez cada.
+
+Cada modelo tem até 90 segundos. Indisponibilidade, cota esgotada, resposta incompleta ou inválida levam ao próximo; cancelamento, chave inválida e bloqueio de conteúdo encerram a sequência. Não há tentativas infinitas nem chamadas antes de clicar. Cada tentativa pode consumir cota. O Gemma recebe instruções de JSON no prompt; todos os modelos passam pela mesma validação de formato e referências. O resultado só é salvo após passar pela validação e conservar o contexto original. O nome do modelo que respondeu fica salvo, aparece no fim do relatório e acompanha backup/PDF.
+
+Na tela inicial, importação, backups, plano e critérios ficam recolhidos. O relatório completo mantém sua profundidade. Testes: `node test-diario-mentor-fallback.cjs`; teste de navegador com respostas simuladas: `node test-diario-mentor-ui.cjs PORTA URL DIRETORIO_DE_ARTEFATOS`.
+
+Catálogo e contratos: https://ai.google.dev/gemini-api/docs/models · https://ai.google.dev/api/models · https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api
+
 Depois disso, faca login no site. O botao `Salvar trade` grava na tabela `trades`, e o botao `Excluir` remove o registro do Supabase.
 
 A opcao `Lembrar` mantem a sessao do Supabase salva no navegador depois do primeiro login. A senha nao fica gravada no codigo do site.

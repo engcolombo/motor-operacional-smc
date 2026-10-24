@@ -262,6 +262,14 @@
 
 /* Mentor: evidence and a single training priority, aligned with the journal theme. */
 #view-profit .mentor-card { border-top:2px solid #9db4ce; }
+#view-profit .pf-data-tools, #view-profit .pf-context-details { margin:12px 0; }
+#view-profit .pf-data-tools summary, #view-profit .pf-context-details>summary { color:var(--muted);cursor:pointer;font-size:12px;padding:8px 0; }
+#view-profit .pf-data-tools .pf-toolbar { margin-top:12px; }
+#view-profit .mentor-card .mentor-config { margin:12px 0;padding:12px 14px; }
+#view-profit .mentor-card .mentor-config-grid { grid-template-columns:1fr; }
+#view-profit .mentor-card .mentor-account-status { padding:10px 14px;margin:12px 0; }
+#view-profit .mentor-model-used { border-top:1px solid var(--line);padding-top:16px;margin-top:24px; }
+#view-profit #pfStatus:empty, #view-profit #pfMentorStatus:empty { display:none; }
 #view-profit .mentor-account-status { margin:18px 0;padding:14px 16px;border:1px solid var(--line);border-radius:6px;overflow-wrap:anywhere; }
 #view-profit .mentor-account-status strong { font-size:13px; }
 #view-profit .mentor-account-status p { margin:6px 0 0;font-size:12px;color:var(--muted);line-height:1.5; }
