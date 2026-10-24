@@ -16,6 +16,16 @@ https://cqjmxywdhlxlsltkrrxm.supabase.co
 
 Antes de usar o site, abra o SQL Editor do Supabase e execute `supabase-schema.sql`.
 
+### Chave Gemini vinculada ao login
+
+Execute também `supabase-mentor.sql` no SQL Editor do mesmo projeto. Depois, no Diário Pro+, entre na sua conta e abra **Psicologia → Mentor → Minha chave Gemini**. Cole a chave e clique em **Salvar na minha conta**. O botão **Recarregar da conta** permite tentar novamente após configurar o banco ou recuperar a conexão.
+
+A tabela separada `mentor_credentials` permite ler, salvar e remover apenas a linha cujo `user_id` corresponde ao usuário autenticado, por RLS. Visitantes sem login não têm acesso. A chave não entra no Git, nos backups, PDFs, trades, taxas nem ciclos. **Remover da conta** apaga a configuração persistida; **Limpar desta aba** limpa apenas a memória. Outro navegador carrega a chave no login; uma aba já aberta precisa recarregar para receber alterações feitas em outro dispositivo.
+
+Esta implementação guarda a chave no banco com controle de acesso, não em um cofre criptografado por usuário. O navegador autenticado recebe a chave e chama o Gemini diretamente; administradores do banco também podem acessá-la. Não é um proxy de servidor. Os relatórios psicológicos e CSV continuam locais; sincronizar a chave não sincroniza esses registros. Nunca inclua chaves reais nos arquivos SQL ou de código.
+
+Referência de autorização: https://supabase.com/docs/guides/database/postgres/row-level-security
+
 Depois disso, faca login no site. O botao `Salvar trade` grava na tabela `trades`, e o botao `Excluir` remove o registro do Supabase.
 
 A opcao `Lembrar` mantem a sessao do Supabase salva no navegador depois do primeiro login. A senha nao fica gravada no codigo do site.

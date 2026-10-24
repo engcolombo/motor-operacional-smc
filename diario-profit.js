@@ -17,6 +17,7 @@ const ProfitTrades = (() => {
     let status='',statusError=false,planDrafts={},prepDay='',insightAsset='',lastDiarySignature='';
     let cycleScope='active';
     let mentorKey='',mentorModel='',mentorQuestion='',mentorBusy=false,mentorStatus='',mentorController=null,mentorToken=0,mentorUnsaved=null;
+    let mentorAccount=null,mentorAccountState={saved:false,busy:false,message:''};
     const selectedCycle=()=>typeof state!=='undefined' ? state.archiveView||'active' : 'active';
     const cycleLocked=()=>selectedCycle()!=='active'||(typeof DiaryArchives!=='undefined'&&DiaryArchives.busy);
     const localOwner=()=>typeof currentUser!=='undefined'&&currentUser?.id?currentUser.id:'guest';
@@ -106,6 +107,7 @@ const ProfitTrades = (() => {
         return clean;
     }
     function authChanged(){
+        mentorAccount?.sync();
         if(typeof DiaryArchives!=='undefined'&&DiaryArchives.busy)return;
         const nextOwner=localOwner(),nextScope=selectedCycle();
         const pendingKey=STORAGE+nextOwner+'_cycle_pending';
@@ -131,7 +133,15 @@ const ProfitTrades = (() => {
         if(mounted)render(true);
     }
     function init(){
-        if(typeof window!=='undefined')window.addEventListener?.('pagehide',()=>cancelMentor(true));
+        if(typeof DiaryMentorAccount!=='undefined')mentorAccount=DiaryMentorAccount.create({
+            getClient:()=>typeof supabaseClient!=='undefined'?supabaseClient:null,
+            getUser:()=>typeof currentUser!=='undefined'?currentUser?.id||null:null,
+            onChange:s=>{mentorAccountState=s;if(!s.busy){mentorKey=s.key;mentorModel=s.model;}if(mounted)render(true);}
+        });
+        if(typeof window!=='undefined'){
+            window.addEventListener?.('pagehide',()=>{cancelMentor(true);mentorAccount?.clear();});
+            window.addEventListener?.('pageshow',event=>{if(event.persisted)mentorAccount?.sync();});
+        }
         document.querySelector('.main').insertAdjacentHTML('beforeend','<section class="view" id="view-profit" aria-label="Psicologia · revisão diária e evolução"></section>');
         mounted=true;
         $('view-profit').addEventListener('click',click);
@@ -737,7 +747,7 @@ const ProfitTrades = (() => {
             '<div class="mentor-pillars"><span>Preparar</span><span>Executar o plano</span><span>Documentar</span><span>Revisar e repetir</span></div>'+
             (c?'<div class="mentor-metrics"><div><strong>'+c.days+'</strong><span>pregões na amostra</span></div><div><strong>'+c.documentedDiary+' / '+c.diaryRecords+'</strong><span>registros com racional</span></div><div><strong>'+c.knownRisk+' / '+c.executions+'</strong><span>execuções com risco informado</span></div><div><strong>'+(c.rulesEvaluated?c.rulesPassed+' / '+c.rulesEvaluated:'—')+'</strong><span>checagens dentro das regras · '+c.pendingChecks+' pendentes</span></div></div><p class="pf-small pf-muted">'+esc(c.from)+' a '+esc(c.to)+' · '+esc(packet.source)+'. Quantidade de registros não comprova qualidade técnica. '+(c.partialDetails?'Os detalhes do dia excedem o limite; a IA receberá uma amostra e os totais.':'')+'</p>':'<p class="pf-note">'+esc(reason)+'</p>')+
             (readOnly?'<p class="pf-note">Ciclo arquivado: consulte a análise salva. Novas análises são feitas no ciclo atual.</p>':
-            '<details class="mentor-config"'+(!mentorKey?' open':'')+'><summary>Conectar minha chave Gemini · '+(mentorKey?'configurada nesta aba':'não configurada')+'</summary><div class="mentor-config-grid"><label>Chave da API<input id="pfMentorKey" type="password" autocomplete="off" spellcheck="false" placeholder="Cole sua chave do Google AI Studio"></label><label>Modelo<input id="pfMentorModel" maxlength="80" value="'+esc(mentorModel||DiaryMentor.DEFAULT_MODEL)+'" spellcheck="false"></label></div><p class="pf-small pf-muted">Uso pessoal: a chave fica apenas na memória desta aba, é enviada diretamente ao Google e sai ao recarregar ou trocar de login. Não entra no backup, no código público ou no Supabase. Evite usar sua chave em computador compartilhado.</p><div class="pf-buttons"><button class="btn" data-mentor="connect"'+(mentorBusy?' disabled':'')+'>Usar chave nesta aba</button><button class="btn btn-ghost" data-mentor="forget">Remover chave</button></div></details>'+
+            '<details class="mentor-config"'+(!mentorKey?' open':'')+'><summary>Minha chave Gemini · '+(mentorAccountState.saved?'salva na conta':mentorKey?'somente nesta aba':'não configurada')+'</summary><div class="mentor-config-grid"><label>Chave da API<input id="pfMentorKey" type="password" autocomplete="off" spellcheck="false" placeholder="Cole sua chave do Google AI Studio"></label><label>Modelo<input id="pfMentorModel" maxlength="80" value="'+esc(mentorModel||DiaryMentor.DEFAULT_MODEL)+'" spellcheck="false"></label></div><p class="pf-small pf-muted">Salve na sua conta para usar a mesma chave em outro computador após o login. Ela fica em uma configuração privada no Supabase e é carregada pelo navegador autenticado para chamar o Google. Não entra nos backups, PDFs ou código do site. Em computador compartilhado, saia da conta ao terminar.</p><div class="pf-buttons"><button class="btn btn-primary" data-mentor="save-key"'+(mentorBusy||mentorAccountState.busy||localOwner()==='guest'?' disabled':'')+'>Salvar na minha conta</button><button class="btn" data-mentor="connect"'+(mentorBusy||mentorAccountState.busy?' disabled':'')+'>Usar só nesta aba</button><button class="btn btn-ghost" data-mentor="reload-key"'+(mentorAccountState.busy||localOwner()==='guest'?' disabled':'')+'>Recarregar da conta</button><button class="btn btn-ghost" data-mentor="remove-key"'+(mentorBusy||mentorAccountState.busy||localOwner()==='guest'?' disabled':'')+'>Remover da conta</button><button class="btn btn-ghost" data-mentor="forget">Limpar desta aba</button></div><p class="pf-small" role="status">'+esc(mentorAccountState.message||(localOwner()==='guest'?'Entre em Conta e sincronização para salvar sua chave.':''))+'</p></details>'+
             '<label class="mentor-question">O que você quer entender neste pregão?<textarea id="pfMentorQuestion" rows="2" maxlength="600" placeholder="Ex.: por que repeti entradas fora do plano depois de perder?">'+esc(mentorQuestion)+'</textarea></label>'+
             (packet?'<details class="mentor-evidence"><summary>Conferir os dados que serão enviados ao Google</summary><p>Resumo de até 10 pregões desta conta e deste ciclo; relatos, regras, revisões e detalhes limitados do dia. Imagens, email e números de conta não são incluídos automaticamente. Revise informações pessoais que você escreveu nos relatos.</p><pre>'+esc(JSON.stringify(packet,null,2))+'</pre></details>':'')+
             '<p class="pf-small pf-muted">Ao clicar em analisar, você envia esses dados ao Gemini e utiliza a cota da sua chave. Não há envio automático. A IA pode interpretar errado; confira as evidências.</p><div class="pf-buttons"><button class="btn btn-primary" data-mentor="analyze"'+(!packet||!mentorKey||mentorBusy?' disabled':'')+'>'+(mentorBusy?'Analisando…':'Analisar meu processo com Gemini')+'</button>'+(mentorBusy?'<button class="btn" data-mentor="cancel">Cancelar análise</button>':'')+'</div>')+
@@ -748,10 +758,21 @@ const ProfitTrades = (() => {
                 '<div class="mentor-empty"><h3>Seu próximo passo precisa ser observável.</h3><p>A análise vai separar evidências de hipóteses, escolher uma prioridade e propor até cinco sessões de treino com critérios de conclusão. O objetivo é consistência de execução, sem promessa de lucro.</p></div>')+'</section>';
     }
     function mentorAction(action){
+        if(['save-key','remove-key','reload-key'].includes(action)){
+            if(!mentorAccount||mentorBusy||mentorAccountState.busy)return;
+            if(action==='save-key'){
+                const key=$('pfMentorKey')?.value.trim()||mentorKey,model=$('pfMentorModel')?.value.trim()||DiaryMentor.DEFAULT_MODEL;
+                if($('pfMentorKey'))$('pfMentorKey').value='';
+                mentorAccount.save({key,model});
+            }else if(action==='remove-key')mentorAccount.remove();
+            else mentorAccount.reload();
+            return;
+        }
         if(action==='cancel'){cancelMentor(false);mentorStatus='Análise cancelada. O histórico anterior foi preservado.';render(true);return;}
-        if(action==='forget'){cancelMentor(true);mentorStatus='Chave removida desta aba.';render(true);return;}
+        if(action==='forget'){if(mentorAccountState.busy)return;cancelMentor(true);mentorStatus='Chave limpa desta aba. A chave salva na conta, se houver, permanece disponível no próximo login.';render(true);return;}
         if(cycleLocked())return;
         if(action==='connect'){
+            if(mentorAccountState.busy)return;
             const key=$('pfMentorKey')?.value.trim()||mentorKey,model=$('pfMentorModel')?.value.trim()||DiaryMentor.DEFAULT_MODEL;
             if(key.length<20||key.length>300||/\s/.test(key)){mentorStatus='Cole uma chave válida do Google AI Studio.';}
             else if(!/^gemini-[a-z0-9.-]{2,70}$/.test(model)){mentorStatus='Confira o identificador do modelo Gemini.';}
