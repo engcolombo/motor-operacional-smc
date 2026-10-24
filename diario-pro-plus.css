@@ -311,6 +311,20 @@
     .pro-plus *, .pro-plus *::before, .pro-plus *::after { transition: none !important; scroll-behavior: auto !important; }
 }
 .pro-plus .pro-cloud { margin-bottom: 16px; }
+.pro-plus .archive-toolbar { margin-bottom: 18px; padding: 16px; border: 1px solid var(--line-soft); background: var(--bg-elev); border-radius: 10px; }
+.pro-plus .archive-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.pro-plus .archive-controls label { font-size: 12px; color: var(--muted); }
+.pro-plus .archive-controls select { flex: 1 1 200px; min-width: 0; max-width: 100%; padding: 10px; color: var(--text); background: var(--bg); border: 1px solid var(--line-soft); border-radius: 6px; }
+.pro-plus #archiveHint { margin: 10px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.pro-plus .archive-dialog { color: var(--text); background: #171b22; border: 1px solid #46505e; border-radius: 12px; margin: auto; padding: 26px; width: min(600px,calc(100% - 24px)); max-height: 90vh; overflow: auto; }
+.pro-plus .archive-dialog::backdrop { background: #000a; }
+.pro-plus .archive-dialog h2 { margin: 0 0 16px; font-size: 21px; }
+.pro-plus .archive-dialog p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+.pro-plus .archive-dialog label { display: block; margin: 18px 0 8px; }
+.pro-plus .archive-dialog input { width: 100%; padding: 12px; background: #101319; color: var(--text); border: 1px solid #46505e; border-radius: 6px; font: inherit; }
+.pro-plus .archive-dialog .actions { margin-top: 20px; flex-wrap: wrap; }
+.pro-plus .archive-toolbar[hidden], .pro-plus .archive-controls [hidden] { display: none; }
+@media (max-width: 600px) { .pro-plus .archive-controls label { flex-basis: 100%; } .pro-plus .archive-controls .btn { flex: 1 1 180px; min-height: 44px; white-space: normal; } .pro-plus .archive-controls select { flex-basis: 100%; font-size: 16px; } }
 .pro-plus .pro-cloud summary { color: var(--muted); cursor: pointer; padding: 10px 8px; font-size: 11px; }
 .pro-plus .pro-cloud[open] summary { color: var(--text); }
 .pro-plus .pro-cloud .cloud-box { margin-bottom: 0; border-top: 0; }

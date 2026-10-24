@@ -15,13 +15,16 @@ const ProfitTrades = (() => {
     const masked=a=>a==='tradingview:paper:USD'?'TradingView · Paper Trading · USD':a==='__diary__'?'Diário · sem CSV':a==='sem-conta'?'Sem conta':'Conta ••• '+a.slice(-4);
     let owner=null, data=blank(), account='', day='', tab='desk', ready=true, mounted=false, stage=null, busy=false, generation=0;
     let status='',statusError=false,planDrafts={},prepDay='',insightAsset='',lastDiarySignature='';
+    let cycleScope='active';
+    const selectedCycle=()=>typeof state!=='undefined' ? state.archiveView||'active' : 'active';
+    const cycleLocked=()=>selectedCycle()!=='active'||(typeof DiaryArchives!=='undefined'&&DiaryArchives.busy);
     const localOwner=()=>typeof currentUser!=='undefined'&&currentUser?.id?currentUser.id:'guest';
     const meta=()=>data.accounts[accountKey(account)]||{settings:{...A.DEFAULTS},reviews:{},plans:{},annotations:{},preparations:{}};
     const trades=()=>data.trades.filter(t=>t.account===account);
     const dayRules=d=>A.confirmedRules(meta().plans[d]?.rules||meta().reviews[d]?.rules||meta().preparations?.[d]?.rules||meta().settings);
 
     const diarySnapshot=()=>typeof psychologyDiarySnapshot==='function'?psychologyDiarySnapshot():{ready:false,rows:[],source:'Diário indisponível',reason:'Abra esta aba dentro do Diário Pro+ para carregar os registros.'};
-    const availableDays=()=>[...new Set([...A.dates(trades()),...J.normalize(diarySnapshot().rows).items.map(t=>t.day)])].sort();
+    const availableDays=()=>[...new Set([...A.dates(trades()),...J.normalize(diarySnapshot().rows).items.map(t=>t.day),...Object.keys(meta().reviews||{}),...Object.keys(meta().preparations||{}),...Object.keys(meta().plans||{})])].sort();
     const journalRows=s=>{
         const otherIds=new Set(data.trades.filter(t=>(t.source==='tradingview')!==isTV()).map(t=>t.id));
         const excluded=new Set(Object.entries(data.journalLinks).filter(([id])=>otherIds.has(id)).map(([,link])=>link.diaryId));
@@ -39,6 +42,7 @@ const ProfitTrades = (() => {
     const analysis=d=>A.analyzeDay(trades(),d,dayRules(d),effectiveAnnotations());
     function announce(message,error=false){status=message;statusError=error;if($('pfStatus')){$('pfStatus').textContent=message;$('pfStatus').classList.toggle('pf-error',error);}}
     function commit(next){
+        if(cycleLocked()){announce('Selecione o ciclo atual para registrar ou importar dados psicológicos.',true);return false;}
         if(!ready){announce('O armazenamento precisa ser recuperado antes de salvar. Exporte o conteúdo atual e restaure um backup válido.',true);return false;}
         try{localStorage.setItem(STORAGE+owner,JSON.stringify(next));data=next;return true;}
         catch(e){announce('Não foi possível salvar neste navegador. Libere espaço ou exporte um backup; seus dados anteriores foram preservados.',true);return false;}
@@ -48,7 +52,7 @@ const ProfitTrades = (() => {
         next.accounts[k] ||= {settings:{...A.DEFAULTS},reviews:{},plans:{},annotations:{},preparations:{}};
         mutator(next.accounts[k]);return commit(next);
     }
-    function validateBackup(value){
+    function validateBackup(value,nested=false){
         if(!value||value.version!==1||!Array.isArray(value.trades)||value.trades.length>50000||!value.trades.every(A.validateTrade)||new Set(value.trades.map(t=>t.id)).size!==value.trades.length)throw new Error('Backup Profit inválido ou versão incompatível.');
         const clean=blank();clean.trades=value.trades.map(t=>({...t}));
         if(!value.accounts||typeof value.accounts!=='object'||Array.isArray(value.accounts))throw new Error('Configurações ausentes no backup.');
@@ -82,12 +86,36 @@ const ProfitTrades = (() => {
             linkedDiary.add(link.diaryId);clean.journalLinks[pid]={diaryId:link.diaryId,confirmedAt:text(link.confirmedAt)};
         }
         clean.imports=Array.isArray(value.imports)?value.imports.slice(-30).map(x=>({name:text(x.name),at:text(x.at),count:Number(x.count)||0})): [];
+        if(value.archivedCycles){
+            if(nested||typeof value.archivedCycles!=='object'||Array.isArray(value.archivedCycles))throw Error('Arquivos psicológicos inválidos.');
+            clean.archivedCycles={};
+            for(const [id,c] of Object.entries(value.archivedCycles)){
+                if(!id||['__proto__','constructor','prototype'].includes(id)||!c||typeof c.name!=='string')throw Error('Ciclo psicológico inválido.');
+                clean.archivedCycles[id]={name:text(c.name),createdAt:text(c.createdAt),data:validateBackup(c.data,true)};
+            }
+        }
         return clean;
     }
     function authChanged(){
-        const nextOwner=localOwner();if(nextOwner===owner)return;
+        if(typeof DiaryArchives!=='undefined'&&DiaryArchives.busy)return;
+        const nextOwner=localOwner(),nextScope=selectedCycle();
+        const pendingKey=STORAGE+nextOwner+'_cycle_pending';
+        if(localStorage.getItem(pendingKey)){
+            if(!diarySnapshot().ready)return;
+            try{
+                const pending=JSON.parse(localStorage.getItem(pendingKey));
+                const matches=pending.ids.every(id=>{
+                    const t=state.trades.find(t=>t.id===id);
+                    return t&&(pending.kind==='archive'?t.archive?.id===pending.id:!t.archive?.id);
+                });
+                if(matches)localStorage.setItem(STORAGE+nextOwner,JSON.stringify(validateBackup(pending.after)));
+                localStorage.removeItem(pendingKey);owner=null;
+            }catch(e){ready=false;announce('Psicologia aguardando recuperação do ciclo: '+e.message,true);return;}
+        }
+        if(nextOwner===owner&&nextScope===cycleScope)return;
+        cycleScope=nextScope;
         owner=nextOwner;prepDay='';insightAsset='';generation++;stage=null;busy=false;planDrafts={};status='';statusError=false;ready=true;
-        try{const raw=localStorage.getItem(STORAGE+owner);data=raw?validateBackup(JSON.parse(raw)):blank();}
+        try{const root=readCycleRoot();data=cycleScope==='active'?root:cycleScope==='all'?blank():root.archivedCycles?.[cycleScope]?.data||blank();}
         catch(e){data=blank();ready=false;status='Não foi possível ler os dados Profit salvos. O conteúdo original foi preservado. Use Backup para recuperá-lo.';statusError=true;}
         account=[...new Set(data.trades.map(t=>t.account))][0]||'';day=availableDays().at(-1)||'';
         if(mounted)render(true);
@@ -460,12 +488,16 @@ const ProfitTrades = (() => {
         const snapshot=diarySnapshot(),signature=D.fingerprint(snapshot);
         if(!force&&$('pfCSV')&&signature===lastDiarySignature)return; // Preserve focused forms unless diary evidence changed.
         lastDiarySignature=signature;
-        const accounts=[...new Set(data.trades.map(t=>t.account))];
-        if((!accounts.length&&snapshot.rows.length)||data.accounts[accountKey('__diary__')])accounts.push('__diary__');
+        const accounts=[...new Set([...data.trades.map(t=>t.account),...Object.keys(data.accounts).map(k=>k.slice('account:'.length))])];
+        if(!accounts.length&&snapshot.rows.length)accounts.push('__diary__');
         if(!accounts.includes(account))account=accounts[0]||'';
         const days=availableDays();if(!days.includes(day))day=days.at(-1)||'';
         const m={...meta(),annotations:effectiveAnnotations()};
+        if(cycleScope==='all'){
+            $('view-profit').innerHTML='<div class="pf-card"><h2>Psicologia por ciclo</h2><p>Selecione um ciclo em Meu histórico para consultar suas revisões, compromissos e evolução. O PDF do histórico completo reúne todos os ciclos.</p></div>';return;
+        }
         let body=headerMarkup()+previewMarkup();
+        if(cycleScope!=='active')body+='<p class="pf-note">Psicologia arquivada · consulta. Selecione Ciclo atual para novos registros.</p>';
         if(!days.length)body+=emptyMarkup();
         else {
             body+='<div class="pf-filters"><label>Fonte / conta de análise<select id="pfAccount">'+selectOptions(accounts.map(a=>[a,masked(a)]),account)+'</select></label><label>Pregão<select id="pfDay">'+selectOptions(days.slice().reverse().map(d=>[d,date(d)]),day)+'</select></label><div class="pf-tabs" role="group" aria-label="Visão Profit"><button data-tab="preparation" aria-pressed="'+(tab==='preparation')+'" class="'+(tab==='preparation'?'active':'')+'">Preparação</button><button data-tab="desk" aria-pressed="'+(tab==='desk')+'" class="'+(tab==='desk'?'active':'')+'">Mesa</button><button data-tab="journal" aria-pressed="'+(tab==='journal')+'" class="'+(tab==='journal'?'active':'')+'">Diário × execução</button><button data-tab="day" aria-pressed="'+(tab==='day')+'" class="'+(tab==='day'?'active':'')+'">Revisão diária</button><button data-tab="evolution" aria-pressed="'+(tab==='evolution')+'" class="'+(tab==='evolution'?'active':'')+'">Evolução</button><button data-tab="insights" aria-pressed="'+(tab==='insights')+'" class="'+(tab==='insights'?'active':'')+'">Insights</button></div></div>'+settingsMarkup();
@@ -477,9 +509,11 @@ const ProfitTrades = (() => {
             '<h4>Últimas importações neste perfil</h4>'+data.imports.slice(-5).reverse().map(x=>'<p>'+esc(x.name)+' · '+x.count+' registros · '+esc(x.at.slice(0,10))+'</p>').join('')+'</details>';
         }
         $('view-profit').innerHTML=body+'<dialog id="pfSMCDialog" aria-labelledby="pfSMCTitle"></dialog>';
+        if(cycleScope!=='active')$('view-profit').querySelectorAll('input,textarea,select:not(#pfAccount):not(#pfDay),form button,[data-action="import"],[data-action="import-tv"],[data-action="restore"]').forEach(el=>el.disabled=true);
     }
     async function readFile(file,isBackup=false,source='profit'){
         if(!file)return;
+        if(cycleLocked()){announce('Importe ou restaure dados no ciclo atual.',true);return;}
         if(file.size>(isBackup?20:10)*1024*1024){announce('Arquivo maior que o limite de '+(isBackup?20:10)+' MB.',true);return;}
         const token=++generation,who=owner;busy=true;announce('Lendo '+file.name+'…');
         try{
@@ -491,7 +525,7 @@ const ProfitTrades = (() => {
             else {try{text=new TextDecoder('utf-8',{fatal:true}).decode(buffer);}catch{text=new TextDecoder('windows-1252').decode(buffer);}}
             if(isBackup){
                 const restored=validateBackup(JSON.parse(text));
-                if(!confirm('Restaurar este backup substitui somente as análises e os dados importados da Psicologia deste perfil no navegador. Deseja continuar?'))return;
+                if(!confirm('Restaurar este backup substitui a Psicologia deste perfil, incluindo seus ciclos arquivados. Faça um backup antes. Deseja continuar?'))return;
                 const previous=ready;ready=true;
                 if(commit(restored)){account=[...new Set(data.trades.map(t=>t.account))][0]||'';day=availableDays().at(-1)||'';stage=null;planDrafts={};announce('Backup restaurado.');render(true);}
                 else ready=previous;
@@ -503,8 +537,9 @@ const ProfitTrades = (() => {
         finally{if(token===generation)busy=false;}
     }
     function download(){
-        let content=JSON.stringify(data,null,2);
-        if(!ready){try{content=localStorage.getItem(STORAGE+owner)||'';}catch{announce('O navegador bloqueou a leitura do backup.',true);return;}}
+        let content;
+        try{content=ready?JSON.stringify(readCycleRoot(),null,2):localStorage.getItem(STORAGE+owner)||'';}
+        catch{announce('O navegador bloqueou a leitura do backup.',true);return;}
         const url=URL.createObjectURL(new Blob([content],{type:'application/json'})),a=document.createElement('a');
         a.href=url;a.download='trades-profit-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
         announce('Backup gerado com trades, revisões, regras e compromissos deste perfil.');
@@ -661,5 +696,106 @@ const ProfitTrades = (() => {
             }
         }
     }
-    return {init,render,authChanged,validateBackup};
+    function readCycleRoot(){
+        const raw=localStorage.getItem(STORAGE+localOwner());
+        return raw?validateBackup(JSON.parse(raw)):blank();
+    }
+    function hasCycleContent(value){
+        return !!(value.trades.length||value.imports.length||Object.values(value.accounts).some(m=>
+            ['reviews','plans','preparations','annotations'].some(k=>Object.keys(m[k]||{}).length)));
+    }
+    function cycleGroups(){
+        try{return Object.entries(readCycleRoot().archivedCycles||{}).map(([id,c])=>({id,name:c.name,createdAt:c.createdAt,count:0,psychology:true}));}
+        catch{return [];}
+    }
+    function hasActiveCycle(){try{return hasCycleContent(readCycleRoot());}catch{return false;}}
+    function cycleReadiness(){
+        if(busy||stage)return 'Conclua ou cancele a importação aberta na Psicologia antes de arquivar.';
+        if(localStorage.getItem(STORAGE+localOwner()+'_cycle_pending'))return 'Psicologia aguardando a conclusão do ciclo. Atualize os dados da nuvem ou reabra o diário para recuperar.';
+        try{readCycleRoot();return '';}catch(e){return 'Recupere o backup da Psicologia antes de arquivar: '+e.message;}
+    }
+    function prepareCycle(kind,meta,ids){
+        const reason=cycleReadiness();if(reason)throw Error(reason);
+        const key=STORAGE+localOwner(),root=readCycleRoot(),current=JSON.parse(JSON.stringify(root));
+        delete current.archivedCycles;
+        const archives={...(root.archivedCycles||{})};let after;
+        if(kind==='archive'){
+            archives[meta.id]={name:meta.name,createdAt:meta.createdAt,data:current};
+            after={...blank(),archivedCycles:archives};
+        }else{
+            if(!archives[meta.id])return null;
+            const previous=archives[meta.id].data;
+            after=JSON.parse(JSON.stringify(current));
+            const mergeMap=(left,right,label)=>{
+                const merged={...left};
+                for(const [id,value] of Object.entries(right||{})){
+                    if(Object.hasOwn(merged,id)&&JSON.stringify(merged[id])!==JSON.stringify(value))throw Error(`Há registros diferentes em ${label} (${id}). O ciclo atual e o arquivo foram preservados. Consulte ou exporte ambos separadamente.`);
+                    merged[id]=value;
+                }
+                return merged;
+            };
+            after.trades=Object.values(mergeMap(Object.fromEntries(after.trades.map(t=>[t.id,t])),Object.fromEntries(previous.trades.map(t=>[t.id,t])),'execuções psicológicas'));
+            after.journalLinks=mergeMap(after.journalLinks,previous.journalLinks,'vínculos do diário');
+            for(const [key,m] of Object.entries(previous.accounts)){
+                if(!after.accounts[key]){after.accounts[key]=m;continue;}
+                for(const field of ['reviews','plans','preparations','annotations'])after.accounts[key][field]=mergeMap(after.accounts[key][field],m[field],field);
+            }
+            after.imports=[...previous.imports,...after.imports];
+            delete archives[meta.id];after.archivedCycles=archives;
+        }
+        after=validateBackup(after);
+        const transaction={kind,id:meta.id,ids:[...ids],after,key};
+        // Reserve the complete psychological history before any trade/cloud mutation.
+        localStorage.setItem(key+'_cycle_pending',JSON.stringify(transaction));
+        return transaction;
+    }
+    function completeCycle(transaction){
+        if(!transaction)return;
+        localStorage.setItem(transaction.key,JSON.stringify(transaction.after));
+        localStorage.removeItem(transaction.key+'_cycle_pending');owner=null;
+    }
+    function cancelCycle(transaction){
+        if(transaction)localStorage.removeItem(transaction.key+'_cycle_pending');
+    }
+    function cycleReportHTML(scope=selectedCycle()){
+        const reason=cycleReadiness();if(reason)throw Error(reason);
+        const root=readCycleRoot(),archives=root.archivedCycles||{};
+        const cycles=scope==='all'?[{name:'Ciclo atual',data:root},...Object.values(archives)]
+            :scope==='active'?[{name:'Ciclo atual',data:root}]:archives[scope]?[archives[scope]]:[];
+        const labels={before:'Estado antes',after:'Estado depois',energy:'Energia',urge:'Urgência de recuperar',setup:'Respeito ao setup',good:'Acertos',trigger:'Gatilho',lesson:'Aprendizado',contexts:'Contextos revisados',
+            moment:'Episódio',thought:'Pensamento',feeling:'Emoção',choice:'Decisão tomada',alternative:'Alternativa',action:'Próxima ação',proof:'Evidência esperada',completed:'Debrief concluído',
+            setups:'Condições dos setups',exceptions:'Exceções previstas',response:'Resposta ao gatilho',sleep:'Descanso',tension:'Tensão',riskCents:'Risco por operação (centavos)',
+            from:'Pregão de origem',focus:'Foco / compromisso',reflection:'Autoavaliação',contract:'Acompanhamento do compromisso',priority:'Prioridade',evidence:'Evidência registrada',noticed:'Quando percebeu',barrier:'Obstáculo',barrierNote:'Observação do obstáculo',items:'Regras escolhidas',
+            rules:'Regras usadas',settings:'Configurações do plano',maxTrades:'Máximo de entradas',quickMinutes:'Intervalo mínimo (min)',minTargetR:'Alvo mínimo (R)',allowEarlyException:'Permitir exceção justificada',pauseMinutes:'Pausa após perda (min)',maxLosses:'Perdas seguidas',afternoon:'Início da tarde',endTime:'Última entrada',givebackPct:'Devolução do pico (%)',lossLimit:'Limite de perda',configured:'Regras personalizadas',
+            exit:'Motivo de saída',notes:'Observações',riskCentsConfirmed:'Risco confirmado',entryContracts:'Contratos de entrada',stopPlanned:'Stop planejado',created:'Registrado em',updated:'Atualizado em'};
+        const values={calm:'Calmo e presente',anxious:'Ansioso',frustrated:'Frustrado',euphoric:'Eufórico',tired:'Cansado',pending:'Pendente',confirmed:'Confirmado',planned:'Previsto no plano',yes:'Sim',no:'Não',partial:'Parcial',rested:'Descansado',regular:'Regular',poor:'Ruim',before:'Antes',after:'Depois',not:'Não percebeu',none:'Nenhum',unclear:'Pouco claro',impractical:'Impraticável',late:'Tarde',notused:'Não utilizado',other:'Outro'};
+        const fields=obj=>'<dl>'+Object.entries(obj||{}).filter(([k,v])=>!['signature','deskPolicy'].includes(k)&&v!==''&&v!==null&&v!==undefined).map(([k,v])=>
+            '<div><dt>'+esc(labels[k]||k)+'</dt><dd>'+ (typeof v==='object'&&!Array.isArray(v)?fields(v):esc(typeof v==='boolean'?(v?'Sim':'Não'):Array.isArray(v)?v.map(x=>labels[x]||values[x]||x).join(', '):values[v]||v))+'</dd></div>').join('')+'</dl>';
+        const content=cycles.filter(c=>hasCycleContent(c.data)).map(c=>{
+            const accounts=Object.entries(c.data.accounts).map(([key,m])=>{
+                const name=masked(key.slice('account:'.length));
+                const executions=c.data.trades.filter(t=>accountKey(t.account)===key);
+                const dates=[...new Set([...A.dates(executions),...Object.keys(m.reviews||{}),...Object.keys(m.plans||{}),...Object.keys(m.preparations||{})])].sort();
+                const days=dates.map(d=>{
+                    const review=m.reviews?.[d],plan=m.plans?.[d],prep=m.preparations?.[d];
+                    const analysis=executions.length?A.analyzeDay(executions,d,plan?.rules||review?.rules||prep?.rules||m.settings,m.annotations):null;
+                    const checks=analysis&&(analysis.entries.length||analysis.closed.length)
+                        ?'<h4>Leitura das execuções importadas</h4><p>'+analysis.entries.length+' entradas · '+analysis.closed.length+' operações fechadas · maior sequência de perdas: '+analysis.maxStreak+'. Estes sinais descrevem as execuções; o estado emocional depende do seu relato.</p><ul>'+analysis.checks.map(x=>'<li>'+esc(x.label)+': '+(x.pass===null?'Pendente':x.pass?'Dentro da regra':'Requer revisão')+(x.detail?' · '+esc(x.detail):'')+'</li>').join('')+'</ul>':'';
+                    return '<article><h3>'+esc(name)+' · '+esc(date(d))+'</h3>'+
+                        checks+
+                        (prep?'<h4>Preparação</h4>'+fields(prep):'')+
+                        (review?'<h4>Revisão psicológica</h4>'+fields(Object.fromEntries(Object.entries(review).filter(([k])=>k!=='desk')))+(review.desk?'<h4>Debrief / decisões</h4>'+fields(review.desk):''):'')+
+                        (plan?'<h4>Compromisso para este pregão</h4>'+fields(plan):'')+'</article>';
+                }).join('');
+                const annotations=Object.entries(m.annotations||{}).map(([id,n])=>{
+                    const t=c.data.trades.find(t=>t.id===id);
+                    return '<article><h3>Revisão da execução · '+esc(t?`${t.symbol} · ${t.open}`:id)+'</h3>'+fields(n)+'</article>';
+                }).join('');
+                return days+annotations;
+            }).join('');
+            return '<section class="psychology-cycle"><h2>'+esc(c.name)+' · Psicologia</h2><p>'+c.data.trades.length+' execuções importadas do Profit/TradingView neste ciclo. Registros psicológicos preservados abaixo; valores dessas importações não são somados ao resumo financeiro do diário.</p>'+accounts+'</section>';
+        }).join('');
+        return content?'<section class="psychology-report"><h1>Psicologia · revisão e evolução</h1>'+content+'</section>':'';
+    }
+    return {init,render,authChanged,validateBackup,cycleGroups,hasActiveCycle,cycleReadiness,prepareCycle,completeCycle,cancelCycle,cycleReportHTML};
 })();

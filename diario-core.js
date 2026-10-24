@@ -21,6 +21,7 @@ const state = {
     pendingCloudDeletes: loadPendingCloudDeletes(),
     view: "dashboard",
     assetFilter: "all",
+    archiveView: "active",
     editingId: null,
     calMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     chartMonth: localDateTimeValue().slice(0, 7),
@@ -45,6 +46,10 @@ function persistRobotConfig() {
 
 function isRobotTrade(t) { return t?.source === ROBOT_SOURCE; }
 function manualTrades() { return state.trades.filter((t) => !isRobotTrade(t)); }
+function cycleManualTrades() {
+    return manualTrades().filter(t => state.archiveView === "all" ||
+        (state.archiveView === "active" ? !t.archive?.id : t.archive?.id === state.archiveView));
+}
 function robotTrades() { return state.trades.filter(isRobotTrade); }
 
 function openPsychologyDiaryTrade(id) {
@@ -58,7 +63,7 @@ function psychologyDiarySnapshot() {
     const waiting = cloudBusy || (currentUser ? psychologyLoadedUser !== currentUser.id : psychologyLoadedUser !== null);
     if (waiting || psychologyDiaryLoadError) return {ready:false,rows:[],source:'Diário aguardando sincronização',reason:'Carregue os registros do diário deste login em Conta e sincronização. Não comparamos dados remanescentes de outro login nem tratamos falha de carga como ausência de trades.'};
     if (!Array.isArray(state.trades)) return {ready:false,rows:[],source:'Diário indisponível',reason:'Os registros locais do diário precisam ser recuperados.'};
-    const rows=state.trades.filter(t=>t&&t.source!==ROBOT_SOURCE).map(t=>{
+    const rows=cycleManualTrades().map(t=>{
         let openLocal='';
         try { if (parseDateTimeLocal(t.dateLocal) || Number.isFinite(new Date(t.date).getTime())) openLocal=tradeLocalDateTime(t); } catch {}
         let registeredLocal='';
@@ -87,7 +92,7 @@ function tradeAssetCategory(trade) {
 }
 
 function filteredManualTrades() {
-    const trades = manualTrades();
+    const trades = cycleManualTrades();
     return state.assetFilter === "all" ? trades : trades.filter((trade) => tradeAssetCategory(trade) === state.assetFilter);
 }
 
@@ -128,6 +133,7 @@ function loadTrades() {
 
 function saveTrades() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.trades));
+    if (currentUser) localStorage.setItem("diarioProTradesOwner_v1", currentUser.id);
 }
 
 function loadPendingCloudDeletes() {
@@ -433,6 +439,7 @@ function feeRateFor(symbol) {
 }
 
 function tradeFees(trade) {
+    if (trade?.archive?.id && Number.isFinite(trade.archive.fees)) return trade.archive.fees;
     const manual = Number(trade?.fees || 0);
     if (manual > 0) return manual;
     const rate = feeRateFor(trade?.symbol);
@@ -939,6 +946,7 @@ function closeModal() {
 }
 
 async function saveFromForm() {
+    if (typeof DiaryArchives !== "undefined" && DiaryArchives.busy) return;
     if ($("btnSave").disabled) return;
     const savingUserId = canUseCloud() ? currentUser.id : null;
     const m = computeTradeMath();
@@ -991,6 +999,7 @@ async function saveFromForm() {
         createdAt: isEdit ? existingTrade?.createdAt : new Date().toISOString()
     };
     if (existingTrade?.source) trade.source = existingTrade.source;
+    if (existingTrade?.archive) trade.archive = { ...existingTrade.archive };
     if (existingTrade?.dateCorrection) trade.dateCorrection = existingTrade.dateCorrection;
 
     if (!trade.symbol) {
@@ -1053,6 +1062,7 @@ async function saveFromForm() {
         toast(canUseCloud() ? "Trade atualizado · sincronizado" : "Trade atualizado (local)");
     } else {
         state.trades.push(trade);
+        state.archiveView = "active";
         toast(canUseCloud() ? "Trade salvo · sincronizado" : "Trade salvo (local)");
     }
 
@@ -1062,6 +1072,7 @@ async function saveFromForm() {
 }
 
 async function deleteTrade(id) {
+    if (typeof DiaryArchives !== "undefined" && DiaryArchives.busy) return;
     if (!confirm("Excluir este trade?")) return;
     if (canUseCloud()) {
         const result = await deleteTradeCloud(id);
@@ -1887,6 +1898,7 @@ function renderJournal() {
 }
 
 function renderAll() {
+    if (typeof DiaryArchives !== "undefined") DiaryArchives.render();
     renderAssetFilters();
     if (state.view === "profit" && typeof ProfitTrades !== "undefined") ProfitTrades.render();
     if (state.view === "backtests") Backtests.render();
@@ -1923,7 +1935,7 @@ function renderFees() {
         byCat[cat] += tradeFees(t);
     });
     $("feesSummary").innerHTML = `
-        Total acumulado em fees: <strong>${fmtCurrency(totalFees)}</strong>
+        Taxas acumuladas no histórico completo (todos os ciclos e Robô): <strong>${fmtCurrency(totalFees)}</strong>
         · Cripto: ${fmtCurrency(byCat.cripto)}
         · WIN: ${fmtCurrency(byCat.win)}
         · WDO: ${fmtCurrency(byCat.wdo)}
@@ -1975,10 +1987,11 @@ function decodeImportBuffer(buffer) {
 }
 
 function importJSONText(text) {
+    if (typeof DiaryArchives !== "undefined" && DiaryArchives.busy) return;
     try {
         const data = JSON.parse(text);
         if (!Array.isArray(data)) throw new Error("Formato invalido");
-        if (!confirm(`Importar ${data.length} trades? Isso substitui os atuais.`)) return;
+        if (!confirm(`Importar ${data.length} trades? Isso substitui TODOS os registros locais, incluindo os arquivos de ciclos anteriores. Exporte um backup antes de continuar.`)) return;
         state.trades = data;
         saveTrades();
         toast(`${data.length} trades importados`);
@@ -2009,11 +2022,13 @@ function promptImportBroker(tradesCount) {
 
 async function importBrokerCSVText(text) {
     try {
+        if (typeof DiaryArchives !== "undefined" && DiaryArchives.busy) throw new Error("Aguarde o arquivamento ou relatório terminar.");
         const trades = parseBrokerCSV(text);
         if (!trades.length) throw new Error("Nenhum trade encontrado");
         
         const dedup = await promptImportBroker(trades.length);
         if (dedup === null) return;
+        if (typeof DiaryArchives !== "undefined" && DiaryArchives.busy) throw new Error("Aguarde o arquivamento ou relatório terminar.");
         
         let tradesToAdd = trades;
         if (dedup) {
@@ -2031,6 +2046,7 @@ async function importBrokerCSVText(text) {
         }
 
         state.trades = [...state.trades, ...tradesToAdd];
+        state.archiveView = "active";
         saveTrades();
         renderAll();
         const sync = await syncImportedTradesCloud(tradesToAdd);
@@ -2189,17 +2205,7 @@ function parseBrokerCSV(text) {
 function importJSON(file) {
     const reader = new FileReader();
     reader.onload = () => {
-        try {
-            const data = JSON.parse(reader.result);
-            if (!Array.isArray(data)) throw new Error("Formato inválido");
-            if (!confirm(`Importar ${data.length} trades? Isso substitui os atuais.`)) return;
-            state.trades = data;
-            saveTrades();
-            toast(`${data.length} trades importados`);
-            renderAll();
-        } catch (e) {
-            alert(`Erro ao importar: ${e.message}`);
-        }
+        importJSONText(reader.result);
     };
     reader.readAsText(file);
 }
@@ -2304,17 +2310,18 @@ function bindEvents() {
     $("filterResult").addEventListener("change", renderTrades);
 
     $("btnDeleteAllTrades").addEventListener("click", () => {
-        const manuals = manualTrades();
+        if (typeof DiaryArchives !== "undefined" && DiaryArchives.busy) return;
+        const manuals = manualTrades().filter(t => !t.archive?.id);
         if (!manuals.length) {
             toast("Não há trades manuais para excluir.");
             return;
         }
-        if (confirm("Tem certeza que deseja apagar TODOS os trades MANUAIS deste navegador? Trades do robô não serão afetados. O Supabase não será alterado e os trades podem voltar ao atualizar da nuvem.")) {
+        if (confirm("Apagar os trades do CICLO ATUAL deste navegador? Os arquivos anteriores e os trades do robô serão preservados. Para guardar seu histórico, use Arquivar e iniciar novo ciclo. O Supabase não será alterado e os trades podem voltar ao atualizar da nuvem.")) {
             queuePendingCloudDeletes(manuals.map((trade) => trade.id));
-            state.trades = robotTrades();
+            state.trades = state.trades.filter(t => isRobotTrade(t) || t.archive?.id);
             saveTrades();
             renderAll();
-            toast("Todos os trades manuais foram removidos localmente. O Supabase não foi alterado.");
+            toast("Ciclo atual removido localmente. Arquivos anteriores preservados.");
         }
     });
 
@@ -2348,6 +2355,7 @@ function setCloudUi(stateName, label) {
 }
 
 function updateCloudUi() {
+    if (typeof DiaryArchives !== "undefined") DiaryArchives.render();
     Backtests.authChanged();
     if (typeof ProfitTrades !== "undefined") ProfitTrades.authChanged();
     const logged = canUseCloud();
@@ -2456,6 +2464,7 @@ async function signOutCloud() {
 }
 
 async function loadCloudTrades() {
+    if (typeof DiaryArchives !== "undefined" && DiaryArchives.busy) return;
     if (!canUseCloud()) return;
     if (dateRepairRequested() && (cloudBusy || dateRepairBusy)) return;
     const loadingUserId = currentUser.id;
@@ -2465,13 +2474,18 @@ async function loadCloudTrades() {
     let data = null;
     let error = null;
     try {
-        const result = await supabaseClient
-            .from(SUPABASE_TABLE)
-            .select("id,payload,trade_timestamp,created_at")
-            .eq("user_id", loadingUserId)
-            .order("trade_timestamp", { ascending: true });
-        data = result.data;
-        error = result.error;
+        data = [];
+        for (let offset = 0; ; offset += 500) {
+            const result = await supabaseClient.from(SUPABASE_TABLE)
+                .select("id,payload,trade_timestamp,created_at")
+                .eq("user_id", loadingUserId)
+                .order("trade_timestamp", { ascending: true }).order("id", { ascending: true })
+                .range(offset, offset + 499);
+            if (result.error) throw result.error;
+            data.push(...(result.data || []));
+            if ((result.data || []).length < 500) break;
+            if (currentUser?.id !== loadingUserId) return;
+        }
     } catch (err) {
         error = err;
     } finally {
@@ -2709,6 +2723,7 @@ function bindCloudEvents() {
 }
 
 Backtests.init();
+if (typeof DiaryArchives !== "undefined") DiaryArchives.init();
 if (typeof ProfitTrades !== "undefined") ProfitTrades.init();
 state.fees = loadFees();
 state.robot = loadRobotConfig();

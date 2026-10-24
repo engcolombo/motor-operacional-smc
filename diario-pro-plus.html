@@ -906,7 +906,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     .form-grid { grid-template-columns: 1fr; }
 }
 </style>
-<link rel="stylesheet" href="diario-pro-plus.css?v=20261011-backtest-unified">
+<link rel="stylesheet" href="diario-pro-plus.css?v=20261023-archives">
 <link rel="stylesheet" href="diario-attachments.css?v=20261008-image-viewer">
 <link rel="stylesheet" href="diario-profit.css?v=20261016-psychology-tradingview">
 </head>
@@ -968,6 +968,17 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                 <button class="btn btn-primary" id="btnAddTrade" type="button">+ Nova operação</button>
             </div>
         </div>
+
+        <section class="archive-toolbar" id="archiveToolbar" aria-label="Ciclos do diário">
+            <div class="archive-controls">
+                <label for="archiveSelect">Meu histórico</label>
+                <select id="archiveSelect"><option value="active">Ciclo atual</option></select>
+                <button class="btn btn-ghost" id="btnArchivePDF" type="button">PDF com imagens</button>
+                <button class="btn btn-ghost" id="btnArchiveRestore" type="button" hidden>Devolver ao ciclo atual</button>
+                <button class="btn" id="btnArchiveCycle" type="button">Arquivar e iniciar novo ciclo</button>
+            </div>
+            <p id="archiveHint" aria-live="polite"></p>
+        </section>
 
         <div class="asset-filters" id="assetFilters" role="group" aria-label="Filtrar por ativo">
             <span class="asset-filters-label">Ativos</span>
@@ -1032,7 +1043,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                         <option value="open">Em aberto</option>
                     </select>
                     <span class="muted" id="filterCount" style="margin-left:auto"></span>
-                    <button class="btn btn-ghost" id="btnDeleteAllTrades" type="button" style="color:var(--red); padding: 4px 8px; font-size: 0.85rem;" title="Apagar todos os trades manuais apenas deste navegador">Excluir Todos (local)</button>
+                    <button class="btn btn-ghost" id="btnDeleteAllTrades" type="button" style="color:var(--red); padding: 4px 8px; font-size: 0.85rem;" title="Excluir apenas o ciclo atual deste navegador; arquivos anteriores preservados">Excluir ciclo atual (local)</button>
                 </div>
                 <p class="table-scroll-hint" id="tradesTableScrollHint">Deslize a tabela para ver todas as colunas e editar.</p>
                 <div class="table-scroll" id="tradesTable" tabindex="0" role="region" aria-label="Operações registradas" aria-describedby="tradesTableScrollHint"></div>
@@ -1350,6 +1361,20 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     </div>
 </dialog>
 
+<dialog id="archiveDialog" class="archive-dialog" aria-labelledby="archiveTitle" aria-describedby="archiveConfirmText">
+    <form id="archiveForm">
+        <h2 id="archiveTitle">Guardar este ciclo e começar de novo</h2>
+        <p id="archiveConfirmText"></p>
+        <label for="archiveName">Nome do arquivo</label>
+        <input id="archiveName" maxlength="100" required placeholder="Ex.: Backtest live · plano antigo">
+        <p>O arquivo ficará em Meu histórico, incluindo a Psicologia. O PDF reúne operações, imagens e registros psicológicos disponíveis. A Psicologia continua local: use também o Backup dessa aba para guardar suas revisões e ciclos. O botão Exportar do diário inclui os trades e as referências aos anexos.</p>
+        <p id="archiveStatus" role="status" aria-live="polite"></p>
+        <div class="actions">
+            <button class="btn btn-ghost" id="archiveCancel" type="button">Cancelar</button>
+            <button class="btn btn-primary" id="archiveConfirm" type="submit">Arquivar e zerar ciclo atual</button>
+        </div>
+    </form>
+</dialog>
 <input type="file" id="importFile" accept=".json,.csv,application/json,text/csv" hidden>
 <div class="toast" id="toast"></div>
 
@@ -1357,9 +1382,10 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 <script src="diario-profit-desk.js?v=20261016-psychology-tradingview"></script>
 <script src="diario-profit-supervision.js?v=20261016-psychology-tradingview"></script>
 <script src="diario-profit-journal.js?v=20261016-psychology-tradingview"></script>
-<script src="diario-profit.js?v=20261016-psychology-tradingview"></script>
+<script src="diario-profit.js?v=20261023-psychology-cycles"></script>
 <script src="diario-backtests.js?v=20261011-backtest-unified"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="diario-core.js?v=20261016-psychology-tradingview"></script>
+<script src="diario-archives.js?v=20261023-psychology-cycles"></script>
+<script src="diario-core.js?v=20261023-psychology-cycles"></script>
 </body>
 </html>

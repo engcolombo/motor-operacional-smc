@@ -22,6 +22,24 @@ A opcao `Lembrar` mantem a sessao do Supabase salva no navegador depois do prime
 
 ## Diário Pro+
 
+### Ciclos e histórico arquivado
+
+Em **Meu histórico**, use **Arquivar e iniciar novo ciclo** e dê um nome ao plano encerrado. Após a confirmação, todos os trades manuais do ciclo atual (inclusive os ativos ocultos pelo filtro) e a Psicologia ficam agrupados no arquivo. Visão geral, Operações, Calendário, Estatísticas, Diário e Psicologia passam a mostrar o ciclo atual vazio. Novas operações e revisões entram nesse ciclo. Robô SMC, Backtests e a aba Taxas permanecem como estavam; o acumulado de taxas continua incluindo o histórico completo.
+
+Selecione um arquivo para revisar seus trades nas cinco telas ou escolha **Histórico completo** para comparar toda a evolução. **Devolver ao ciclo atual** desfaz o arquivamento desse grupo e recalcula os resultados com as taxas atuais. Ao arquivar, as taxas são congeladas por trade para preservar os resultados históricos; notas, parciais, datas e anexos são mantidos. Editar um trade arquivado preserva seu vínculo com o arquivo.
+
+**Psicologia acompanha o mesmo seletor:** suas importações, revisões, preparações, compromissos, regras e vínculos são arquivados juntos e podem ser consultados no ciclo antigo. No Histórico completo, selecione um ciclo para abrir suas análises; o PDF reúne todos os ciclos separadamente. A restauração devolve também a Psicologia, mas interrompe sem alterar nenhum histórico se houver revisões diferentes para a mesma data ou vínculos conflitantes. Até um ciclo apenas com registros psicológicos pode ser arquivado.
+
+A Psicologia continua **local por navegador e login**, sem sincronização no Supabase. Seu botão **Backup** inclui o ciclo atual e os ciclos psicológicos arquivados. O estado completo é reservado antes de arquivar os trades; uma interrupção entre etapas deixa uma cópia de recuperação em `diarioProfit_v1_<usuario>_cycle_pending`, conferida ao reabrir/atualizar o diário. Falta de espaço ou registros inválidos impedem iniciar o arquivamento. Use o Backup da Psicologia e o PDF para guardar uma cópia fora deste navegador.
+
+Com login, o arquivamento e a restauração são gravados em um único lote na tabela existente `trades_pro`, dentro do `payload`. Não é necessário executar SQL. Sem login, registros locais ficam apenas neste navegador. Um backup local anterior à última alteração é guardado em `diarioProBeforeArchive_v1_<usuario>`. Se esse backup não couber, a operação é interrompida antes de alterar os registros. Falhas na gravação da nuvem mantêm o ciclo local intacto; falhas de cache depois do sucesso na nuvem são informadas. A leitura da nuvem busca todas as páginas do histórico.
+
+**PDF com imagens** prepara o ciclo selecionado inteiro, independentemente dos filtros de ativo, mês ou busca. O relatório inclui resumo, detalhes de cada operação, notas, erros, tags, parciais, imagens incorporadas e a parte psicológica disponível (preparação, estados antes/depois, revisões, debrief, compromissos, anotações e leitura das execuções importadas). Na aba aberta, clique em **Salvar em PDF / Imprimir** e escolha **Salvar como PDF**. Imagens privadas exigem login; se alguma não puder ser carregada ou decodificada, o relatório não libera a impressão. O PDF salvo contém as imagens, sem depender de links temporários. A exportação não arquiva os registros automaticamente.
+
+O botão **Exportar** continua gerando JSON de todos os trades, incluindo arquivos anteriores e metadados dos anexos; os arquivos de imagem não estão dentro desse JSON. **Importar JSON** substitui todo o histórico local e pede confirmação explícita. **Excluir ciclo atual (local)** preserva os arquivos anteriores.
+
+Arquivos a publicar juntos: `diario-pro-plus.html`, `diario-pro-plus.css`, `diario-core.js`, `diario-archives.js` e `diario-profit.js`. Testes: `node test-diario-archives.cjs`, `node test-diario-psychology-cycles.cjs` e, com Chrome isolado, `node test-diario-archives-ui.cjs PORTA URL_LOCAL PASTA_DE_EVIDENCIAS`.
+
 A versão principal está em `diario-pro-plus.html`, acessível pelo botão **Diário Pro+** na página inicial e pelos checklists. O tema grafite reduz cores decorativas, gradientes, sombras e emojis; os controles de conta ficam em **Conta e sincronização**. Inclui todas as abas do Pro, inclusive Robô SMC e Backtests, com navegação adaptada ao celular.
 
 O Diário Pro foi desativado; `diario.html` redireciona para o Pro+, preservando os links antigos. O Pro+ usa `diario-core.js`, `diario-backtests.js`, o mesmo login, as mesmas chaves locais e as mesmas tabelas Supabase da versão anterior. Os dados existentes continuam disponíveis sem migração. O tema adicional está em `diario-pro-plus.css`. Ao publicar, envie esses arquivos junto com os HTMLs.

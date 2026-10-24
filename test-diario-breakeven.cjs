@@ -12,7 +12,7 @@ const node = id => {
 };
 const client = {from(){return {
     async upsert(row){rows.set(row.id,JSON.parse(JSON.stringify(row)));return {error:null};},
-    select(){return {eq(){return this;},async order(){return {data:[...rows.values()],error:null};}};}
+    select(){return {eq(){return this;},order(){return this;},async range(start,end){return {data:[...rows.values()].slice(start,end+1),error:null};}};}
 };}};
 const context = vm.createContext({Date,URL,URLSearchParams,console,client,
     crypto:{randomUUID:()=>"be-trade"},setTimeout:()=>1,clearTimeout(){},alert(message){throw new Error(message);},

@@ -33,7 +33,7 @@ function setup({ failWrite = false, failBackup = false, switchAccount = false, s
         assert.equal(table,"trades_pro");
         return {
             select() { return { eq(key,id) { assert.equal(key,"user_id"); assert.equal(id,"user-a"); return this; },
-                async order() { return { data:clone(remote), error:null }; } }; },
+                order() { return this; }, async range(start,end) { return { data:clone(remote.slice(start,end+1)), error:null }; } }; },
             async upsert(changes) {
                 assert.ok([...storage.keys()].some(key=>key.includes("DateRepair")), "Backup must exist before the cloud write");
                 calls.push(clone(changes));

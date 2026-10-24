@@ -20,7 +20,7 @@ const node = id => {
 let cloudRows = [], writes = 0;
 const client = { from() { return {
     async upsert(row) { writes++; cloudRows = JSON.parse(JSON.stringify([row])); return {error:null}; },
-    select() { return { eq() { return this; }, async order() { return {data:JSON.parse(JSON.stringify(cloudRows)),error:null}; } }; }
+    select() { return { eq() { return this; }, order() { return this; }, async range(start,end) { return {data:JSON.parse(JSON.stringify(cloudRows.slice(start,end+1))),error:null}; } }; }
 }; } };
 const context = vm.createContext({
     Date:FixedDate, console, URL, URLSearchParams, crypto:{randomUUID:()=>"typed-time-trade"},
@@ -54,6 +54,7 @@ const api = context.api;
     await api.loadCloudTrades();
     api.restore();
     assert.equal(api.fmtDate(api.state.trades[0]),"08/10/2026 13:23","Cloud and local reload preserve the typed time");
+    api.state.trades[0].archive={id:'old-plan',name:'Plano anterior',createdAt:'2026-10-08',fees:0};
     api.openModal(api.state.trades[0]);
     assert.equal(node("fDate").value,"2026-10-08T13:23");
     for(let edit=0;edit<5;edit++) {
@@ -61,6 +62,7 @@ const api = context.api;
         api.openModal(api.state.trades[0]);
         assert.equal(node("fDate").value,"2026-10-08T13:23");
         assert.equal(api.state.trades[0].date,"2026-10-08T16:23:00.000Z");
+        assert.equal(api.state.trades[0].archive.id,'old-plan','Editing preserves archive membership');
     }
 
     // Viewing the record on another device must not reinterpret the original wall clock time.
