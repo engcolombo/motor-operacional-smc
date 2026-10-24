@@ -311,6 +311,7 @@
     .pro-plus *, .pro-plus *::before, .pro-plus *::after { transition: none !important; scroll-behavior: auto !important; }
 }
 .pro-plus .pro-cloud { margin-bottom: 16px; }
+.pro-plus .checklist-frame { display: block; width: 100%; min-height: 600px; border: 0; }
 .pro-plus .archive-toolbar { margin-bottom: 18px; padding: 16px; border: 1px solid var(--line-soft); background: var(--bg-elev); border-radius: 10px; }
 .pro-plus .archive-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .pro-plus .archive-controls label { font-size: 12px; color: var(--muted); }

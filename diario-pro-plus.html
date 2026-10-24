@@ -906,9 +906,9 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     .form-grid { grid-template-columns: 1fr; }
 }
 </style>
-<link rel="stylesheet" href="diario-pro-plus.css?v=20261023-archives">
+<link rel="stylesheet" href="diario-pro-plus.css?v=20261024-checklist">
 <link rel="stylesheet" href="diario-attachments.css?v=20261008-image-viewer">
-<link rel="stylesheet" href="diario-profit.css?v=20261016-psychology-tradingview">
+<link rel="stylesheet" href="diario-profit.css?v=20261024-mentor">
 </head>
 <body class="pro-plus">
 <div class="app">
@@ -929,7 +929,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
         <button class="nav-item" data-view="robot" type="button">Robô SMC</button>
         <button class="nav-item" data-view="backtests" type="button">Backtests</button>
         <div class="nav-divider"></div>
-        <a class="nav-item" href="checklist.html" style="text-decoration:none;">Checklist de Trade</a>
+        <button class="nav-item" data-view="checklist" type="button">Checklist de Trade</button>
         <button class="nav-item nav-psychology" data-view="profit" type="button">Psicologia · revisão diária e evolução</button>
         <div class="nav-divider"></div>
 
@@ -1209,6 +1209,9 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                 </div>
             </div>
         </section>
+        <section class="view" id="view-checklist" aria-label="Checklist de Trade">
+            <iframe id="checklistFrame" class="checklist-frame" title="Checklist de Trade — preparação da operação" data-src="checklist.html?embed=1&amp;v=20261024-checklist"></iframe>
+        </section>
     </main>
 </div>
 
@@ -1382,10 +1385,11 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 <script src="diario-profit-desk.js?v=20261016-psychology-tradingview"></script>
 <script src="diario-profit-supervision.js?v=20261016-psychology-tradingview"></script>
 <script src="diario-profit-journal.js?v=20261016-psychology-tradingview"></script>
-<script src="diario-profit.js?v=20261023-psychology-cycles"></script>
+<script src="diario-mentor.js?v=20261024-mentor"></script>
+<script src="diario-profit.js?v=20261024-mentor"></script>
 <script src="diario-backtests.js?v=20261011-backtest-unified"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="diario-archives.js?v=20261023-psychology-cycles"></script>
-<script src="diario-core.js?v=20261023-psychology-cycles"></script>
+<script src="diario-core.js?v=20261024-checklist"></script>
 </body>
 </html>

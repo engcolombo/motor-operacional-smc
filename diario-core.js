@@ -756,6 +756,7 @@ function switchView(view) {
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
     const titles = {
+        checklist: ["Checklist de Trade", "Confirme o plano. Avalie o modelo. Decida."],
         profit: ["Psicologia · revisão diária e evolução", "Diário, Profit e TradingView · documentação, comportamento e acompanhamento"],
         backtests: ["Backtests", "Teste manual por estratégia · resultado em R"],
         dashboard: ["Dashboard", "Visão geral da performance"],
@@ -769,6 +770,11 @@ function switchView(view) {
     const [t, s] = titles[view] || titles.dashboard;
     $("viewTitle").textContent = t;
     $("viewSubtitle").textContent = s;
+    if (view === "checklist") {
+        const frame = $("checklistFrame");
+        // Load once so switching views preserves the current checks and model.
+        if (!frame.hasAttribute("src")) frame.src = frame.dataset.src;
+    }
     renderAll();
 }
 

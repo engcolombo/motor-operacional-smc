@@ -118,3 +118,10 @@
 .checklist-pro .verdict.go { border-color:var(--green); }
 .checklist-pro .verdict.wait { border-color:var(--yellow); }
 .checklist-pro .verdict.stop { border-color:var(--red); }
+/* The journal supplies navigation and the page title in embedded mode. */
+.checklist-embedded .checklist-pro { padding: 0; min-height: 0; }
+.checklist-embedded .cp-sidebar,
+.checklist-embedded .hdr .brand,
+.checklist-embedded .foot { display: none; }
+.checklist-embedded .checklist-pro .shell { max-width: none; padding: 0 0 24px; }
+.checklist-embedded .checklist-pro .hdr { justify-content: flex-end; padding: 0; border: 0; margin-bottom: 16px; }

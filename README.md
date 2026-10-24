@@ -67,6 +67,22 @@ O SQL cria o bucket e as políticas de Storage automaticamente. Os metadados do 
 
 ## Psicologia · revisão diária e evolução
 
+### Mentor de execução com Gemini
+
+A Psicologia abre na aba **Mentor de execução**. Ela mantém os cálculos existentes e adiciona interpretação assistida por IA, com foco em preparação, risco documentado, respeito às regras, disciplina e revisão deliberada. A IA propõe uma prioridade, hipóteses com perguntas de confirmação e até cinco sessões de treino com métricas de processo. Não certifica que o usuário é profissional, não garante lucro e não executa ordens.
+
+Para usar, selecione o pregão e a fonte/conta, abra **Conectar minha chave Gemini**, cole sua chave pessoal do Google AI Studio e clique em **Usar chave nesta aba**. Depois, confira os dados a enviar e clique em **Analisar meu processo com Gemini**. Conectar a chave não faz uma chamada; cada análise consome a cota do projeto Google. O padrão é `gemini-3.8-flash`, configurável conforme os modelos disponíveis na sua conta. A primeira chamada real confirma se chave/modelo/cota estão acessíveis.
+
+A chave é temporária e fica apenas na memória da aba; é removida ao recarregar, navegar para fora, remover a chave ou trocar o login. Não é gravada em localStorage/sessionStorage, backup, Supabase, repositório ou URL. A chamada vai diretamente para `generativelanguage.googleapis.com`, com a chave no cabeçalho `x-goog-api-key`. Este é um modo pessoal de **traga sua própria chave**: scripts executados na página e ferramentas locais do navegador têm acesso ao ambiente da sessão. Para disponibilizar uma chave compartilhada de produção, implemente um backend autenticado com segredo no servidor; nunca coloque uma chave compartilhada no JavaScript. Consulte a [orientação de chaves do Google](https://ai.google.dev/gemini-api/docs/api-key).
+
+O contexto enviado contém até dez pregões até a data selecionada, do ciclo e conta escolhidos. Inclui totais e checagens calculados localmente, relatos, preparações, compromissos e até trinta registros detalhados de cada fonte do dia. Para Profit/TradingView, registros do diário só são incluídos quando vinculados às execuções dessa conta. A janela e os cortes são informados na interface e no contexto. Imagens, email, identificador do login e número da conta não são incluídos automaticamente. Dados pessoais digitados nos relatos continuam sendo texto livre: a prévia permite conferi-los antes do envio. Valores e moedas das fontes não são somados.
+
+A API usa saída estruturada, conforme a [documentação do Gemini](https://ai.google.dev/gemini-api/docs/generate-content/structured-output). A aplicação valida o formato, os limites dos campos e as referências às evidências. Citações existentes não comprovam que a interpretação é correta; o usuário deve conferi-la. Não há busca na web, ferramentas externas, ordens, tentativas automáticas ou reenvio em segundo plano. Respostas incompletas, cota excedida e referências inexistentes preservam a análise anterior. Cancelamentos e mudanças de conta, ciclo, dia ou registros impedem salvar respostas atrasadas em outro contexto.
+
+As análises são salvas por conta e pregão na Psicologia local, com cópia do contexto usado. Alterações no contexto marcam a análise como desatualizada e impedem preparar compromissos com ela. **Preparar compromisso a partir da prioridade** preenche um rascunho; o usuário revisa e salva. O relatório salvo acompanha o ciclo arquivado, a restauração, o Backup da Psicologia e o PDF. As regras financeiras não são alteradas pela IA. Uma análise por pregão é mantida; uma nova análise bem-sucedida substitui a anterior desse pregão.
+
+Publique também `diario-mentor.js`, `diario-profit.js`, `diario-profit.css` e a página atualizada. Validação: `node test-diario-mentor.cjs`; navegador isolado: `node test-diario-mentor-ui.cjs PORTA URL_LOCAL PASTA_DE_EVIDENCIAS`. Os testes usam respostas simuladas e uma chave fictícia, sem enviar dados reais ao Google.
+
 A aba lateral **Psicologia · revisão diária e evolução**, imediatamente abaixo de **Checklist de Trade**, importa relatórios do Profit e do TradingView e usa os registros já existentes no diário. Abra o Diário Pro+, escolha **Importar CSV do Profit**, confira a prévia e clique em **Importar e analisar**. Não é necessário alterar as colunas nem apagar as linhas de cabeçalho da conta.
 
 O módulo inclui:

@@ -24,6 +24,7 @@ fs.mkdirSync(out,{recursive:true});
  assert.equal(await ev('document.querySelector("[data-view=profit]").previousElementSibling.textContent.trim()'),'Checklist de Trade');
  assert.equal(await ev('document.querySelector("[data-view=profit]").textContent.trim()'),'Psicologia · revisão diária e evolução');
  await ev('state.trades=[{id:"journal-only-qa",dateLocal:"2026-10-15T09:00",symbol:"WIN",side:"long",status:"target",pnl:200,r:2,setup:"POI",notes:"Estrutura registrada",stopMoney:100,targetMoney:200}];saveTrades();ProfitTrades.render(true);');
+ await click('[data-tab="desk"]');
  assert.match(await ev("document.querySelector('.pf-diary-context').textContent"),/1 registros/);
  assert.equal(await ev("document.querySelector('#pfAccount').value"),'__diary__');
  await ev('state.trades=[];saveTrades();ProfitTrades.render(true);');

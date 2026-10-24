@@ -259,3 +259,32 @@
 #view-profit .pf-journal-pair .pf-buttons { margin-top:12px; }
 #view-profit .pf-journal-record { padding:15px 0;border-top:1px solid var(--line);overflow-wrap:anywhere; }
 #view-profit .pf-diary-context p { overflow-wrap:anywhere; }
+
+/* Mentor: evidence and a single training priority, aligned with the journal theme. */
+#view-profit .mentor-card { border-top:2px solid #9db4ce; }
+#view-profit .mentor-card h2 { font-size:25px; letter-spacing:-.025em; margin:10px 0; }
+#view-profit .mentor-pillars { display:flex;flex-wrap:wrap;gap:8px;margin:22px 0; }
+#view-profit .mentor-pillars span { padding:7px 12px;border:1px solid var(--line);border-radius:4px;color:var(--muted);font-size:12px; }
+#view-profit .mentor-metrics { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin:20px 0 10px; }
+#view-profit .mentor-metrics>div { background:var(--bg-elev);padding:18px;min-width:0; }
+#view-profit .mentor-metrics strong { display:block;font-size:25px;color:var(--text);font-weight:500; }
+#view-profit .mentor-metrics span { display:block;color:var(--muted);font-size:11px;margin-top:8px;line-height:1.5; }
+#view-profit .mentor-config { border:1px solid var(--line);padding:18px;margin:24px 0;border-radius:6px; }
+#view-profit .mentor-config summary { cursor:pointer;font-weight:600; }
+#view-profit .mentor-config-grid { display:grid;grid-template-columns:2fr 1fr;gap:14px;margin:18px 0; }
+#view-profit .mentor-question { display:block;margin:18px 0; }
+#view-profit .mentor-evidence { margin:16px 0; }
+#view-profit .mentor-evidence summary { cursor:pointer;color:var(--muted); }
+#view-profit .mentor-evidence pre { white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;max-height:350px;overflow:auto;padding:14px;background:var(--bg);border:1px solid var(--line); }
+#view-profit .mentor-empty { margin-top:26px;padding:24px;border:1px dashed var(--line);border-radius:6px; }
+#view-profit .mentor-report { margin-top:24px;overflow-wrap:anywhere; }
+#view-profit .mentor-priority { border-left:3px solid #a9c6b5;padding:20px;background:#1b2725;margin:22px 0; }
+#view-profit .mentor-priority dt { color:var(--muted);font-size:11px;margin-top:12px; }
+#view-profit .mentor-priority dd { margin:4px 0 0;line-height:1.6; }
+#view-profit .mentor-refs { display:block;color:var(--muted);font-size:11px;margin-top:8px; }
+#view-profit .mentor-pattern { border-top:1px solid var(--line);padding:20px 0; }
+#view-profit .mentor-training { padding-left:22px; }
+#view-profit .mentor-training li { padding:12px 0;line-height:1.6; }
+#view-profit #pfMentorStatus { margin:16px 0;color:var(--text);overflow-wrap:anywhere; }
+@media(max-width:850px){#view-profit .mentor-metrics{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:600px){#view-profit .mentor-card h2{font-size:21px;}#view-profit .mentor-config-grid{grid-template-columns:1fr;}#view-profit .mentor-config{padding:14px;}#view-profit .mentor-config input,#view-profit .mentor-question textarea{font-size:16px;}#view-profit .mentor-metrics>div{padding:12px;}#view-profit .mentor-metrics strong{font-size:22px;}#view-profit .mentor-priority{padding:14px;}}

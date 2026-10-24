@@ -13,9 +13,10 @@ const ProfitTrades = (() => {
     const blank=()=>({version:1,trades:[],accounts:{},imports:[],journalLinks:{}});
     const accountKey=a=>'account:'+a;
     const masked=a=>a==='tradingview:paper:USD'?'TradingView · Paper Trading · USD':a==='__diary__'?'Diário · sem CSV':a==='sem-conta'?'Sem conta':'Conta ••• '+a.slice(-4);
-    let owner=null, data=blank(), account='', day='', tab='desk', ready=true, mounted=false, stage=null, busy=false, generation=0;
+    let owner=null, data=blank(), account='', day='', tab='mentor', ready=true, mounted=false, stage=null, busy=false, generation=0;
     let status='',statusError=false,planDrafts={},prepDay='',insightAsset='',lastDiarySignature='';
     let cycleScope='active';
+    let mentorKey='',mentorModel='',mentorQuestion='',mentorBusy=false,mentorStatus='',mentorController=null,mentorToken=0,mentorUnsaved=null;
     const selectedCycle=()=>typeof state!=='undefined' ? state.archiveView||'active' : 'active';
     const cycleLocked=()=>selectedCycle()!=='active'||(typeof DiaryArchives!=='undefined'&&DiaryArchives.busy);
     const localOwner=()=>typeof currentUser!=='undefined'&&currentUser?.id?currentUser.id:'guest';
@@ -24,7 +25,7 @@ const ProfitTrades = (() => {
     const dayRules=d=>A.confirmedRules(meta().plans[d]?.rules||meta().reviews[d]?.rules||meta().preparations?.[d]?.rules||meta().settings);
 
     const diarySnapshot=()=>typeof psychologyDiarySnapshot==='function'?psychologyDiarySnapshot():{ready:false,rows:[],source:'Diário indisponível',reason:'Abra esta aba dentro do Diário Pro+ para carregar os registros.'};
-    const availableDays=()=>[...new Set([...A.dates(trades()),...J.normalize(diarySnapshot().rows).items.map(t=>t.day),...Object.keys(meta().reviews||{}),...Object.keys(meta().preparations||{}),...Object.keys(meta().plans||{})])].sort();
+    const availableDays=()=>[...new Set([...A.dates(trades()),...J.normalize(diarySnapshot().rows).items.map(t=>t.day),...Object.keys(meta().reviews||{}),...Object.keys(meta().preparations||{}),...Object.keys(meta().plans||{}),...Object.keys(meta().aiReviews||{})])].sort();
     const journalRows=s=>{
         const otherIds=new Set(data.trades.filter(t=>(t.source==='tradingview')!==isTV()).map(t=>t.id));
         const excluded=new Set(Object.entries(data.journalLinks).filter(([id])=>otherIds.has(id)).map(([,link])=>link.diaryId));
@@ -78,6 +79,14 @@ const ProfitTrades = (() => {
                 if(!clean.trades.some(t=>t.id===id&&accountKey(t.account)===k)||!n)continue;
                 cm.annotations[id]=A.annotation(n);
             }
+            if(m.aiReviews){
+                cm.aiReviews={};
+                for(const [d,r] of Object.entries(m.aiReviews)){
+                    if(!A.validDay(d)||typeof DiaryMentor==='undefined')throw Error('Atualize a página para restaurar análises de IA.');
+                    cm.aiReviews[d]=DiaryMentor.validateSaved(r);
+                    if(cm.aiReviews[d].packet.day!==d)throw Error('Data da análise de IA incompatível.');
+                }
+            }
             clean.accounts[k]=cm;
         }
         const linkedDiary=new Set();
@@ -113,6 +122,7 @@ const ProfitTrades = (() => {
             }catch(e){ready=false;announce('Psicologia aguardando recuperação do ciclo: '+e.message,true);return;}
         }
         if(nextOwner===owner&&nextScope===cycleScope)return;
+        cancelMentor(nextOwner!==owner);
         cycleScope=nextScope;
         owner=nextOwner;prepDay='';insightAsset='';generation++;stage=null;busy=false;planDrafts={};status='';statusError=false;ready=true;
         try{const root=readCycleRoot();data=cycleScope==='active'?root:cycleScope==='all'?blank():root.archivedCycles?.[cycleScope]?.data||blank();}
@@ -121,6 +131,7 @@ const ProfitTrades = (() => {
         if(mounted)render(true);
     }
     function init(){
+        if(typeof window!=='undefined')window.addEventListener?.('pagehide',()=>cancelMentor(true));
         document.querySelector('.main').insertAdjacentHTML('beforeend','<section class="view" id="view-profit" aria-label="Psicologia · revisão diária e evolução"></section>');
         mounted=true;
         $('view-profit').addEventListener('click',click);
@@ -498,16 +509,17 @@ const ProfitTrades = (() => {
         }
         let body=headerMarkup()+previewMarkup();
         if(cycleScope!=='active')body+='<p class="pf-note">Psicologia arquivada · consulta. Selecione Ciclo atual para novos registros.</p>';
-        if(!days.length)body+=emptyMarkup();
+        if(!days.length)body+=emptyMarkup()+mentorMarkup();
         else {
             body+='<div class="pf-filters"><label>Fonte / conta de análise<select id="pfAccount">'+selectOptions(accounts.map(a=>[a,masked(a)]),account)+'</select></label><label>Pregão<select id="pfDay">'+selectOptions(days.slice().reverse().map(d=>[d,date(d)]),day)+'</select></label><div class="pf-tabs" role="group" aria-label="Visão Profit"><button data-tab="preparation" aria-pressed="'+(tab==='preparation')+'" class="'+(tab==='preparation'?'active':'')+'">Preparação</button><button data-tab="desk" aria-pressed="'+(tab==='desk')+'" class="'+(tab==='desk'?'active':'')+'">Mesa</button><button data-tab="journal" aria-pressed="'+(tab==='journal')+'" class="'+(tab==='journal'?'active':'')+'">Diário × execução</button><button data-tab="day" aria-pressed="'+(tab==='day')+'" class="'+(tab==='day'?'active':'')+'">Revisão diária</button><button data-tab="evolution" aria-pressed="'+(tab==='evolution')+'" class="'+(tab==='evolution'?'active':'')+'">Evolução</button><button data-tab="insights" aria-pressed="'+(tab==='insights')+'" class="'+(tab==='insights'?'active':'')+'">Insights</button></div></div>'+settingsMarkup();
             body+='<p class="pf-note">Plano SMC declarado: esperar um novo setup e buscar o alvo mínimo definido no plano (referência inicial de 2R). Entradas consecutivas são um sinal de desvio do método. Risco, contratos de entrada e gestão do stop precisam da sua revisão; os números não revelam a intenção.</p>';
             if(isTV())body+='<p class="pf-note"><strong>TradingView · Paper Trading · simulação em USD.</strong> Use exportações de um único histórico simulado neste perfil. Não somamos este resultado ao Profit nem convertemos moedas. Revise risco, alvo e limites em USD. Para conciliar com o diário, confirme os vínculos das operações simuladas na aba Diário × execução; registros sem vínculo não cobrem a simulação.</p>';
             if(trades().every(t=>t.feeCents===0))body+='<p class="pf-small pf-muted">Comissões zeradas no histórico importado. Custos não exportados pela plataforma não entram no resultado.</p>';
-            body+=tab==='journal'?journalMarkup(true):tab==='preparation'?preparationMarkup(m):tab==='insights'?insightsMarkup():tab==='desk'?deskMarkup(m):tab==='day'?dayMarkup(analysis(day),m):evolutionMarkup(days,m);
+            body+=tab==='mentor'?mentorMarkup():tab==='journal'?journalMarkup(true):tab==='preparation'?preparationMarkup(m):tab==='insights'?insightsMarkup():tab==='desk'?deskMarkup(m):tab==='day'?dayMarkup(analysis(day),m):evolutionMarkup(days,m);
             body+='<details class="pf-card pf-method"><summary>Importação e critérios de leitura</summary><p>Datas e horários são mantidos como exportados pela plataforma, sem conversão de fuso. O resultado diário considera o fechamento. Entradas, pausas e limites consideram a abertura e apenas perdas já conhecidas naquele instante.</p><p>Res. Operação é o resultado bruto por operação. Descontamos o valor absoluto de Comissões, quando presente. A coluna Total é acumulada e não é somada. TET não é usado como intervalo. Qtd Compra/Venda é volume agregado, não risco ou exposição máxima.</p><p>TradingView: use Histórico de negociação do Paper Trading em USD. Agrupamos entrada/saída por símbolo e número; contamos L&amp;P líquido uma vez, na saída, sem descontar novamente a comissão. Bruto recomposto = líquido + comissão informada na saída. Tamanho (valor) é valor da posição, não risco inicial. Quantidades fracionárias são preservadas. Pares ambíguos ou com parciais incompatíveis são apresentados como inválidos. Exportações de posições ou outras moedas não são aceitas por este botão.</p><p>Uma operação é identificada por conta, ativo, abertura, fechamento e lado. Reimportações idênticas são ignoradas; valores corrigidos são mostrados antes da atualização. Alterar os horários no arquivo gera outra identidade. Operações abertas e linhas inválidas não entram na análise.</p><p>O resultado descreve apenas os arquivos importados. Não infere motivo de saída, intenção, stop planejado nem lucro potencial. Acompanhamento comportamental não garante desempenho financeiro.</p>'+
             '<h4>Últimas importações neste perfil</h4>'+data.imports.slice(-5).reverse().map(x=>'<p>'+esc(x.name)+' · '+x.count+' registros · '+esc(x.at.slice(0,10))+'</p>').join('')+'</details>';
         }
+        body=body.replace('<button data-tab="preparation"','<button data-tab="mentor" aria-pressed="'+(tab==='mentor')+'" class="'+(tab==='mentor'?'active':'')+'">Mentor de execução</button><button data-tab="preparation"');
         $('view-profit').innerHTML=body+'<dialog id="pfSMCDialog" aria-labelledby="pfSMCTitle"></dialog>';
         if(cycleScope!=='active')$('view-profit').querySelectorAll('input,textarea,select:not(#pfAccount):not(#pfDay),form button,[data-action="import"],[data-action="import-tv"],[data-action="restore"]').forEach(el=>el.disabled=true);
     }
@@ -546,6 +558,7 @@ const ProfitTrades = (() => {
     }
     function click(e){
         const b=e.target.closest('button');if(!b)return;
+        if(b.dataset.mentor){mentorAction(b.dataset.mentor);return;}
         if(b.dataset.diaryEdit){
             if(typeof openPsychologyDiaryTrade!=='function'||!openPsychologyDiaryTrade(b.dataset.diaryEdit))announce('Carregue o diário deste perfil para revisar esse registro.',true);
             return;
@@ -569,7 +582,7 @@ const ProfitTrades = (() => {
         if(b.dataset.adoptCoach!==undefined){const tip=A.coaching(analysis(day))[Number(b.dataset.adoptCoach)];if(tip&&$('pfPlan')){$('pfFocus').value=tip.action;$('pfPlan').querySelectorAll('input[name="promise"]').forEach(x=>x.checked=tip.items.includes(x.value));setContractProposal(tip.items,'Conferir '+tip.items.map(id=>analysis(day).checks.find(c=>c.id===id)?.label||id).join('; '));rememberDraft();$('pfPlan').scrollIntoView({behavior:'smooth',block:'center'});$('pfFocus').focus();announce('Sugestão colocada no compromisso. Revise e salve para confirmar.');}return;}
         if(b.dataset.action==='close-smc'){$('pfSMCDialog').close();return;}
         if(b.dataset.tab){tab=b.dataset.tab;render(true);return;}
-        if(b.dataset.day){day=b.dataset.day;tab='day';render(true);return;}
+        if(b.dataset.day){cancelMentor(false);day=b.dataset.day;tab='day';render(true);return;}
         const action=b.dataset.action;
         if(action==='import')$('pfCSV').click();
         if(action==='import-tv')$('pfTVCSV').click();
@@ -610,6 +623,7 @@ const ProfitTrades = (() => {
         planDrafts[account+'|'+day]={target:$('pfPlanDate').value,focus:$('pfFocus').value,contract:S.contract({priority:$('pfPriority').value,trigger:$('pfTrigger').value,proof:$('pfProof').value}),items:[...$('pfPlan').querySelectorAll('input[name="promise"]:checked')].map(x=>x.value)};
     }
     function input(e){
+        if(e.target.id==='pfMentorQuestion'){mentorQuestion=e.target.value.slice(0,600);return;}
         if(e.target.dataset.followup){saveFollowup(e.target);return;}
         if(e.target.closest('#pfDeskForm')){if(e.target.name)saveDeskDraft();return;}
         if(e.target.closest('#pfSMCForm')){previewSMC();return;}
@@ -624,6 +638,7 @@ const ProfitTrades = (() => {
         }
     }
     function change(e){
+        if(['pfAccount','pfDay'].includes(e.target.id))cancelMentor(false);
         if(e.target.closest('#pfSMCForm')){previewSMC();return;}
         const t=e.target;
         if(t.id==='pfCSV'){readFile(t.files[0]);t.value='';}
@@ -696,13 +711,99 @@ const ProfitTrades = (() => {
             }
         }
     }
+    function cancelMentor(clearKey){
+        mentorToken++;mentorController?.abort();mentorController=null;mentorBusy=false;
+        mentorStatus='';mentorQuestion='';mentorUnsaved=null;
+        if(clearKey){mentorKey='';mentorModel='';}
+    }
+    function mentorContext(question=mentorQuestion){
+        if(typeof DiaryMentor==='undefined')throw Error('Atualize a página para carregar o Mentor.');
+        const s=diarySnapshot();if(!ready||!s.ready)throw Error(s.reason||'Carregue os registros deste perfil antes de analisar.');
+        const linked=new Set(trades().map(t=>data.journalLinks[t.id]?.diaryId).filter(Boolean));
+        const diary=account==='__diary__'?s.rows:s.rows.filter(t=>linked.has(t.id));
+        const journal=J.report({profit:trades(),diary,links:data.journalLinks,annotations:meta().annotations,day,ready:true,requireLinks:account!=='__diary__'});
+        return DiaryMentor.buildContext({day,diary,executions:trades(),meta:meta(),annotations:effectiveAnnotations(),
+            source:account==='__diary__'?'Diário manual (BRL)':isTV()?'TradingView Paper Trading (simulado, USD)':'Profit (BRL)',currency:currency(),reconciliation:journal,question});
+    }
+    function mentorMarkup(){
+        if(typeof DiaryMentor==='undefined')return '<p class="pf-note">Atualize a página para carregar o Mentor de execução.</p>';
+        let packet=null,reason='';try{packet=mentorContext();}catch(e){reason=e.message;}
+        const saved=mentorUnsaved||meta().aiReviews?.[day];
+        let stale=false;
+        if(saved){try{stale=DiaryMentor.signature(mentorContext(saved.packet.question))!==saved.signature;}catch{stale=true;}}
+        const c=packet?.coverage,readOnly=cycleScope!=='active';
+        return '<section class="pf-card mentor-card"><span class="pf-eyebrow">DESENVOLVIMENTO PROFISSIONAL · GEMINI</span><h2>Transformar cada revisão em treino.</h2>'+
+            '<p class="pf-muted">Um mentor para confrontar seus relatos com a execução, reconhecer acertos e definir uma prioridade prática. Cálculos e regras vêm do diário; a IA interpreta e propõe exercícios.</p>'+
+            '<div class="mentor-pillars"><span>Preparar</span><span>Executar o plano</span><span>Documentar</span><span>Revisar e repetir</span></div>'+
+            (c?'<div class="mentor-metrics"><div><strong>'+c.days+'</strong><span>pregões na amostra</span></div><div><strong>'+c.documentedDiary+' / '+c.diaryRecords+'</strong><span>registros com racional</span></div><div><strong>'+c.knownRisk+' / '+c.executions+'</strong><span>execuções com risco informado</span></div><div><strong>'+(c.rulesEvaluated?c.rulesPassed+' / '+c.rulesEvaluated:'—')+'</strong><span>checagens dentro das regras · '+c.pendingChecks+' pendentes</span></div></div><p class="pf-small pf-muted">'+esc(c.from)+' a '+esc(c.to)+' · '+esc(packet.source)+'. Quantidade de registros não comprova qualidade técnica. '+(c.partialDetails?'Os detalhes do dia excedem o limite; a IA receberá uma amostra e os totais.':'')+'</p>':'<p class="pf-note">'+esc(reason)+'</p>')+
+            (readOnly?'<p class="pf-note">Ciclo arquivado: consulte a análise salva. Novas análises são feitas no ciclo atual.</p>':
+            '<details class="mentor-config"'+(!mentorKey?' open':'')+'><summary>Conectar minha chave Gemini · '+(mentorKey?'configurada nesta aba':'não configurada')+'</summary><div class="mentor-config-grid"><label>Chave da API<input id="pfMentorKey" type="password" autocomplete="off" spellcheck="false" placeholder="Cole sua chave do Google AI Studio"></label><label>Modelo<input id="pfMentorModel" maxlength="80" value="'+esc(mentorModel||DiaryMentor.DEFAULT_MODEL)+'" spellcheck="false"></label></div><p class="pf-small pf-muted">Uso pessoal: a chave fica apenas na memória desta aba, é enviada diretamente ao Google e sai ao recarregar ou trocar de login. Não entra no backup, no código público ou no Supabase. Evite usar sua chave em computador compartilhado.</p><div class="pf-buttons"><button class="btn" data-mentor="connect"'+(mentorBusy?' disabled':'')+'>Usar chave nesta aba</button><button class="btn btn-ghost" data-mentor="forget">Remover chave</button></div></details>'+
+            '<label class="mentor-question">O que você quer entender neste pregão?<textarea id="pfMentorQuestion" rows="2" maxlength="600" placeholder="Ex.: por que repeti entradas fora do plano depois de perder?">'+esc(mentorQuestion)+'</textarea></label>'+
+            (packet?'<details class="mentor-evidence"><summary>Conferir os dados que serão enviados ao Google</summary><p>Resumo de até 10 pregões desta conta e deste ciclo; relatos, regras, revisões e detalhes limitados do dia. Imagens, email e números de conta não são incluídos automaticamente. Revise informações pessoais que você escreveu nos relatos.</p><pre>'+esc(JSON.stringify(packet,null,2))+'</pre></details>':'')+
+            '<p class="pf-small pf-muted">Ao clicar em analisar, você envia esses dados ao Gemini e utiliza a cota da sua chave. Não há envio automático. A IA pode interpretar errado; confira as evidências.</p><div class="pf-buttons"><button class="btn btn-primary" data-mentor="analyze"'+(!packet||!mentorKey||mentorBusy?' disabled':'')+'>'+(mentorBusy?'Analisando…':'Analisar meu processo com Gemini')+'</button>'+(mentorBusy?'<button class="btn" data-mentor="cancel">Cancelar análise</button>':'')+'</div>')+
+            '<p id="pfMentorStatus" role="status" aria-live="polite">'+esc(mentorStatus)+'</p>'+
+            (saved?(stale?'<p class="pf-warning">Os registros mudaram ou estão indisponíveis desde esta análise. Ela descreve o contexto salvo; gere outra antes de adotar novas ações.</p>':'')+
+                (mentorUnsaved?'<p class="pf-warning">Esta análise ainda não foi salva. Libere espaço e tente novamente.</p><button class="btn" data-mentor="save">Tentar salvar análise</button>':'')+
+                DiaryMentor.renderReport(saved)+(!readOnly&&!stale?'<button class="btn btn-primary" data-mentor="adopt">Preparar compromisso a partir da prioridade</button><p class="pf-small pf-muted">Você revisa e salva o compromisso. As regras de risco não são alteradas pela IA.</p>':''):
+                '<div class="mentor-empty"><h3>Seu próximo passo precisa ser observável.</h3><p>A análise vai separar evidências de hipóteses, escolher uma prioridade e propor até cinco sessões de treino com critérios de conclusão. O objetivo é consistência de execução, sem promessa de lucro.</p></div>')+'</section>';
+    }
+    function mentorAction(action){
+        if(action==='cancel'){cancelMentor(false);mentorStatus='Análise cancelada. O histórico anterior foi preservado.';render(true);return;}
+        if(action==='forget'){cancelMentor(true);mentorStatus='Chave removida desta aba.';render(true);return;}
+        if(cycleLocked())return;
+        if(action==='connect'){
+            const key=$('pfMentorKey')?.value.trim()||mentorKey,model=$('pfMentorModel')?.value.trim()||DiaryMentor.DEFAULT_MODEL;
+            if(key.length<20||key.length>300||/\s/.test(key)){mentorStatus='Cole uma chave válida do Google AI Studio.';}
+            else if(!/^gemini-[a-z0-9.-]{2,70}$/.test(model)){mentorStatus='Confira o identificador do modelo Gemini.';}
+            else{mentorKey=key;mentorModel=model;mentorStatus='Chave configurada somente nesta aba. A conexão será verificada ao analisar.';}
+            if($('pfMentorKey'))$('pfMentorKey').value='';render(true);return;
+        }
+        if(action==='analyze'){runMentor();return;}
+        if(action==='save'&&mentorUnsaved){
+            if(changeAccount(m=>{m.aiReviews||={};m.aiReviews[day]=mentorUnsaved;})){mentorUnsaved=null;mentorStatus='Análise salva no ciclo atual.';render(true);}return;
+        }
+        if(action==='adopt'){
+            const saved=mentorUnsaved||meta().aiReviews?.[day];if(!saved)return;
+            try{if(DiaryMentor.signature(mentorContext(saved.packet.question))!==saved.signature)throw Error('Atualize a análise antes de preparar o compromisso.');}
+            catch(e){mentorStatus=e.message;render(true);return;}
+            const p=saved.report.priority;tab='desk';render(true);
+            if($('pfPlan')){
+                $('pfFocus').value=p.action;setContractProposal([p.rule,'focus'],p.metric,p.rule);$('pfTrigger').value=p.trigger;
+                $('pfPlan').querySelectorAll('input[name="promise"]').forEach(x=>x.checked=[p.rule,'focus'].includes(x.value));
+                rememberDraft();$('pfPlan').scrollIntoView({behavior:'smooth',block:'center'});
+                announce('Prioridade da IA preparada. Confira o gatilho, a ação e a métrica antes de salvar.');
+            }return;
+        }
+    }
+    async function runMentor(){
+        if(mentorBusy||!mentorKey||cycleLocked())return;
+        let packet;try{packet=mentorContext($('pfMentorQuestion')?.value??mentorQuestion);}catch(e){mentorStatus=e.message;render(true);return;}
+        mentorQuestion=packet.question;
+        const signature=DiaryMentor.signature(packet),who=localOwner(),which=account,scope=cycleScope,when=day,token=++mentorToken,model=mentorModel||DiaryMentor.DEFAULT_MODEL;
+        mentorBusy=true;mentorStatus='Lendo evidências e preparando seu treino…';mentorController=new AbortController();
+        const controller=mentorController;let timedOut=false;
+        const timeout=setTimeout(()=>{timedOut=true;controller.abort();},90000);render(true);
+        try{
+            const report=await DiaryMentor.analyze({key:mentorKey,model,packet,signal:controller.signal});
+            if(token!==mentorToken||who!==localOwner()||which!==account||scope!==selectedCycle()||when!==day)return;
+            if(signature!==DiaryMentor.signature(mentorContext(packet.question)))throw Error('Os registros mudaram durante a análise. O resultado foi descartado; analise novamente.');
+            const saved=DiaryMentor.validateSaved({version:1,model,createdAt:new Date().toISOString(),signature,packet,report});
+            if(changeAccount(m=>{m.aiReviews||={};m.aiReviews[day]=saved;})){mentorUnsaved=null;mentorStatus='Análise salva neste ciclo. Confira as evidências e prepare seu próximo compromisso.';}
+            else{mentorUnsaved=saved;mentorStatus='A análise foi gerada, mas ainda não pôde ser salva no navegador.';}
+        }catch(e){
+            if(token===mentorToken)mentorStatus=timedOut?'O Gemini demorou além do limite. Tente novamente quando a conexão estiver estável.':controller.signal.aborted?'Análise cancelada.':e instanceof TypeError?'Não foi possível conectar ao Gemini. Confira sua conexão e as restrições da chave.':e.message;
+        }finally{
+            clearTimeout(timeout);
+            if(token===mentorToken){mentorBusy=false;mentorController=null;render(true);}
+        }
+    }
     function readCycleRoot(){
         const raw=localStorage.getItem(STORAGE+localOwner());
         return raw?validateBackup(JSON.parse(raw)):blank();
     }
     function hasCycleContent(value){
         return !!(value.trades.length||value.imports.length||Object.values(value.accounts).some(m=>
-            ['reviews','plans','preparations','annotations'].some(k=>Object.keys(m[k]||{}).length)));
+            ['reviews','plans','preparations','annotations','aiReviews'].some(k=>Object.keys(m[k]||{}).length)));
     }
     function cycleGroups(){
         try{return Object.entries(readCycleRoot().archivedCycles||{}).map(([id,c])=>({id,name:c.name,createdAt:c.createdAt,count:0,psychology:true}));}
@@ -710,6 +811,8 @@ const ProfitTrades = (() => {
     }
     function hasActiveCycle(){try{return hasCycleContent(readCycleRoot());}catch{return false;}}
     function cycleReadiness(){
+        if(mentorBusy)return 'Conclua ou cancele a análise do Mentor antes de arquivar.';
+        if(mentorUnsaved)return 'Salve a análise pendente do Mentor antes de arquivar este ciclo.';
         if(busy||stage)return 'Conclua ou cancele a importação aberta na Psicologia antes de arquivar.';
         if(localStorage.getItem(STORAGE+localOwner()+'_cycle_pending'))return 'Psicologia aguardando a conclusão do ciclo. Atualize os dados da nuvem ou reabra o diário para recuperar.';
         try{readCycleRoot();return '';}catch(e){return 'Recupere o backup da Psicologia antes de arquivar: '+e.message;}
@@ -738,7 +841,7 @@ const ProfitTrades = (() => {
             after.journalLinks=mergeMap(after.journalLinks,previous.journalLinks,'vínculos do diário');
             for(const [key,m] of Object.entries(previous.accounts)){
                 if(!after.accounts[key]){after.accounts[key]=m;continue;}
-                for(const field of ['reviews','plans','preparations','annotations'])after.accounts[key][field]=mergeMap(after.accounts[key][field],m[field],field);
+                for(const field of ['reviews','plans','preparations','annotations','aiReviews'])after.accounts[key][field]=mergeMap(after.accounts[key][field],m[field],field);
             }
             after.imports=[...previous.imports,...after.imports];
             delete archives[meta.id];after.archivedCycles=archives;
@@ -775,7 +878,7 @@ const ProfitTrades = (() => {
             const accounts=Object.entries(c.data.accounts).map(([key,m])=>{
                 const name=masked(key.slice('account:'.length));
                 const executions=c.data.trades.filter(t=>accountKey(t.account)===key);
-                const dates=[...new Set([...A.dates(executions),...Object.keys(m.reviews||{}),...Object.keys(m.plans||{}),...Object.keys(m.preparations||{})])].sort();
+                const dates=[...new Set([...A.dates(executions),...Object.keys(m.reviews||{}),...Object.keys(m.plans||{}),...Object.keys(m.preparations||{}),...Object.keys(m.aiReviews||{})])].sort();
                 const days=dates.map(d=>{
                     const review=m.reviews?.[d],plan=m.plans?.[d],prep=m.preparations?.[d];
                     const analysis=executions.length?A.analyzeDay(executions,d,plan?.rules||review?.rules||prep?.rules||m.settings,m.annotations):null;
@@ -785,7 +888,8 @@ const ProfitTrades = (() => {
                         checks+
                         (prep?'<h4>Preparação</h4>'+fields(prep):'')+
                         (review?'<h4>Revisão psicológica</h4>'+fields(Object.fromEntries(Object.entries(review).filter(([k])=>k!=='desk')))+(review.desk?'<h4>Debrief / decisões</h4>'+fields(review.desk):''):'')+
-                        (plan?'<h4>Compromisso para este pregão</h4>'+fields(plan):'')+'</article>';
+                        (plan?'<h4>Compromisso para este pregão</h4>'+fields(plan):'')+
+                        (m.aiReviews?.[d]&&typeof DiaryMentor!=='undefined'?'<h4>Mentor de execução · análise salva</h4>'+DiaryMentor.renderReport(m.aiReviews[d]):'')+'</article>';
                 }).join('');
                 const annotations=Object.entries(m.annotations||{}).map(([id,n])=>{
                     const t=c.data.trades.find(t=>t.id===id);

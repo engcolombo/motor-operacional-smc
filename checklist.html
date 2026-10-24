@@ -313,7 +313,12 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
 @keyframes pulse{0%{transform:scale(1);}40%{transform:scale(1.07);}100%{transform:scale(1);}}
 .pulse{animation:pulse .32s ease;}
 </style>
-<link rel="stylesheet" href="checklist-pro.css">
+<script>
+if (window.parent !== window && new URLSearchParams(location.search).get('embed') === '1') {
+  document.documentElement.classList.add('checklist-embedded');
+}
+</script>
+<link rel="stylesheet" href="checklist-pro.css?v=20261024-checklist">
 </head>
 <body class="checklist-pro">
 <aside class="cp-sidebar"><a class="cp-brand" href="diario-pro-plus.html"><span class="cp-mark">D+</span><span>Diário Pro+<small>Trading workspace</small></span></a><nav aria-label="Navegação principal"><a href="diario-pro-plus.html">Diário Pro+</a><a href="checklist.html" aria-current="page">Checklist de Trade</a></nav><p class="cp-side-note">PRÉ-TRADE<span>Plano. Contexto. Execução.</span></p><a class="cp-back" href="index.html">← Motor SMC</a></aside>
@@ -893,6 +898,6 @@ h1{font-size:clamp(1.4rem,3.2vw,2rem);font-weight:800;letter-spacing:-.02em;line
 </main>
 
 <script src="checklist-core.js"></script>
-<script src="checklist-pro.js"></script>
+<script src="checklist-pro.js?v=20261024-checklist"></script>
 </body>
 </html>
