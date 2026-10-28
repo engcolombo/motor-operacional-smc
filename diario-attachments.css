@@ -24,6 +24,12 @@
 }
 
 .attachment-preview[hidden] { display: none; }
+.attachment-gallery[hidden] { display: none; }
+.attachment-gallery { display: grid; gap: 10px; }
+.attachment-card { margin-top: 0; }
+.attachment-viewer-navigation { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 18px; }
+.attachment-viewer-navigation:empty { display: none; }
+.attachment-viewer-navigation .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 
 .attachment-preview a {
     display: block;

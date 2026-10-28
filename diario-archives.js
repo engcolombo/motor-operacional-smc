@@ -142,14 +142,15 @@ const DiaryArchives = (() => {
         const images = new Map();
         for (let i = 0; i < rows.length; i++) {
             const t = rows[i];
-            if (!t.attachment?.path) continue;
-            if (!userId || currentUser?.id !== userId || !canUseCloud()) throw new Error("Entre na conta que contém as imagens para gerar o relatório completo.");
-            progress(`Carregando imagem do trade ${i + 1} de ${rows.length}…`);
-            const { data, error } = await supabaseClient.storage.from(ATTACHMENTS_BUCKET).download(t.attachment.path);
-            if (error || !data) throw new Error(`Imagem de ${t.symbol || t.id} indisponível: ${error?.message || "arquivo ausente"}. Tente novamente antes de salvar o PDF.`);
-            if (!ALLOWED_ATTACHMENT_TYPES.has(data.type)) throw new Error(`Formato de imagem inválido em ${t.symbol || t.id}.`);
-            images.set(t.id, await readImage(data));
-            if (currentUser?.id !== userId) throw new Error("A conta mudou durante a exportação. Tente novamente.");
+            for (const attachment of tradeAttachments(t)) {
+                if (!userId || currentUser?.id !== userId || !canUseCloud()) throw new Error("Entre na conta que contém as imagens para gerar o relatório completo.");
+                progress(`Carregando imagem do trade ${i + 1} de ${rows.length}…`);
+                const { data, error } = await supabaseClient.storage.from(ATTACHMENTS_BUCKET).download(attachment.path);
+                if (error || !data) throw new Error(`Imagem de ${t.symbol || t.id} indisponível: ${error?.message || "arquivo ausente"}. Tente novamente antes de salvar o PDF.`);
+                if (!ALLOWED_ATTACHMENT_TYPES.has(data.type)) throw new Error(`Formato de imagem inválido em ${t.symbol || t.id}.`);
+                images.set(attachment.path, await readImage(data));
+                if (currentUser?.id !== userId) throw new Error("A conta mudou durante a exportação. Tente novamente.");
+            }
         }
         return images;
     }
@@ -169,9 +170,13 @@ const DiaryArchives = (() => {
                 ["Tags", (t.tags || []).join(", ") || "—"], ["Erros / Mistakes", (t.mistakes || []).join(", ") || "—"],
                 ["Parciais", (t.partials || []).map(p => `${number(p.qty)} contratos · ${number(p.r)} R`).join("; ") || "—"]
             ];
-            const src = images.get(t.id);
-            if (t.attachment?.path && !src) throw new Error(`A imagem de ${t.symbol || t.id} ainda não foi carregada.`);
-            return `<article><h2>${i + 1}. ${e(t.symbol || "Trade")} <small>${e(fmtDate(t))}</small></h2><dl>${fields.map(([k, v]) => `<div><dt>${e(k)}</dt><dd>${e(v)}</dd></div>`).join("")}</dl><h3>Diário / observações</h3><p class="notes">${e(t.notes || "Sem observações.")}</p>${src ? `<figure><img src="${e(src)}" alt="${e(attachmentName(t.attachment))}"><figcaption>${e(attachmentName(t.attachment))}</figcaption></figure>` : ""}<p class="id">Registro: ${e(t.id)}${t.archive?.createdAt ? ` · Arquivado em ${e(new Date(t.archive.createdAt).toLocaleString("pt-BR"))}` : ""}</p></article>`;
+            const attachments = tradeAttachments(t);
+            const figures = attachments.map(attachment => {
+                const src = images.get(attachment.path) || (attachments.length === 1 ? images.get(t.id) : null);
+                if (!src) throw new Error(`A imagem de ${t.symbol || t.id} ainda não foi carregada.`);
+                return `<figure><img src="${e(src)}" alt="${e(attachmentName(attachment))}"><figcaption>${e(attachmentName(attachment))}</figcaption></figure>`;
+            }).join("");
+            return `<article><h2>${i + 1}. ${e(t.symbol || "Trade")} <small>${e(fmtDate(t))}</small></h2><dl>${fields.map(([k, v]) => `<div><dt>${e(k)}</dt><dd>${e(v)}</dd></div>`).join("")}</dl><h3>Diário / observações</h3><p class="notes">${e(t.notes || "Sem observações.")}</p>${figures}<p class="id">Registro: ${e(t.id)}${t.archive?.createdAt ? ` · Arquivado em ${e(new Date(t.archive.createdAt).toLocaleString("pt-BR"))}` : ""}</p></article>`;
         }).join("");
         return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${e(title)} · Diário Pro+</title><style>
         *{box-sizing:border-box}body{font:14px/1.5 system-ui,sans-serif;color:#18202b;background:#edf0f3;margin:0}main{max-width:1000px;margin:24px auto;background:white;padding:32px}h1{font-size:28px;margin:0}h2{font-size:20px}h3{font-size:14px}small{font-size:12px;font-weight:400}header{border-bottom:2px solid #18202b;padding-bottom:20px}.summary{display:flex;flex-wrap:wrap;gap:12px 30px}.summary b{display:block;font-size:20px}article{border-top:1px solid #cbd1d8;margin-top:28px;padding-top:8px}dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}dl div{break-inside:avoid}dt{font-size:11px;color:#526070}dd{margin:0;overflow-wrap:anywhere}.notes{white-space:pre-wrap;overflow-wrap:anywhere}figure{margin:16px 0;break-inside:avoid}img{display:block;max-width:100%;max-height:225mm;object-fit:contain}figcaption,.id{font-size:11px;color:#526070;overflow-wrap:anywhere}.print-tools{padding:14px;background:#18202b;color:white;display:flex;gap:12px;align-items:center;flex-wrap:wrap}button{padding:10px 18px;cursor:pointer}button:disabled{cursor:wait}article h2{break-after:avoid}.psychology-report{break-before:page;margin-top:32px}.psychology-report dl{display:block}.psychology-report dl div{margin:8px 0}.psychology-report dd{white-space:pre-wrap}.psychology-report dd dl{margin-left:14px}.psychology-cycle+ .psychology-cycle{break-before:page}@page{size:A4;margin:14mm}@media print{body{background:white}main{margin:0;padding:0;max-width:none}.print-tools{display:none}header{break-after:avoid}article+article{break-before:page}img{max-height:210mm}dl{font-size:12px}}@media(max-width:600px){main{padding:18px;margin:0}dl{grid-template-columns:repeat(2,minmax(0,1fr))}}

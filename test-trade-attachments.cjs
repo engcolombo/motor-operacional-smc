@@ -8,7 +8,7 @@ const initAt = core.indexOf("\nBacktests.init();");
 assert.ok(initAt > 0, "Diário core deve manter a inicialização identificável");
 
 const calls = { uploads: [], removals: [], events: [], saves: [], alerts: [], signedUrls: [] };
-let failSave = false, failUpload = false;
+let failSave = false, failUpload = false, failUploadName = '';
 let signedResult = () => ({ data: { signedUrl: "https://example.test/private-image?token=private" }, error: null });
 const client = {
     storage: {
@@ -22,7 +22,7 @@ const client = {
                 async upload(path, file, options) {
                     calls.uploads.push({ path, file, options });
                     calls.events.push("upload");
-                    return { error: failUpload ? {message:"upload offline"} : null };
+                    return { error: failUpload || file.name === failUploadName ? {message:"upload offline"} : null };
                 },
                 async remove(paths) {
                     calls.removals.push(paths);
@@ -65,6 +65,7 @@ const context = {
 vm.createContext(context);
 vm.runInContext(`${core.slice(0, initAt)}
 this.attachments = {
+  tradeAttachments,
   validateAttachmentFile,
   uploadTradeAttachment,
   removeTradeAttachment,
@@ -78,7 +79,7 @@ this.attachments = {
   prepare: (existing, file, remove) => {
     state.trades = existing ? [existing] : [];
     state.editingId = existing?.id || null;
-    state.editAttachment = {existing: existing?.attachment || null, removeExisting: Boolean(remove)};
+    state.editAttachment = {items: [...(remove ? [] : tradeAttachments(existing).map(attachment => ({attachment}))), ...(file ? (Array.isArray(file) ? file : [file]).map(file => ({file})) : [])]};
     state.editPartials = [];
     document.getElementById('fAttachment').files = file ? [file] : [];
   },
@@ -118,11 +119,28 @@ renderAll = () => {};`, context);
     const old = {id:"trade-a", createdAt:"2026-10-08T12:00:00Z", attachment:{path:"user-a/trade-a/old.png"}};
     const file = {type:"image/png", size:1024, name:"new.png"};
     calls.events.length = 0;
-    api.prepare(old, file, false);
+    api.prepare(old, file, true);
     await api.saveFromForm();
     assert.deepEqual(calls.events, ["upload", "save", "remove:user-a/trade-a/old.png"]);
     assert.equal(api.state.trades[0].attachment.path, "user-a/trade-a/file-id.png");
     assert.equal(api.state.trades[0].pnl, 360);
+
+    // Adding images preserves the legacy image; multiple staged files become one payload.
+    calls.events.length = 0;
+    api.prepare(old, [file, {type:"image/webp",size:2048,name:"after.webp"}], false);
+    await api.saveFromForm();
+    assert.deepEqual(calls.events, ["upload", "upload", "save"]);
+    assert.equal(api.state.trades[0].attachments.length, 3);
+    assert.equal(api.state.trades[0].attachment.path, old.attachment.path);
+    assert.equal(api.tradeAttachments(api.state.trades[0]).length, 3);
+    assert.match(api.tradeAttachmentButton(api.state.trades[0]), /3 imagens/);
+    const multiTrade = api.state.trades[0];
+    api.prepare(multiTrade, null, false);
+    api.state.editAttachment.items.splice(1,1);
+    calls.events.length = 0;
+    await api.saveFromForm();
+    assert.deepEqual(calls.events, ["save", "remove:user-a/trade-a/file-id.png"]);
+    assert.equal(api.state.trades[0].attachments.length, 2);
 
     // Failed database save cleans only the new upload, keeping the prior trade and image.
     failSave = true;
@@ -142,6 +160,22 @@ renderAll = () => {};`, context);
     assert.deepEqual(calls.events, ["upload"]);
     assert.equal(api.state.trades[0].attachment.path, old.attachment.path);
     failUpload = false;
+
+    // A failure in the second file rolls back the first upload, without modifying the trade.
+    failUploadName = 'second.webp';
+    calls.events.length = 0;
+    api.prepare(old, [file,{type:'image/webp',size:1024,name:'second.webp'}], false);
+    await api.saveFromForm();
+    assert.deepEqual(calls.events, ['upload','upload','remove:user-a/trade-a/file-id.png']);
+    assert.equal(api.state.trades[0], old);
+    failUploadName = '';
+    failSave = true;
+    calls.events.length = 0;
+    api.prepare(old, [file,{type:'image/webp',size:1024,name:'second.webp'}], false);
+    await api.saveFromForm();
+    assert.deepEqual(calls.events, ['upload','upload','save','remove:user-a/trade-a/file-id.png','remove:user-a/trade-a/file-id.webp']);
+    assert.equal(api.state.trades[0], old);
+    failSave = false;
 
     calls.events.length = 0;
     api.prepare(old, null, true);
@@ -238,6 +272,14 @@ renderAll = () => {};`, context);
     assert.match(api.tradeAttachmentButton(imageTrade), /data-open-attachment="image-trade"/);
     assert.equal(api.tradeAttachmentButton({id:"no-image"}), "");
     node("attachmentViewer").close();
+
+    const galleryTrade={...imageTrade,attachments:[imageTrade.attachment,{path:'user-a/image-trade/second.png',name:'Second'}]};
+    api.prepare(galleryTrade,null,false);
+    await api.openTradeAttachment('image-trade',1);
+    assert.equal(calls.signedUrls.at(-1).path,'user-a/image-trade/second.png');
+    assert.match(node('attachmentViewerTitle').textContent,/2\/2/);
+    assert.match(node('attachmentViewerNavigation').innerHTML,/Imagem 2/);
+    node('attachmentViewer').close();
 
     const sql = fs.readFileSync(`${__dirname}/supabase-attachments.sql`, "utf8");
     assert.match(sql, /'trade-attachments'/);

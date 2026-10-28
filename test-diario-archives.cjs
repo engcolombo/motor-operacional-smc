@@ -88,10 +88,13 @@ const fixture = () => [
     cloudHook=null; a.login('owner');
 
     const rows=fixture().slice(0,3);
+    rows[0].attachments=[rows[0].attachment,{path:'owner/second.png',name:'Segunda imagem'}];
     const images=await a.archives.reportImages(rows,'owner',()=>{});
-    assert.equal(images.size,2);
+    assert.equal(images.size,3);
     const html=a.archives.reportHTML(rows,'Plano <antigo>',images);
     assert.ok(html.includes('data:image/png;base64,'),'Images embedded without expiring URLs');
+    assert.equal((html.match(/<figure>/g)||[]).length,3,'PDF includes all images including legacy attachment');
+    assert.ok(html.includes('Segunda imagem'));
     assert.ok(html.includes('Fora do plano') && html.includes('Manter o histórico'));
     assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
     assert.ok(!html.includes('<script>alert(1)</script>'));

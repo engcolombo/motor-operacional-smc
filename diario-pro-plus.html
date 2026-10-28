@@ -907,7 +907,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 }
 </style>
 <link rel="stylesheet" href="diario-pro-plus.css?v=20261024-checklist">
-<link rel="stylesheet" href="diario-attachments.css?v=20261008-image-viewer">
+<link rel="stylesheet" href="diario-attachments.css?v=20261028-multiple-images">
 <link rel="stylesheet" href="diario-profit.css?v=20261024-fallback">
 </head>
 <body class="pro-plus">
@@ -1306,18 +1306,11 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                     <textarea id="fNotes" placeholder="O que aconteceu, contexto, lição..."></textarea>
                 </div>
                 <div class="field full attachment-field">
-                    <label for="fAttachment">Imagem do gráfico</label>
-                    <input id="fAttachment" type="file" accept="image/jpeg,image/png,image/webp">
-                    <p class="field-hint" id="attachmentStatus">JPEG, PNG ou WebP · até 20 MB · privado por conta.</p>
-                    <div class="attachment-preview" id="attachmentPreview" hidden>
-                        <a id="attachmentOpen" target="_blank" rel="noopener noreferrer" aria-label="Abrir imagem anexada">
-                            <img id="attachmentImage" alt="Prévia da imagem anexada ao trade">
-                        </a>
-                        <div class="attachment-meta">
-                            <span id="attachmentName"></span>
-                            <button class="btn btn-danger btn-mini" id="btnRemoveAttachment" type="button">Remover imagem</button>
-                        </div>
-                    </div>
+                    <label for="fAttachment">Imagens da operação</label>
+                    <input id="fAttachment" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+                    <p class="field-hint">Selecione várias imagens ou adicione arquivos em etapas. As imagens já anexadas serão mantidas.</p>
+                    <p class="field-hint" id="attachmentStatus" role="status">JPEG, PNG ou WebP · até 20 MB por imagem · privado por conta.</p>
+                    <div id="attachmentPreview" class="attachment-gallery" hidden></div>
                 </div>
                 <div class="full section-title">Resumo da operação</div>
                 <div class="full partial-summary" id="partialSummary" aria-live="polite"></div>
@@ -1358,6 +1351,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
             <button class="btn btn-ghost" id="attachmentViewerClose" type="button" autofocus>Fechar</button>
         </div>
     </div>
+    <div id="attachmentViewerNavigation" class="attachment-viewer-navigation" role="group" aria-label="Imagens da operação"></div>
     <div class="attachment-viewer-body">
         <p id="attachmentViewerStatus" role="status" aria-live="polite"></p>
         <img id="attachmentViewerImage" alt="Imagem do trade" hidden>
@@ -1390,7 +1384,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 <script src="diario-profit.js?v=20261024-fallback"></script>
 <script src="diario-backtests.js?v=20261011-backtest-unified"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="diario-archives.js?v=20261023-psychology-cycles"></script>
-<script src="diario-core.js?v=20261024-checklist"></script>
+<script src="diario-archives.js?v=20261028-multiple-images"></script>
+<script src="diario-core.js?v=20261028-multiple-images"></script>
 </body>
 </html>

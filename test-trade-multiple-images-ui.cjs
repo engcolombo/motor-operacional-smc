@@ -1,0 +1,52 @@
+/* Isolated Chrome only. Storage is simulated; no real account or cloud writes. */
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const [port,base,out]=process.argv.slice(2);if(!port||!base||!out)throw Error('Usage: node test-trade-multiple-images-ui.cjs DEBUG_PORT BASE_URL ARTIFACT_DIR');
+fs.mkdirSync(out,{recursive:true});
+(async()=>{
+ const targets=await(await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+ const target=targets.find(t=>t.type==='page'),socket=new WebSocket(target.webSocketDebuggerUrl),pending=new Map(),errors=[];let id=0;
+ await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject;});
+ socket.onmessage=e=>{const m=JSON.parse(e.data);if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails);if(m.id){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(Error(JSON.stringify(m.error))):p.resolve(m.result);}};
+ const send=(method,params={})=>new Promise((resolve,reject)=>{const n=++id;pending.set(n,{resolve,reject});socket.send(JSON.stringify({id:n,method,params}));});
+ const ev=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true,userGesture:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
+ const wait=async expression=>{for(let i=0;i<140;i++){if(await ev(expression))return;await new Promise(r=>setTimeout(r,50));}throw Error('Timed out: '+expression);};
+ const click=selector=>ev('document.querySelector('+JSON.stringify(selector)+').click()');
+ const shot=async name=>{const r=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,name+'.png'),Buffer.from(r.data,'base64'));};
+ try {
+  await send('Page.enable');await send('Runtime.discardConsoleEntries');await send('Runtime.enable');await send('Network.enable');
+  await send('Network.setBlockedURLs',{urls:['*supabase.co*','*generativelanguage.googleapis.com*']});
+  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
+  await send('Page.navigate',{url:base+'/diario-pro-plus.html'});await wait("typeof saveFromForm==='function' && document.querySelector('#view-profit')");
+  await ev(`window.qaImage='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5mQAAAAASUVORK5CYII=';
+    window.qaBlob=new Blob([Uint8Array.from(atob(qaImage.split(',')[1]),c=>c.charCodeAt(0))],{type:'image/png'});
+    window.qaRemovals=[];window.qaUploads=[];window.qaSaved=null;window.alert=message=>{throw Error(message)};
+    supabaseClient={storage:{from:()=>({createSignedUrl:async()=>({data:{signedUrl:qaImage}}),upload:async(path,file)=>{qaUploads.push(path);return {error:null}},remove:async(paths)=>{qaRemovals.push(...paths);return {error:null}},download:async()=>({data:qaBlob})})},from:()=>({upsert:async row=>{qaSaved=row;return {error:null}}})};
+    currentUser={id:'qa-images'};currentSession={user:currentUser};psychologyLoadedUser='qa-images';cloudBusy=false;
+    state.trades=[{id:'qa-gallery',symbol:'WIN',side:'long',status:'target',date:'2026-10-28T12:00:00Z',dateLocal:'2026-10-28T09:00',qty:1,initQty:1,stopMoney:100,targetMoney:200,pnl:200,r:2,attachment:{path:'qa-images/old.png',name:'old.png',type:'image/png'}}];
+    window.qaAdd=names=>{const dt=new DataTransfer();for(const name of names)dt.items.add(new File([qaBlob],name,{type:'image/png'}));document.querySelector('#fAttachment').files=dt.files;document.querySelector('#fAttachment').dispatchEvent(new Event('change',{bubbles:true}));};
+    openModal(state.trades[0]);qaAdd(['entry.png','exit.png']);qaAdd(['review.png']);`);
+  assert.equal(await ev('state.editAttachment.items.length'),4);
+  assert.equal(await ev("document.querySelectorAll('.attachment-card').length"),4);
+  await click('[data-remove-image="2"]');assert.equal(await ev('state.editAttachment.items.length'),3);
+  await ev("document.querySelector('#attachmentPreview').scrollIntoView()");await shot('multiple-images-editor-desktop');
+  await ev('saveFromForm()');assert.equal(await ev('state.trades[0].attachments.length'),3);assert.equal(await ev('qaUploads.length'),2);assert.equal(await ev('qaRemovals.length'),0);assert.equal(await ev('qaSaved.payload.attachments.length'),3);
+  await ev("switchView('trades');document.querySelector('[data-open-attachment]').click()");
+  await wait("document.querySelector('#attachmentViewerOriginal').hidden===false");
+  await click('[data-attachment-index="2"]');await wait("document.querySelector('#attachmentViewerTitle').textContent.endsWith('3/3')");
+  assert.equal(await ev("document.querySelector('#attachmentViewerImage').alt"),'review.png');await shot('multiple-images-viewer-desktop');
+  await click('#attachmentViewerClose');await ev('openModal(state.trades[0])');
+  assert.equal(await ev('state.editAttachment.items.length'),3);
+  await click('[data-remove-image="0"]');await ev('saveFromForm()');
+  assert.equal(await ev('state.trades[0].attachments.length'),2);assert.deepEqual(await ev('qaRemovals'),['qa-images/old.png']);
+  await ev("(async()=>{window.qaImages=await DiaryArchives.reportImages(state.trades,'qa-images',()=>{});window.qaHtml=DiaryArchives.reportHTML(state.trades,'Multi',qaImages)})()");
+  assert.equal(await ev("(qaHtml.match(/<figure>/g)||[]).length"),2);
+  assert.equal(await ev("qaHtml.includes('entry.png') && qaHtml.includes('review.png')"),true);
+  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await ev("openModal(state.trades[0]);document.querySelector('#attachmentPreview').scrollIntoView()");await shot('multiple-images-editor-mobile');
+  assert.equal(await ev('document.documentElement.scrollWidth<=innerWidth'),true);
+  await ev('closeModal()');await send('Page.reload');await wait("typeof state!=='undefined' && document.querySelector('#view-profit')");
+  assert.equal(await ev("state.trades.find(t=>t.id==='qa-gallery').attachments.length"),2);
+  assert.equal(errors.length,0,JSON.stringify(errors));
+  console.log('PASS: multiple and incremental selection, individual removal, legacy preservation, cloud payload, viewer navigation, PDF all images, mobile layout and reload.');
+ }finally{socket.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -16,6 +16,12 @@ https://cqjmxywdhlxlsltkrrxm.supabase.co
 
 Antes de usar o site, abra o SQL Editor do Supabase e execute `supabase-schema.sql`.
 
+### Várias imagens por operação
+
+Em **Nova operação / Editar → Imagens da operação**, selecione vários arquivos juntos ou adicione imagens em etapas. Cada imagem pode ser removida individualmente antes de salvar. JPEG, PNG e WebP continuam com limite de 20 MB por arquivo e acesso privado pela conta do Supabase.
+
+Operações antigas com uma imagem continuam compatíveis. A galeria aparece nas Operações e no Diário, e todas as imagens entram no PDF do ciclo. Exportar/importar JSON preserva as referências privadas aos arquivos. Os novos anexos são enviados antes de salvar o trade; uma falha interrompe a gravação e tenta limpar apenas os novos uploads. Anexos removidos só são apagados do Storage depois de salvar o trade com sucesso. Não há nova migração SQL se `supabase-attachments.sql` já foi aplicado.
+
 ### Chave Gemini vinculada ao login
 
 Execute também `supabase-mentor.sql` no SQL Editor do mesmo projeto. Depois, no Diário Pro+, entre na sua conta e abra **Psicologia → Mentor → Minha chave Gemini**. Cole a chave e clique em **Salvar na minha conta**. O botão **Recarregar da conta** permite tentar novamente após configurar o banco ou recuperar a conexão.
