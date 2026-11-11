@@ -48,6 +48,33 @@ A opcao `Lembrar` mantem a sessao do Supabase salva no navegador depois do prime
 
 ## Diário Pro+
 
+### Robô SMC · Monitor ao vivo e controle de emergência
+
+Na aba **Robô SMC**, acima de **Configuração do robô**, o painel **Monitor ao vivo · Python + MetaTrader 5** exibe a operação em tempo real da ponte Python (`DualLiveEngine`) conectada ao Expert Advisor no MT5 (`SMC_Dual_EA`) utilizando o mesmo login do Diário Pro+ via Supabase, mantendo o visual grafite padrão e sem alterar as demais abas.
+
+#### Ativação no Supabase
+
+Execute uma vez o arquivo `supabase-robot-live.sql` no **SQL Editor** do projeto conectado. O script cria a tabela `public.robot_live_status` com uma única linha por usuário (`user_id` como chave primária), Row Level Security ativado e forçado (`enable/force row level security`), bloqueio total ao papel `anon` (`revoke all ... from anon`) e políticas permitindo acesso apenas ao usuário autenticado dono da linha (`auth.uid() = user_id`).
+
+#### O que aparece no painel
+
+1. **Indicadores do pregão:** estado operacional (`OPERACIONAL · MONITORANDO`, `EM POSIÇÃO`, `PAUSADO (EMERGÊNCIA)`, `BLOQUEADO PELO RISCO (EA)`, `ENCERRADO · PÓS-FLATTEN`, `AGUARDANDO MT5`), resultado do dia no MT5 (`fechado + flutuante`), total de operações/avaliações GRU e total de rejeições. Dados ausentes aparecem como `—`, sem valores inventados.
+2. **Leitura ao vivo e quebra real das rejeições:** exibe ação atual do Python, contexto SMC, tendência M5/H1, POIs M1 ativos, candidatos armados, posição no MT5, última avaliação GRU (`p_gru` vs `threshold`), status de risco do EA, saldo/equity e contagem separada das rejeições em **Modelo GRU**, **Sistema de Risco** e **Determinístico (SMC)**, além da lista recolhível de eventos recentes.
+3. **Resumo acumulado do histórico real do MT5 (`#robotLiveAccKpis`):** faixa unificada de 6 cartões (`.kpi-grid`) calculada diretamente pelo EA sobre todas as posições fechadas pertencentes ao `InpMagic` no histórico do terminal (`Net P&L líq.` com taxas pagas, `Winrate` com `W/L/BE`, `Profit Factor` exibindo `∞` quando não há perda bruta, `Expectancy`, `Max Drawdown` pico-vale e `Trades` fechados com intervalo de datas e Magic).
+
+#### Botões de controle e segurança operacional
+
+- **Atualizar:** força uma nova leitura imediata no Supabase.
+- **Pausar entradas / Retomar entradas:** grava apenas a coluna `control` (sem nunca sobrescrever a telemetria enviada pelo Python). O robô Python verifica comandos aproximadamente a cada 3 segundos, bloqueia novas entradas imediatamente, envia `CANCEL_PENDING` ao EA para cancelar ordens limite abertas no book e confirma o recebimento em `control_ack`. Posições já abertas continuam sob gestão normal de risco/stop/encerramento do EA.
+- **Zerar tudo (`FLATTEN`):** solicita confirmação explícita no navegador antes de incrementar `control.flatten_seq`; ao detectar a ordem, o Python ativa a pausa de emergência e envia `FLATTEN` ao EA para cancelar ordens pendentes e encerrar a mercado qualquer posição aberta do robô.
+- Após qualquer comando, o painel acelera temporariamente a consulta para ~2,5s por 25s para exibir a confirmação (`control_ack`); em uso normal lê a cada 10s quando a aba está visível e pausa a consulta quando oculta. Do lado do Python, a telemetria só envia `PATCH` imediatamente quando há mudança real de estado/métricas ou no heartbeat periódico (~25s), economizando tráfego no plano gratuito.
+
+#### Credenciais no robô local (sem expor senha)
+
+Nenhuma senha, e-mail, token ou chave privada fica no repositório do site. Na máquina onde roda a ponte Python/MT5, as credenciais locais ficam em `configs/supabase.local.json` (ignorado pelo `.gitignore`), com a senha criptografada pelo **Windows DPAPI** (`password_dpapi`, sem senha em texto puro em disco).
+
+Arquivos publicados para esta área: `diario-pro-plus.html`, `diario-pro-plus.css`, `diario-robot-live.js`, `diario-core.js` e `supabase-robot-live.sql`. Validação automatizada: `node --check diario-robot-live.js diario-core.js` e `node test-diario-robot-live.cjs`.
+
 ### Ciclos e histórico arquivado
 
 Em **Meu histórico**, use **Arquivar e iniciar novo ciclo** e dê um nome ao plano encerrado. Após a confirmação, todos os trades manuais do ciclo atual (inclusive os ativos ocultos pelo filtro) e a Psicologia ficam agrupados no arquivo. Visão geral, Operações, Calendário, Estatísticas, Diário e Psicologia passam a mostrar o ciclo atual vazio. Novas operações e revisões entram nesse ciclo. Robô SMC, Backtests e a aba Taxas permanecem como estavam; o acumulado de taxas continua incluindo o histórico completo.
