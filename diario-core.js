@@ -586,6 +586,7 @@ function purgeRobotTrades() {
 }
 
 function renderRobot() {
+    if (typeof RobotLiveMonitor !== "undefined") RobotLiveMonitor.render();
     $("fRobotMagic").value = state.robot.magic ?? "";
     $("fRobotSymbol").value = state.robot.symbol ?? "";
 
@@ -766,6 +767,7 @@ function switchView(view) {
         if (!frame.hasAttribute("src")) frame.src = frame.dataset.src;
     }
     renderAll();
+    if (typeof RobotLiveMonitor !== "undefined") RobotLiveMonitor.syncViewState();
 }
 
 function localDateTimeValue(value = new Date()) {
@@ -2404,12 +2406,16 @@ async function initCloud() {
         if (currentUser) {
             loadCloudTrades();
             loadCloudSettings();
+            if (typeof RobotLiveMonitor !== "undefined") RobotLiveMonitor.onAuthChanged(true);
+        } else if (typeof RobotLiveMonitor !== "undefined") {
+            RobotLiveMonitor.onAuthChanged(false);
         }
     });
     updateCloudUi();
     if (canUseCloud()) {
         await loadCloudTrades();
         await loadCloudSettings();
+        if (typeof RobotLiveMonitor !== "undefined") RobotLiveMonitor.onAuthChanged(true);
     }
 }
 
@@ -2443,6 +2449,7 @@ async function signInCloud() {
     if (canUseCloud()) {
         await loadCloudTrades();
         await loadCloudSettings();
+        if (typeof RobotLiveMonitor !== "undefined") RobotLiveMonitor.onAuthChanged(true);
     }
 }
 
@@ -2460,6 +2467,7 @@ async function signOutCloud() {
     currentUser = null;
     currentSession = null;
     updateCloudUi();
+    if (typeof RobotLiveMonitor !== "undefined") RobotLiveMonitor.onAuthChanged(false);
     toast("Sessão encerrada");
 }
 
@@ -2727,6 +2735,7 @@ function bindCloudEvents() {
 Backtests.init();
 if (typeof DiaryArchives !== "undefined") DiaryArchives.init();
 if (typeof ProfitTrades !== "undefined") ProfitTrades.init();
+if (typeof RobotLiveMonitor !== "undefined") RobotLiveMonitor.init();
 state.fees = loadFees();
 state.robot = loadRobotConfig();
 bindNav();

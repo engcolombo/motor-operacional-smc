@@ -1125,6 +1125,41 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
         </section>
 
         <section class="view" id="view-robot">
+            <div class="panel robot-live-panel" id="robotLivePanel">
+                <div class="panel-head robot-live-head">
+                    <div class="robot-live-title">
+                        <div class="robot-live-title-row">
+                            <h2>Monitor ao vivo · Python + MetaTrader 5</h2>
+                            <span class="robot-live-badge is-off" id="robotLiveBadge">Offline</span>
+                        </div>
+                        <p id="robotLiveUpdated">Aguardando conexão com Supabase.</p>
+                    </div>
+                    <div class="robot-live-controls">
+                        <button class="btn btn-ghost" id="btnRobotLiveRefresh" type="button">Atualizar</button>
+                        <button class="btn" id="btnRobotLivePause" type="button" disabled>Pausar entradas</button>
+                        <button class="btn btn-danger" id="btnRobotLiveFlatten" type="button" disabled>Zerar tudo (FLATTEN)</button>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="robot-live-alert is-warn" id="robotLiveAlert" hidden></div>
+                    <div class="kpi-grid robot-live-kpis" id="robotLiveKpis"></div>
+                    <div class="grid-2 robot-live-grid">
+                        <div class="robot-live-card">
+                            <h3>O que Python + EA estão fazendo agora</h3>
+                            <div id="robotLiveStateRows"></div>
+                        </div>
+                        <div class="robot-live-card">
+                            <h3>Motivos das rejeições (hoje)</h3>
+                            <div class="robot-live-rej-grid" id="robotLiveRejections"></div>
+                        </div>
+                    </div>
+                    <details class="robot-live-events-box">
+                        <summary>Últimos eventos reais do pregão</summary>
+                        <div class="robot-live-events-list" id="robotLiveEvents"></div>
+                    </details>
+                </div>
+            </div>
+
             <div class="panel">
                 <div class="panel-head">
                     <h2>Configuração do robô</h2>
@@ -1385,6 +1420,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 <script src="diario-backtests.js?v=20261011-backtest-unified"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="diario-archives.js?v=20261028-multiple-images"></script>
-<script src="diario-core.js?v=20261028-multiple-images"></script>
+<script src="diario-robot-live.js?v=20261110-robot-live"></script>
+<script src="diario-core.js?v=20261110-robot-live"></script>
 </body>
 </html>
