@@ -145,9 +145,12 @@ function boot(options = {}) {
     // 1. HTML & SQL structural guardrails
     const robotStart = html.indexOf('<section class="view" id="view-robot">');
     const robotLivePos = html.indexOf('id="robotLivePanel"', robotStart);
+    const robotAccPos = html.indexOf('id="robotLiveAccKpis"', robotStart);
     const robotCfgPos = html.indexOf("<h2>Configuração do robô</h2>", robotStart);
-    assert.ok(robotStart > 0 && robotLivePos > robotStart && robotLivePos < robotCfgPos,
-        "Monitor ao vivo deve aparecer dentro de #view-robot antes da Configuração do robô");
+    assert.ok(robotStart > 0 && robotLivePos > robotStart && robotAccPos > robotLivePos && robotLivePos < robotCfgPos && robotAccPos < robotCfgPos,
+        "Monitor ao vivo e resumo acumulado devem aparecer dentro de #view-robot antes da Configuração do robô");
+    assert.match(html, /diario-pro-plus\.css\?v=20261110-robot-live-v2/);
+    assert.match(html, /diario-robot-live\.js\?v=20261110-robot-live-v2/);
     assert.ok(html.indexOf("diario-robot-live.js") < html.indexOf("diario-core.js"),
         "diario-robot-live.js precisa carregar antes de diario-core.js");
 
@@ -161,6 +164,8 @@ function boot(options = {}) {
     assert.equal(guest.node("btnRobotLivePause").disabled, true);
     assert.equal(guest.node("btnRobotLiveFlatten").disabled, true);
     assert.equal(guest.node("robotLiveKpis").innerHTML, "");
+    assert.equal(guest.node("robotLiveAccBlock").hidden, true);
+    assert.equal(guest.node("robotLiveAccKpis").innerHTML, "");
     assert.equal(guest.node("robotLiveBadge").textContent, "Sem login");
 
     // 3. Missing table surfaces SQL hint cleanly
@@ -204,7 +209,27 @@ function boot(options = {}) {
                     daily_consec_losses: 1,
                     risk_status: "SISTEMA OPERACIONAL (OK)",
                     balance: 9904.0,
-                    equity: 9904.0
+                    equity: 9904.0,
+                    accumulated: {
+                        magic: 26002601,
+                        trades: 20,
+                        wins: 8,
+                        losses: 12,
+                        bes: 0,
+                        net_pl: 479.0,
+                        fees: 200.0,
+                        winrate: 40.0,
+                        profit_factor: 1.45,
+                        profit_factor_infinite: false,
+                        expectancy_brl: 23.95,
+                        max_dd_brl: 310.0,
+                        r_trades: 20,
+                        total_r: 0.61,
+                        expectancy_r: 0.03,
+                        max_dd_r: 5.33,
+                        first_close_ts: 1794000000,
+                        last_close_ts: 1794300000
+                    }
                 },
                 daily_stats: {
                     total_evaluations: 5,
@@ -233,6 +258,49 @@ function boot(options = {}) {
     assert.match(live.node("robotLiveRejections").innerHTML, /Score GRU abaixo do threshold/);
     assert.match(live.node("robotLiveRejections").innerHTML, /EA: limite de perda diária atingido/);
     assert.match(live.node("robotLiveRejections").innerHTML, /CHoCH M1 sem BOS interno prévio/);
+    assert.equal(live.node("robotLiveAccBlock").hidden, false);
+    assert.match(live.node("robotLiveAccMeta").textContent, /Magic 26002601/);
+    assert.match(live.node("robotLiveAccKpis").innerHTML, /R\$ 479,00/);
+    assert.match(live.node("robotLiveAccKpis").innerHTML, /taxas: R\$ 200,00/);
+    assert.match(live.node("robotLiveAccKpis").innerHTML, /40\.0%/);
+    assert.match(live.node("robotLiveAccKpis").innerHTML, /8W \/ 12L \/ 0BE/);
+    assert.match(live.node("robotLiveAccKpis").innerHTML, /1\.45/);
+    assert.match(live.node("robotLiveAccKpis").innerHTML, /-5\.33R/);
+    assert.match(live.node("robotLiveAccKpis").innerHTML, /\+0\.61R/);
+
+    // 4b. Infinite profit factor renders ∞ when gross_loss == 0 and gross_win > 0
+    live.setRow({
+        telemetry_updated_at: freshIso,
+        telemetry: {
+            generated_at_utc: freshIso,
+            symbol: "WINZ26",
+            python: { online: true, emergency_paused: false, warmup_ready: true },
+            mt5: {
+                connected: true,
+                accumulated: {
+                    magic: 26002601,
+                    trades: 2,
+                    wins: 2,
+                    losses: 0,
+                    bes: 0,
+                    net_pl: 150.0,
+                    fees: 4.0,
+                    winrate: 100.0,
+                    profit_factor: null,
+                    profit_factor_infinite: true,
+                    expectancy_brl: 75.0,
+                    max_dd_brl: 0.0,
+                    r_trades: 0
+                }
+            },
+            daily_stats: { rejections: { gru: { total: 0 }, risco: { total: 0 }, deterministico: { total: 0 } } }
+        },
+        control: { paused: false, flatten_seq: 2 },
+        control_ack: { paused: false, last_flatten_seq: 2 }
+    });
+    await live.monitor.refresh();
+    assert.match(live.node("robotLiveAccKpis").innerHTML, />∞</);
+    assert.match(live.node("robotLiveAccKpis").innerHTML, /100\.0%/);
 
     // 5. Partial update on Pause preserves existing telemetry column and toggles button
     await live.monitor.togglePause();

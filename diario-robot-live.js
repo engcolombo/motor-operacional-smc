@@ -96,6 +96,24 @@ window.RobotLiveMonitor = (() => {
         return String(Math.trunc(Number(v)));
     }
 
+    function fmtPctVal(v) {
+        if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—";
+        return `${Number(v).toFixed(1)}%`;
+    }
+
+    function fmtRVal(v) {
+        if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—";
+        const n = Number(v);
+        return `${n > 0 ? "+" : n < 0 ? "-" : ""}${Math.abs(n).toFixed(2)}R`;
+    }
+
+    function fmtMt5EpochDate(ts) {
+        if (!ts || !Number.isFinite(Number(ts)) || Number(ts) <= 0) return "";
+        const d = new Date(Number(ts) * 1000);
+        if (!Number.isFinite(d.getTime())) return "";
+        return d.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+    }
+
     function reasonLabel(reason) {
         if (!reason) return "—";
         return REASON_LABELS[reason] || String(reason);
@@ -200,6 +218,9 @@ window.RobotLiveMonitor = (() => {
         const stateRowsBox = el("robotLiveStateRows");
         const rejectionsBox = el("robotLiveRejections");
         const eventsBox = el("robotLiveEvents");
+        const accBlock = el("robotLiveAccBlock");
+        const accMeta = el("robotLiveAccMeta");
+        const accKpis = el("robotLiveAccKpis");
 
         if (refreshBtn) refreshBtn.disabled = !cloudReady() || loading;
 
@@ -217,13 +238,15 @@ window.RobotLiveMonitor = (() => {
             if (stateRowsBox) stateRowsBox.innerHTML = `<div class="muted robot-live-empty">Aguardando autenticação na nuvem.</div>`;
             if (rejectionsBox) rejectionsBox.innerHTML = `<div class="muted robot-live-empty">Aguardando autenticação na nuvem.</div>`;
             if (eventsBox) eventsBox.innerHTML = "";
+            if (accBlock) accBlock.hidden = true;
+            if (accKpis) accKpis.innerHTML = "";
             return;
         }
 
         if (lastError) {
             if (badge) { badge.className = "robot-live-badge is-danger"; badge.textContent = "Erro de leitura"; }
             if (updatedEl) updatedEl.textContent = "Falha ao consultar Supabase.";
-            if (pauseBtn) pauseBtn.disabled = true;
+            if (pauseBtn) { pauseBtn.disabled = true; pauseBtn.textContent = "Pausar entradas"; }
             if (flattenBtn) flattenBtn.disabled = true;
             if (alertBox) {
                 alertBox.hidden = false;
@@ -236,6 +259,8 @@ window.RobotLiveMonitor = (() => {
             if (stateRowsBox) stateRowsBox.innerHTML = "";
             if (rejectionsBox) rejectionsBox.innerHTML = "";
             if (eventsBox) eventsBox.innerHTML = "";
+            if (accBlock) accBlock.hidden = true;
+            if (accKpis) accKpis.innerHTML = "";
             return;
         }
 
@@ -388,6 +413,86 @@ window.RobotLiveMonitor = (() => {
         }
 
         if (eventsBox) eventsBox.innerHTML = hasTel ? renderEventsList(stats.recent_events) : "";
+
+        const acc = hasTel && mt5.accumulated && typeof mt5.accumulated === "object" ? mt5.accumulated : null;
+        if (accBlock) accBlock.hidden = !hasTel;
+        if (accMeta && accKpis) {
+            if (!hasTel) {
+                accMeta.textContent = "Aguardando leitura do MT5";
+                accKpis.innerHTML = "";
+            } else if (!acc) {
+                accMeta.textContent = "Aguardando envio do histórico acumulado pelo EA no MT5";
+                accKpis.innerHTML = "";
+            } else {
+                const accTrades = Number(acc.trades || 0);
+                const accWins = Number(acc.wins || 0);
+                const accLosses = Number(acc.losses || 0);
+                const accBes = Number(acc.bes || 0);
+                const decisive = accWins + accLosses;
+                const accNet = Number(acc.net_pl || 0);
+                const accFees = Number(acc.fees || 0);
+                const accWr = Number(acc.winrate || 0);
+                const pfInf = Boolean(acc.profit_factor_infinite);
+                const accPf = acc.profit_factor === null || acc.profit_factor === undefined ? 0 : Number(acc.profit_factor);
+                const accExpBrl = Number(acc.expectancy_brl || 0);
+                const accMaxDd = Math.abs(Number(acc.max_dd_brl || 0));
+                const accRTrades = Number(acc.r_trades || 0);
+                const firstDate = fmtMt5EpochDate(acc.first_close_ts);
+                const lastDate = fmtMt5EpochDate(acc.last_close_ts);
+                const rangeText = firstDate && lastDate
+                    ? (firstDate === lastDate ? firstDate : `${firstDate} → ${lastDate}`)
+                    : "Histórico carregado";
+
+                accMeta.textContent = `Magic ${acc.magic || "—"} · ${accTrades} fechado(s) · ${rangeText}`;
+
+                const valCls = (v) => v > 0 ? "win" : v < 0 ? "loss" : "neutral";
+                const pfText = pfInf ? "∞" : accPf.toFixed(2);
+                const pfCls = pfInf ? "win" : accTrades === 0 ? "neutral" : accPf > 1 ? "win" : accPf < 1 ? "loss" : "neutral";
+                const wrText = decisive > 0 ? fmtPctVal(accWr) : "—";
+                const expMeta = accRTrades > 0
+                    ? `${fmtRVal(acc.expectancy_r)} · ${accRTrades} c/ R`
+                    : "média por trade fechado";
+                const ddMeta = accRTrades > 0
+                    ? `${fmtRVal(-Math.abs(acc.max_dd_r || 0))} pico-vale`
+                    : "pico-vale fechado";
+                const tradesMeta = accRTrades > 0
+                    ? `${accTrades} fechados (${fmtRVal(acc.total_r)})`
+                    : `${accTrades} fechados`;
+
+                accKpis.innerHTML = `
+                    <div class="kpi-card ${valCls(accNet)}">
+                        <div class="label">Net P&amp;L líq.</div>
+                        <div class="value">${esc(fmtMoney(accNet))}</div>
+                        <div class="meta">taxas: ${esc(fmtMoney(accFees))}</div>
+                    </div>
+                    <div class="kpi-card neutral">
+                        <div class="label">Winrate</div>
+                        <div class="value">${esc(wrText)}</div>
+                        <div class="meta">${esc(`${accWins}W / ${accLosses}L / ${accBes}BE`)}</div>
+                    </div>
+                    <div class="kpi-card ${pfCls}">
+                        <div class="label">Profit Factor</div>
+                        <div class="value">${esc(pfText)}</div>
+                        <div class="meta">gross win / gross loss</div>
+                    </div>
+                    <div class="kpi-card ${valCls(accExpBrl)}">
+                        <div class="label">Expectancy</div>
+                        <div class="value">${esc(fmtMoney(accExpBrl))}</div>
+                        <div class="meta">${esc(expMeta)}</div>
+                    </div>
+                    <div class="kpi-card ${accMaxDd > 0 ? "loss" : "neutral"}">
+                        <div class="label">Max Drawdown</div>
+                        <div class="value">${esc(fmtMoney(-accMaxDd))}</div>
+                        <div class="meta">${esc(ddMeta)}</div>
+                    </div>
+                    <div class="kpi-card neutral">
+                        <div class="label">Trades</div>
+                        <div class="value">${esc(fmtNum(accTrades))}</div>
+                        <div class="meta">${esc(tradesMeta)}</div>
+                    </div>
+                `;
+            }
+        }
     }
 
     async function refresh() {

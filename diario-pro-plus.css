@@ -368,6 +368,12 @@
 .pro-plus .robot-live-event-tag.is-ok { color: var(--green); background: var(--green-soft); border-color: rgba(130, 190, 165, 0.3); }
 .pro-plus .robot-live-event-tag.is-warn { color: var(--yellow); background: var(--yellow-soft); border-color: rgba(199, 184, 143, 0.3); }
 .pro-plus .robot-live-event-desc { color: var(--text); overflow-wrap: anywhere; }
-@media (max-width: 1120px) { .pro-plus .robot-live-grid { grid-template-columns: 1fr; } }
-@media (max-width: 720px) { .pro-plus .robot-live-rej-grid { grid-template-columns: 1fr; } .pro-plus .robot-live-rej-col { border-right: 0; padding-right: 0; border-bottom: 1px solid var(--line-soft); padding-bottom: 10px; } .pro-plus .robot-live-rej-col:last-child { border-bottom: 0; padding-bottom: 0; } }
+.pro-plus .robot-live-acc-block { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.pro-plus .robot-live-acc-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.pro-plus .robot-live-acc-head h3 { margin: 0; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.pro-plus .robot-live-acc-head span { font-size: 11px; }
+.pro-plus .robot-live-acc-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); margin-bottom: 0; }
+.pro-plus .robot-live-acc-kpis .kpi-card .value { font-size: clamp(18px, 1.7vw, 24px); }
+@media (max-width: 1120px) { .pro-plus .robot-live-grid { grid-template-columns: 1fr; } .pro-plus .robot-live-acc-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .pro-plus .robot-live-rej-grid { grid-template-columns: 1fr; } .pro-plus .robot-live-rej-col { border-right: 0; padding-right: 0; border-bottom: 1px solid var(--line-soft); padding-bottom: 10px; } .pro-plus .robot-live-rej-col:last-child { border-bottom: 0; padding-bottom: 0; } .pro-plus .robot-live-acc-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .pro-plus .robot-live-controls { width: 100%; } .pro-plus .robot-live-controls .btn { flex: 1 1 140px; min-height: 44px; } }

@@ -906,7 +906,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     .form-grid { grid-template-columns: 1fr; }
 }
 </style>
-<link rel="stylesheet" href="diario-pro-plus.css?v=20261024-checklist">
+<link rel="stylesheet" href="diario-pro-plus.css?v=20261110-robot-live-v2">
 <link rel="stylesheet" href="diario-attachments.css?v=20261028-multiple-images">
 <link rel="stylesheet" href="diario-profit.css?v=20261024-fallback">
 </head>
@@ -1157,6 +1157,13 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                         <summary>Últimos eventos reais do pregão</summary>
                         <div class="robot-live-events-list" id="robotLiveEvents"></div>
                     </details>
+                    <div class="robot-live-acc-block" id="robotLiveAccBlock">
+                        <div class="robot-live-acc-head">
+                            <h3>Resultado acumulado · histórico MT5</h3>
+                            <span class="muted" id="robotLiveAccMeta">Aguardando leitura do MT5</span>
+                        </div>
+                        <div class="kpi-grid robot-live-acc-kpis" id="robotLiveAccKpis"></div>
+                    </div>
                 </div>
             </div>
 
@@ -1420,7 +1427,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 <script src="diario-backtests.js?v=20261011-backtest-unified"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="diario-archives.js?v=20261028-multiple-images"></script>
-<script src="diario-robot-live.js?v=20261110-robot-live"></script>
-<script src="diario-core.js?v=20261110-robot-live"></script>
+<script src="diario-robot-live.js?v=20261110-robot-live-v2"></script>
+<script src="diario-core.js?v=20261110-robot-live-v2"></script>
 </body>
 </html>
