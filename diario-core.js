@@ -27,16 +27,20 @@ const state = {
     chartMonth: localDateTimeValue().slice(0, 7),
     chartDay: null,
     fees: { cripto: 0, win: 0, wdo: 0 },
-    robot: { magic: 20250321, symbol: "" },
+    robot: { magic: 26002601, symbol: "" },
     editAttachment: null
 };
 
-const ROBOT_DEFAULTS = { magic: 20250321, symbol: "" };
+const ROBOT_DEFAULTS = { magic: 26002601, symbol: "" };
 const ROBOT_STORAGE_KEY = "diarioProRobot_v1";
 const ROBOT_SOURCE = "robo_smc";
 
 function loadRobotConfig() {
-    try { return { ...ROBOT_DEFAULTS, ...JSON.parse(localStorage.getItem(ROBOT_STORAGE_KEY) || "{}") }; }
+    try {
+        const saved = JSON.parse(localStorage.getItem(ROBOT_STORAGE_KEY) || "{}");
+        if (Number(saved.magic) === 20250321) saved.magic = 26002601;
+        return { ...ROBOT_DEFAULTS, ...saved };
+    }
     catch (e) { return { ...ROBOT_DEFAULTS }; }
 }
 
@@ -451,12 +455,10 @@ function parseRobotCsv(text) {
         const cols = line.split(",");
         return { get: (name) => (cols[idx(name)] ?? "").trim() };
     });
-    const magicFilter = Number(state.robot.magic || 0);
     const symFilter = String(state.robot.symbol || "").trim().toUpperCase();
     return rows
         .map((r) => robotRowToTrade(r))
         .filter(Boolean)
-        .filter((t) => !magicFilter || t.magic === magicFilter)
         .filter((t) => !symFilter || t.symbol === symFilter);
 }
 
@@ -482,7 +484,7 @@ function robotRowToTrade(r) {
     const tp = Number(r.get("tp") || 0);
     const volume = Number(r.get("volume") || 0);
     const symbol = String(r.get("symbol") || "").toUpperCase();
-    const magic = Number(r.get("magic") || 0);
+    const magic = Number(r.get("magic") || state.robot.magic || 26002601);
     const score = Number(r.get("score") || 0);
     const threshold = Number(r.get("threshold") || 0);
     const obType = String(r.get("ob_type") || "").toLowerCase();
@@ -527,6 +529,22 @@ function robotRowToTrade(r) {
     };
 }
 
+function isDuplicateRobotTradeSameMagic(existing, incoming) {
+    if (!existing || !incoming) return false;
+    const exMagic = Number(existing.magic || 26002601);
+    const inMagic = Number(incoming.magic || 26002601);
+    if (exMagic !== inMagic) return false;
+    if (String(existing.ticket || "") && String(existing.ticket || "") === String(incoming.ticket || "")) return true;
+    if (existing.id && existing.id === incoming.id) return true;
+    const exOpen = String(existing.date || "").slice(0, 19);
+    const inOpen = String(incoming.date || "").slice(0, 19);
+    if (exOpen && inOpen && exOpen === inOpen) return true;
+    const exClose = String(existing.closeDate || "").slice(0, 19);
+    const inClose = String(incoming.closeDate || "").slice(0, 19);
+    if (exClose && inClose && exClose === inClose) return true;
+    return false;
+}
+
 async function importRobotFile(file) {
     if (!file) { toast("Selecione um arquivo CSV"); return; }
     let text;
@@ -534,40 +552,96 @@ async function importRobotFile(file) {
     catch (e) { alert("Falha ao ler arquivo: " + e.message); return; }
     const parsed = parseRobotCsv(text);
     if (!parsed.length) {
-        $("robotImportHint").innerHTML = `<span style="color:var(--red)">Nenhum trade compatível encontrado. Confira Magic Number e Símbolo.</span>`;
+        $("robotImportHint").innerHTML = `<span style="color:var(--red)">Nenhum trade compatível encontrado no CSV.</span>`;
         return;
     }
 
+    const existingRobos = robotTrades();
     const byId = new Map(state.trades.map((t) => [t.id, t]));
-    let added = 0, updated = 0;
+    let added = 0, duplicates = 0;
+    const dupMagics = new Set();
+    const addedMagics = new Set();
     const toUpsert = [];
+
     for (const t of parsed) {
-        const existing = byId.get(t.id);
-        if (existing) {
-            Object.assign(existing, t);
-            updated++;
-        } else {
-            state.trades.push(t);
-            added++;
+        const dup = existingRobos.find((ex) => isDuplicateRobotTradeSameMagic(ex, t));
+        if (dup) {
+            duplicates++;
+            dupMagics.add(Number(t.magic || 26002601));
+            continue;
         }
+        if (byId.has(t.id)) {
+            t.id = `robo-${t.magic || 0}-${t.ticket}`;
+        }
+        state.trades.push(t);
+        existingRobos.push(t);
+        byId.set(t.id, t);
+        added++;
+        addedMagics.add(Number(t.magic || 26002601));
         toUpsert.push(t);
     }
-    saveTrades();
+
+    if (added > 0) {
+        saveTrades();
+    }
 
     let cloudFailed = 0;
-    if (canUseCloud()) {
-        $("robotImportHint").textContent = `Sincronizando ${toUpsert.length} trades na nuvem...`;
+    if (added > 0 && canUseCloud()) {
+        $("robotImportHint").textContent = `Sincronizando ${toUpsert.length} novo(s) trade(s) na nuvem...`;
         const results = await Promise.all(toUpsert.map((t) => upsertTradeCloud(t)));
         cloudFailed = results.filter((r) => !r.ok).length;
     }
 
+    const dupMsg = duplicates > 0
+        ? `<span style="color:var(--yellow, #f5c542)">⚠️ Atenção: <strong>${duplicates}</strong> trade(s) "duplicado(s)" com mesma data e mesmo Magic (${[...dupMagics].join(", ")}) já existiam e foram ignorados.</span> `
+        : "";
+    const addMsg = added > 0
+        ? `<strong>${added}</strong> novo(s) trade(s) somado(s) à curva (Magic ${[...addedMagics].join(", ")})`
+        : `Nenhum trade inédito para somar`;
+
     $("robotImportHint").innerHTML = `
-        <strong>${added}</strong> novos · <strong>${updated}</strong> atualizados${cloudFailed ? ` · <span style="color:var(--red)">${cloudFailed} falharam na nuvem</span>` : ""}
-        ${canUseCloud() ? " · sincronizado" : " · só local (faça login pra sincronizar)"}
+        ${dupMsg}${addMsg}${cloudFailed ? ` · <span style="color:var(--red)">${cloudFailed} falharam na nuvem</span>` : ""}
+        ${added > 0 ? (canUseCloud() ? " · sincronizado no Supabase" : " · salvo localmente") : ""}
     `;
-    toast(`Robô: ${added}+ ${updated}↻`);
+    if (duplicates > 0) {
+        toast(`⚠️ ${duplicates} duplicado(s) (mesma data/magic) · +${added} somado(s)`);
+    } else {
+        toast(`Robô: +${added} somado(s) à curva`);
+    }
     renderAll();
 }
+
+let s_lastSyncedCloudCount = -1;
+window.syncRobotTradesFromLive = function (recentTrades, accumulatedCount) {
+    let changed = false;
+    if (Array.isArray(recentTrades) && recentTrades.length > 0) {
+        const byId = new Map(state.trades.map((t) => [t.id, t]));
+        for (const raw of recentTrades) {
+            if (!raw || !raw.id) continue;
+            const existing = byId.get(raw.id);
+            if (!existing) {
+                state.trades.push({ ...raw, source: ROBOT_SOURCE });
+                byId.set(raw.id, raw);
+                changed = true;
+            } else if (Number(existing.pnl || 0) !== Number(raw.pnl || 0) || existing.closeDate !== raw.closeDate) {
+                Object.assign(existing, raw, { source: ROBOT_SOURCE });
+                changed = true;
+            }
+        }
+    }
+    if (changed) {
+        saveTrades();
+        renderAll();
+    }
+    const accCnt = Number(accumulatedCount || 0);
+    if (accCnt > 0 && accCnt !== s_lastSyncedCloudCount && canUseCloud()) {
+        const currentRoboCnt = robotTrades().length;
+        if (currentRoboCnt < accCnt) {
+            s_lastSyncedCloudCount = accCnt;
+            loadCloudTrades().catch(() => {});
+        }
+    }
+};
 
 function purgeRobotTrades() {
     if (!confirm("Apagar TODOS os trades importados do robô? Trades manuais não serão tocados.")) return;
@@ -590,11 +664,14 @@ function renderRobot() {
     $("fRobotMagic").value = state.robot.magic ?? "";
     $("fRobotSymbol").value = state.robot.symbol ?? "";
 
-    const robos = [...robotTrades()].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const symFilter = String(state.robot.symbol || "").trim().toUpperCase();
+    const robos = [...robotTrades()]
+        .filter((t) => !symFilter || String(t.symbol || "").toUpperCase() === symFilter)
+        .sort((a, b) => new Date(a.closeDate || a.date) - new Date(b.closeDate || b.date));
     if (!robos.length) {
-        $("robotSummary").textContent = "Sem trades importados";
+        $("robotSummary").textContent = "Aguardando trades sincronizados do Supabase (ou importe CSV abaixo)";
         $("robotKpis").innerHTML = "";
-        $("robotTradesBox").innerHTML = `<div class="panel-body"><span class="muted">Importe um CSV pra ver as estatísticas.</span></div>`;
+        $("robotTradesBox").innerHTML = `<div class="panel-body"><span class="muted">Os trades fechados pelo robô no MT5 aparecerão aqui automaticamente via Supabase.</span></div>`;
         const c = $("robotEquityCanvas");
         if (c.getContext) { const ctx = c.getContext("2d"); ctx.clearRect(0, 0, c.width, c.height); }
         return;
@@ -618,9 +695,13 @@ function renderRobot() {
     let peak = 0, equity = 0, maxDD = 0;
     pnls.forEach((p) => { equity += p; peak = Math.max(peak, equity); maxDD = Math.max(maxDD, peak - equity); });
 
-    const first = new Date(robos[0].date);
-    const last = new Date(robos[robos.length - 1].date);
-    $("robotSummary").textContent = `${robos.length} trades · ${first.toLocaleDateString("pt-BR")} → ${last.toLocaleDateString("pt-BR")} · magic ${state.robot.magic}`;
+    const first = new Date(robos[0].closeDate || robos[0].date);
+    const last = new Date(robos[robos.length - 1].closeDate || robos[robos.length - 1].date);
+    const distinctMagics = [...new Set(robos.map((t) => Number(t.magic || state.robot.magic || 26002601)).filter(Boolean))];
+    const magicLabel = distinctMagics.length > 1
+        ? `magics ${distinctMagics.join(" + ")} (somados)`
+        : `magic ${distinctMagics[0] || state.robot.magic || 26002601}`;
+    $("robotSummary").textContent = `${robos.length} trades · ${first.toLocaleDateString("pt-BR")} → ${last.toLocaleDateString("pt-BR")} · ${magicLabel}`;
 
     const cls = (v) => v > 0 ? "win" : v < 0 ? "loss" : "neutral";
     const kpis = [
@@ -644,8 +725,12 @@ function renderRobot() {
     };
     const sInt = splitStats(robos.filter((t) => t.obType === "internal"));
     const sSwg = splitStats(robos.filter((t) => t.obType === "swing"));
+    const sPoi = splitStats(robos.filter((t) => t.obType === "poi"));
+    const sChoch = splitStats(robos.filter((t) => t.obType === "choch"));
 
     const obKpis = [];
+    if (sPoi) obKpis.push({ label: "Setup POI", value: fmtCurrency(sPoi.pnl), meta: `${sPoi.count} trades · ${fmtPct(sPoi.winrate)} (${sPoi.wins}W/${sPoi.losses}L)`, cls: cls(sPoi.pnl) });
+    if (sChoch) obKpis.push({ label: "Setup CHoCH", value: fmtCurrency(sChoch.pnl), meta: `${sChoch.count} trades · ${fmtPct(sChoch.winrate)} (${sChoch.wins}W/${sChoch.losses}L)`, cls: cls(sChoch.pnl) });
     if (sInt) obKpis.push({ label: "OB Internal", value: fmtCurrency(sInt.pnl), meta: `${sInt.count} trades · ${fmtPct(sInt.winrate)} (${sInt.wins}W/${sInt.losses}L)`, cls: cls(sInt.pnl) });
     if (sSwg) obKpis.push({ label: "OB Swing", value: fmtCurrency(sSwg.pnl), meta: `${sSwg.count} trades · ${fmtPct(sSwg.winrate)} (${sSwg.wins}W/${sSwg.losses}L)`, cls: cls(sSwg.pnl) });
     const allKpis = [...kpis, ...obKpis];
@@ -665,7 +750,7 @@ function renderRobot() {
         <div class="panel-body" style="overflow-x:auto;">
             <table>
                 <thead><tr>
-                    <th>Data</th><th>Ticket</th><th>Ativo</th><th>Lado</th>
+                    <th>Data</th><th>Ticket</th><th>Magic</th><th>Ativo</th><th>Lado</th>
                     <th>OB</th><th class="right">OB pts</th>
                     <th class="right">Score</th><th class="right">Thr</th>
                     <th class="right">Vol</th>
@@ -676,6 +761,7 @@ function renderRobot() {
                     <tr>
                         <td>${new Date(t.date).toLocaleString("pt-BR")}</td>
                         <td>${escapeHtml(t.ticket || "")}</td>
+                        <td class="muted">${escapeHtml(String(t.magic || 26002601))}</td>
                         <td>${escapeHtml(t.symbol)}</td>
                         <td>${t.side === "long" ? "Compra" : "Venda"}</td>
                         <td>${escapeHtml(t.obType || "-")}</td>

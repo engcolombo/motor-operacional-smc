@@ -146,9 +146,18 @@ function boot(options = {}) {
     const robotStart = html.indexOf('<section class="view" id="view-robot">');
     const robotLivePos = html.indexOf('id="robotLivePanel"', robotStart);
     const robotAccPos = html.indexOf('id="robotLiveAccKpis"', robotStart);
-    const robotCfgPos = html.indexOf("<h2>Configuração do robô</h2>", robotStart);
-    assert.ok(robotStart > 0 && robotLivePos > robotStart && robotAccPos > robotLivePos && robotLivePos < robotCfgPos && robotAccPos < robotCfgPos,
-        "Monitor ao vivo e resumo acumulado devem aparecer dentro de #view-robot antes da Configuração do robô");
+    const robotEquityPos = html.indexOf('id="robotEquityCanvas"', robotStart);
+    const robotTradesPos = html.indexOf('id="robotTradesBox"', robotStart);
+    const robotCfgPos = html.indexOf('id="fRobotFile"', robotStart);
+    assert.ok(
+        robotStart > 0 &&
+        robotLivePos > robotStart &&
+        robotAccPos > robotLivePos &&
+        robotEquityPos > robotAccPos &&
+        robotTradesPos > robotEquityPos &&
+        robotCfgPos > robotTradesPos,
+        "Monitor ao vivo, estatísticas/curva e últimos trades devem aparecer antes da Importação manual no final de #view-robot"
+    );
     assert.match(html, /diario-pro-plus\.css\?v=20261110-robot-live-v2/);
     assert.match(html, /diario-robot-live\.js\?v=20261110-robot-live-v2/);
     assert.ok(html.indexOf("diario-robot-live.js") < html.indexOf("diario-core.js"),

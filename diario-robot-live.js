@@ -380,8 +380,14 @@ window.RobotLiveMonitor = (() => {
                 : (mt5.has_pending ? "Ordem limite pendente no book" : "Sem posição aberta (FLAT)");
         const lastEval = py.last_evaluation;
         const evalDesc = lastEval
-            ? `${String(lastEval.setup || "-").toUpperCase()} ${String(lastEval.side || "-").toUpperCase()} · ${Number(lastEval.p_gru || 0).toFixed(4)} / ${Number(lastEval.threshold || 0).toFixed(2)} · ${lastEval.approved ? "APROVADA" : "REJEITADA"}`
+            ? `${String(lastEval.setup || "-").toUpperCase()} ${String(lastEval.side || "-").toUpperCase()} · ${Number(lastEval.p_gru || 0).toFixed(4)} / ${Number(lastEval.threshold || 0).toFixed(2)} · ${lastEval.approved ? "APROVADA" : "REJEITADA"}${lastEval.inference_ms !== undefined ? ` (${Number(lastEval.inference_ms).toFixed(1)}ms)` : ""}`
             : "Nenhuma avaliação GRU registrada hoje";
+        const drift = py.feature_drift;
+        const driftDesc = drift && typeof drift === "object"
+            ? (drift.alert
+                ? `ALERTA DRIFT: ${Number(drift.outliers_5sigma || 0)} feat >= 5σ (máx ${esc(drift.top_feature || "?")} ${Number(drift.max_abs_z || 0).toFixed(1)}σ)`
+                : `Estável (máx |z|=${Number(drift.max_abs_z || 0).toFixed(1)}σ em ${esc(drift.top_feature || "-")})`)
+            : null;
 
         if (stateRowsBox) {
             stateRowsBox.innerHTML = hasTel ? `
@@ -390,6 +396,7 @@ window.RobotLiveMonitor = (() => {
                 <div class="metric-row"><span>Tendência M5 / H1</span><strong>${esc(py.trend_m5 || "—")} / ${esc(py.trend_h1 || "—")} · POIs M1: ${esc(fmtNum(py.pois_active))} · Armados: ${esc(fmtNum(py.armed_candidates_count))}</strong></div>
                 <div class="metric-row"><span>Posição no MT5</span><strong>${esc(posDesc)}</strong></div>
                 <div class="metric-row"><span>Última avaliação GRU</span><strong>${esc(evalDesc)}</strong></div>
+                ${driftDesc ? `<div class="metric-row"><span>Distribuição Features (WIN$)</span><strong style="${drift.alert ? "color:var(--amber, #f59e0b)" : ""}">${driftDesc}</strong></div>` : ""}
                 <div class="metric-row"><span>Status de risco (EA)</span><strong>${esc(mt5.risk_status || "Aguardando atualização do EA")}</strong></div>
                 <div class="metric-row"><span>Saldo / Equity · Ticks</span><strong>${esc(fmtMoney(mt5.balance))} / ${esc(fmtMoney(mt5.equity))} · ${esc(fmtNum(py.total_ticks))} ticks</strong></div>
             ` : `<div class="muted robot-live-empty">Sem leitura ao vivo disponível.</div>`;
@@ -415,6 +422,11 @@ window.RobotLiveMonitor = (() => {
         if (eventsBox) eventsBox.innerHTML = hasTel ? renderEventsList(stats.recent_events) : "";
 
         const acc = hasTel && mt5.accumulated && typeof mt5.accumulated === "object" ? mt5.accumulated : null;
+        if (hasTel && typeof window.syncRobotTradesFromLive === "function") {
+            try {
+                window.syncRobotTradesFromLive(py.recent_closed_trades, acc ? acc.trades : null);
+            } catch (_e) {}
+        }
         if (accBlock) accBlock.hidden = !hasTel;
         if (accMeta && accKpis) {
             if (!hasTel) {

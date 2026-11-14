@@ -1169,15 +1169,35 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 
             <div class="panel">
                 <div class="panel-head">
-                    <h2>Configuração do robô</h2>
-                    <p>MT5 V900 — exporta CSV via script e importa aqui</p>
+                    <h2>Estatísticas do robô</h2>
+                    <p id="robotSummary">Sincronizado automaticamente via Supabase</p>
+                </div>
+                <div class="panel-body">
+                    <div class="kpi-grid" id="robotKpis"></div>
+                    <div class="chart-frame" data-chart="robotEquity" style="margin-top:12px;">
+                        <canvas id="robotEquityCanvas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Últimos trades do robô</h2>
+                </div>
+                <div id="robotTradesBox"></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Importação manual de CSV (Outros Magics / Backup)</h2>
+                    <p>Os trades do SMC Dual EA (26002601) já atualizam a curva automaticamente pelo Supabase. Se importar outro Magic, os trades se somam à curva.</p>
                 </div>
                 <div class="panel-body">
                     <div class="form-grid">
                         <div class="field">
-                            <label>Magic Number</label>
-                            <input type="number" id="fRobotMagic" placeholder="20250321">
-                            <div class="field-hint">V900 OB/VWAP = 20250321. Trocar quando rodar versão diferente.</div>
+                            <label>Magic Number padrão / filtro opcional</label>
+                            <input type="number" id="fRobotMagic" placeholder="26002601 (ou vazio = aceitar todos)">
+                            <div class="field-hint">SMC Dual EA = 26002601 (V900 = 20250321). Trades de Magic diferente se somam na curva; mesmo Magic + mesma data avisa duplicidade.</div>
                         </div>
                         <div class="field">
                             <label>Símbolo (filtro opcional)</label>
@@ -1193,30 +1213,10 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                             <button class="btn btn-ghost" id="btnRobotPurge" type="button" style="color:var(--red);">Apagar trades do robô</button>
                         </div>
                         <div class="field full">
-                            <div class="field-hint" id="robotImportHint">Selecione o CSV e clique Importar. Dedup por ticket — pode rodar quantas vezes quiser.</div>
+                            <div class="field-hint" id="robotImportHint">Trades na nuvem atualizam a curva por padrão. Ao importar CSV: Magics diferentes se somam; mesmo Magic e mesma data exibe aviso de duplicado.</div>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="panel">
-                <div class="panel-head">
-                    <h2>Estatísticas do robô</h2>
-                    <p id="robotSummary">Sem trades importados</p>
-                </div>
-                <div class="panel-body">
-                    <div class="kpi-grid" id="robotKpis"></div>
-                    <div class="chart-frame" data-chart="robotEquity" style="margin-top:12px;">
-                        <canvas id="robotEquityCanvas"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel">
-                <div class="panel-head">
-                    <h2>Últimos trades do robô</h2>
-                </div>
-                <div id="robotTradesBox"></div>
             </div>
         </section>
 
