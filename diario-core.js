@@ -433,6 +433,7 @@ function feeRateFor(symbol) {
 }
 
 function tradeFees(trade) {
+    if (isRobotTrade(trade)) return Number(trade?.fees || 0);
     if (trade?.archive?.id && Number.isFinite(trade.archive.fees)) return trade.archive.fees;
     const manual = Number(trade?.fees || 0);
     if (manual > 0) return manual;
@@ -614,7 +615,20 @@ async function importRobotFile(file) {
 let s_lastSyncedCloudCount = -1;
 window.syncRobotTradesFromLive = function (recentTrades, accumulatedCount) {
     let changed = false;
+    const accCnt = Number(accumulatedCount || 0);
     if (Array.isArray(recentTrades) && recentTrades.length > 0) {
+        const liveIds = new Set(recentTrades.map((r) => r && r.id).filter(Boolean));
+        const liveMagics = new Set(recentTrades.map((r) => Number(r?.magic || 26002601)).filter(Boolean));
+        if (accCnt > 0 && recentTrades.length >= accCnt) {
+            const beforeLen = state.trades.length;
+            state.trades = state.trades.filter((t) => {
+                if (!isRobotTrade(t)) return true;
+                const m = Number(t.magic || 26002601);
+                if (!liveMagics.has(m)) return true;
+                return liveIds.has(t.id);
+            });
+            if (state.trades.length !== beforeLen) changed = true;
+        }
         const byId = new Map(state.trades.map((t) => [t.id, t]));
         for (const raw of recentTrades) {
             if (!raw || !raw.id) continue;
@@ -623,7 +637,12 @@ window.syncRobotTradesFromLive = function (recentTrades, accumulatedCount) {
                 state.trades.push({ ...raw, source: ROBOT_SOURCE });
                 byId.set(raw.id, raw);
                 changed = true;
-            } else if (Number(existing.pnl || 0) !== Number(raw.pnl || 0) || existing.closeDate !== raw.closeDate) {
+            } else if (
+                Number(existing.pnl || 0) !== Number(raw.pnl || 0) ||
+                existing.closeDate !== raw.closeDate ||
+                Number(existing.score || 0) !== Number(raw.score || 0) ||
+                existing.obType !== raw.obType
+            ) {
                 Object.assign(existing, raw, { source: ROBOT_SOURCE });
                 changed = true;
             }
@@ -633,7 +652,6 @@ window.syncRobotTradesFromLive = function (recentTrades, accumulatedCount) {
         saveTrades();
         renderAll();
     }
-    const accCnt = Number(accumulatedCount || 0);
     if (accCnt > 0 && accCnt !== s_lastSyncedCloudCount && canUseCloud()) {
         const currentRoboCnt = robotTrades().length;
         if (currentRoboCnt < accCnt) {

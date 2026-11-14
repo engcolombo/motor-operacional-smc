@@ -158,8 +158,8 @@ function boot(options = {}) {
         robotCfgPos > robotTradesPos,
         "Monitor ao vivo, estatísticas/curva e últimos trades devem aparecer antes da Importação manual no final de #view-robot"
     );
-    assert.match(html, /diario-pro-plus\.css\?v=20261110-robot-live-v2/);
-    assert.match(html, /diario-robot-live\.js\?v=20261110-robot-live-v2/);
+    assert.match(html, /diario-pro-plus\.css\?v=20261114-robot-live-v3/);
+    assert.match(html, /diario-robot-live\.js\?v=20261114-robot-live-v3/);
     assert.ok(html.indexOf("diario-robot-live.js") < html.indexOf("diario-core.js"),
         "diario-robot-live.js precisa carregar antes de diario-core.js");
 
