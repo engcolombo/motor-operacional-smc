@@ -931,6 +931,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
         <div class="nav-divider"></div>
         <button class="nav-item" data-view="checklist" type="button">Checklist de Trade</button>
         <button class="nav-item nav-psychology" data-view="profit" type="button">Psicologia · revisão diária e evolução</button>
+        <button class="nav-item" data-view="stat-checklist" type="button">Checklist Estatístico</button>
         <div class="nav-divider"></div>
 
         <details class="pro-cloud"><summary>Conta e sincronização</summary>
@@ -1254,6 +1255,9 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
         <section class="view" id="view-checklist" aria-label="Checklist de Trade">
             <iframe id="checklistFrame" class="checklist-frame" title="Checklist de Trade — preparação da operação" data-src="checklist.html?embed=1&amp;v=20261024-checklist"></iframe>
         </section>
+        <section class="view" id="view-stat-checklist" aria-label="Checklist Estatístico">
+            <div id="statChecklistRoot"></div>
+        </section>
     </main>
 </div>
 
@@ -1428,6 +1432,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="diario-archives.js?v=20261028-multiple-images"></script>
 <script src="diario-robot-live.js?v=20261114-robot-live-v3"></script>
-<script src="diario-core.js?v=20261114-robot-live-v3"></script>
+<script src="diario-statistical-checklist.js?v=20261119-stat-checklist-v1"></script>
+<script src="diario-core.js?v=20261119-stat-checklist-v1"></script>
 </body>
 </html>

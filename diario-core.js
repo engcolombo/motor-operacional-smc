@@ -852,6 +852,7 @@ function switchView(view) {
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
     const titles = {
         checklist: ["Checklist de Trade", "Confirme o plano. Avalie o modelo. Decida."],
+        "stat-checklist": ["Checklist Estatístico", "Guia determinístico WIN$ · raw12 (2021–2026, 1.245 pregões, S30_V7 no toque, sem ML)"],
         profit: ["Psicologia · revisão diária e evolução", "Diário, Profit e TradingView · documentação, comportamento e acompanhamento"],
         backtests: ["Backtests", "Teste manual por estratégia · resultado em R"],
         dashboard: ["Dashboard", "Visão geral da performance"],
@@ -2010,6 +2011,7 @@ function renderAll() {
     if (typeof DiaryArchives !== "undefined") DiaryArchives.render();
     renderAssetFilters();
     if (state.view === "profit" && typeof ProfitTrades !== "undefined") ProfitTrades.render();
+    if (state.view === "stat-checklist" && typeof StatChecklist !== "undefined") StatChecklist.render();
     if (state.view === "backtests") Backtests.render();
     if (state.view === "dashboard") {
         renderKPIs();
@@ -2836,16 +2838,30 @@ function bindCloudEvents() {
     $("cloudEmail").addEventListener("keydown", (e) => { if (e.key === "Enter") signInCloud(); });
 }
 
+function requestedInitialView() {
+    if (typeof window === "undefined" || !window.location) return null;
+    try {
+        const param = new URLSearchParams(window.location.search || "").get("view");
+        const hash = String(window.location.hash || "").replace(/^#/, "");
+        const candidate = param || hash;
+        if (candidate === "stat-checklist") return "stat-checklist";
+    } catch (e) {}
+    return null;
+}
+
 Backtests.init();
 if (typeof DiaryArchives !== "undefined") DiaryArchives.init();
 if (typeof ProfitTrades !== "undefined") ProfitTrades.init();
+if (typeof StatChecklist !== "undefined") StatChecklist.init();
 if (typeof RobotLiveMonitor !== "undefined") RobotLiveMonitor.init();
 state.fees = loadFees();
 state.robot = loadRobotConfig();
 bindNav();
 bindEvents();
 bindCloudEvents();
-renderAll();
+const initialView = requestedInitialView();
+if (initialView) switchView(initialView);
+else renderAll();
 setupChartResize();
 if (dateRepairRequested()) setDateRepairStatus("Conecte sua conta do Supabase para corrigir os trades já registrados para 08/10/2026. A correção será aplicada ao carregar os dados.");
 initCloud();
