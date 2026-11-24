@@ -365,7 +365,56 @@ function boot(options = {}) {
     await live.monitor.refresh();
     assert.equal(live.node("robotLiveBadge").textContent, "Desatualizado / Offline");
 
-    console.log("PASS: POI Determinístico V8 robot live HTML placement, SQL RLS, guest/missing-table/stale states, real V8 telemetry, XSS escape, pause & confirmed flatten controls.");
+    // 8. D1 Volatility Target Modulation telemetry rendering
+    live.setRow({
+        telemetry_updated_at: freshIso,
+        telemetry: {
+            engine: "poi_deterministico_v8",
+            generated_at_utc: freshIso,
+            symbol: "WINZ26",
+            magic: 26002801,
+            v8: {
+                setup_name: "V8_BC75_AV2",
+                lunch_blocked: false,
+                lunch_window: "12:00-15:00",
+                target_rr: 3.0,
+                base_target_rr: 4.0,
+                avg_daily_range_pts: 2150,
+                vol_mod_enabled: true,
+                vol_mod_days: 20,
+                barrier_opp: true,
+                barrier_opp_r: 2.0,
+                avwap_dir_rule: false,
+                avwap_tf: "M5",
+                avwap_days: 5,
+                order_mode: "Limite 1:1",
+                risk_per_trade_brl: 100.0,
+                max_contracts: 5,
+                warmup_ready: true,
+                emergency_paused: false,
+                operating_state: "OPERACIONAL · MONITORANDO",
+                ctx_buy: { a: false, a_min: -1, b: false, b_min: -1, c: false, d: false, d_min: -1 },
+                ctx_sell: { a: false, a_min: -1, b: false, b_min: -1, c: false, d: false, d_min: -1 },
+                avwap: { tf: "M5", buy_count: 1, nearest_buy: 166100, sell_count: 1, nearest_sell: 166900, rule_dir: "COMPRA", atr42: 145 },
+                engine_counts: { session_idx: 20, blocks: 10, levels: 8, captures: 2, pois_today: 1 },
+                armed_zones_count: 0,
+                armed_detail: "Nenhum POI 50% armado",
+                last_gate_log: "Aguardando...",
+                last_signal_info: "-"
+            },
+            mt5: { connected: true, mode: "DEMO", magic: 26002801 },
+            daily_stats: { rejections: { gate_v8: { total: 0 }, risco: { total: 0 } } }
+        },
+        control: { paused: false, flatten_seq: 3 },
+        control_ack: { paused: false, last_flatten_seq: 3 }
+    });
+    await live.monitor.refresh();
+    assert.match(live.node("robotLiveKpis").innerHTML, /3\.0R/);
+    assert.match(live.node("robotLiveKpis").innerHTML, /Rng20d: 2150pts/);
+    assert.match(live.node("robotLiveStateRows").innerHTML, /Modulação D1/);
+    assert.match(live.node("robotLiveStateRows").innerHTML, /Alvo 3\.0R \(base 4\.0R · Rng20d: 2150 pts\)/);
+
+    console.log("PASS: POI Determinístico V8 robot live HTML placement, SQL RLS, guest/missing-table/stale states, real V8 telemetry, D1 target modulation, XSS escape, pause & confirmed flatten controls.");
 })().catch((err) => {
     console.error(err);
     process.exitCode = 1;

@@ -348,7 +348,7 @@ window.RobotLiveMonitor = (() => {
                 <div class="kpi-card neutral">
                     <div class="label">Setup &amp; Risco Ativo</div>
                     <div class="value robot-live-kpi-text">${esc(v8.target_rr ? `${Number(v8.target_rr).toFixed(1)}R` : "4.0R")} · ${esc(fmtMoney(v8.risk_per_trade_brl))}</div>
-                    <div class="meta">${v8.lunch_blocked ? `Almoço bloq. (${esc(v8.lunch_window || "12:00-15:00")})` : "Almoço liberado"} · Máx ${esc(fmtNum(v8.max_contracts))}ct · ${esc(v8.order_mode || "Limite 1:1")}</div>
+                    <div class="meta">${v8.lunch_blocked ? `Almoço bloq. (${esc(v8.lunch_window || "12:00-15:00")})` : "Almoço liberado"} · Máx ${esc(fmtNum(v8.max_contracts))}ct · ${esc(v8.order_mode || "Limite 1:1")}${v8.vol_mod_enabled && Number(v8.avg_daily_range_pts) > 0 ? ` · Rng${esc(fmtNum(v8.vol_mod_days || 20))}d: ${esc(fmtNum(v8.avg_daily_range_pts))}pts` : ""}</div>
                 </div>
             ` : "";
         }
@@ -362,9 +362,14 @@ window.RobotLiveMonitor = (() => {
         const avwapDesc = `${esc(avwap.tf || "M5")}: ${esc(fmtNum(avwap.buy_count || 0))}B/${esc(fmtNum(avwap.nearest_buy || 0))} · ${esc(fmtNum(avwap.sell_count || 0))}V/${esc(fmtNum(avwap.nearest_sell || 0))} · Regra: ${esc(avwap.rule_dir || "NENHUMA")} · ATR42: ${esc(fmtNum(avwap.atr42 || 0))}`;
         const setupCfgDesc = `${esc(v8.setup_name || "—")} · BarrOpp: ${v8.barrier_opp ? `SIM (${Number(v8.barrier_opp_r || 0).toFixed(1)}R)` : "NÃO"} · AVDir: ${v8.avwap_dir_rule ? "SIM" : "NÃO"} · TF ${esc(v8.avwap_tf || "M5")} (${esc(fmtNum(v8.avwap_days || 5))}d)`;
 
+        const volModRow = v8.vol_mod_enabled
+            ? `<div class="metric-row"><span>Modulação D1</span><strong>Alvo ${esc(Number(v8.target_rr || 4).toFixed(1))}R (base ${esc(Number(v8.base_target_rr || v8.target_rr || 4).toFixed(1))}R · Rng${esc(fmtNum(v8.vol_mod_days || 20))}d: ${Number(v8.avg_daily_range_pts) > 0 ? `${esc(fmtNum(v8.avg_daily_range_pts))} pts` : "aquecendo"})</strong></div>`
+            : "";
+
         if (stateRowsBox) {
             stateRowsBox.innerHTML = hasTel ? `
                 <div class="metric-row"><span>Setup ativo</span><strong>${setupCfgDesc}</strong></div>
+                ${volModRow}
                 <div class="metric-row"><span>Contextos BUY</span><strong>${esc(formatCtxLine(v8.ctx_buy))}</strong></div>
                 <div class="metric-row"><span>Contextos SELL</span><strong>${esc(formatCtxLine(v8.ctx_sell))}</strong></div>
                 <div class="metric-row"><span>AVWAP &amp; ATR</span><strong>${avwapDesc}</strong></div>
