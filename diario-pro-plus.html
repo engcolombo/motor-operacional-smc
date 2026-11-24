@@ -906,7 +906,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
     .form-grid { grid-template-columns: 1fr; }
 }
 </style>
-<link rel="stylesheet" href="diario-pro-plus.css?v=20261114-robot-live-v3">
+<link rel="stylesheet" href="diario-pro-plus.css?v=20261124-poi-v8">
 <link rel="stylesheet" href="diario-attachments.css?v=20261028-multiple-images">
 <link rel="stylesheet" href="diario-profit.css?v=20261024-fallback">
 </head>
@@ -1130,7 +1130,7 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                 <div class="panel-head robot-live-head">
                     <div class="robot-live-title">
                         <div class="robot-live-title-row">
-                            <h2>Monitor ao vivo · Python + MetaTrader 5</h2>
+                            <h2>Monitor ao vivo · POI Determinístico V8 (MT5)</h2>
                             <span class="robot-live-badge is-off" id="robotLiveBadge">Offline</span>
                         </div>
                         <p id="robotLiveUpdated">Aguardando conexão com Supabase.</p>
@@ -1146,11 +1146,11 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
                     <div class="kpi-grid robot-live-kpis" id="robotLiveKpis"></div>
                     <div class="grid-2 robot-live-grid">
                         <div class="robot-live-card">
-                            <h3>O que Python + EA estão fazendo agora</h3>
+                            <h3>Estado, Contextos SMC e AVWAP (MT5)</h3>
                             <div id="robotLiveStateRows"></div>
                         </div>
                         <div class="robot-live-card">
-                            <h3>Motivos das rejeições (hoje)</h3>
+                            <h3>Gate V8 &amp; Vetos de Risco (hoje)</h3>
                             <div class="robot-live-rej-grid" id="robotLiveRejections"></div>
                         </div>
                     </div>
@@ -1170,8 +1170,8 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 
             <div class="panel">
                 <div class="panel-head">
-                    <h2>Estatísticas do robô</h2>
-                    <p id="robotSummary">Sincronizado automaticamente via Supabase</p>
+                    <h2>Estatísticas do robô · POI Determinístico V8</h2>
+                    <p id="robotSummary">Sincronizado automaticamente via Supabase (Magic 26002801)</p>
                 </div>
                 <div class="panel-body">
                     <div class="kpi-grid" id="robotKpis"></div>
@@ -1191,21 +1191,21 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
             <div class="panel">
                 <div class="panel-head">
                     <h2>Importação manual de CSV (Outros Magics / Backup)</h2>
-                    <p>Os trades do SMC Dual EA (26002601) já atualizam a curva automaticamente pelo Supabase. Se importar outro Magic, os trades se somam à curva.</p>
+                    <p>Os trades do POI Determinístico V8 (26002801) já atualizam a curva automaticamente direto pelo MT5 via Supabase. Se importar ou filtrar outro Magic, os trades correspondentes são exibidos.</p>
                 </div>
                 <div class="panel-body">
                     <div class="form-grid">
                         <div class="field">
                             <label>Magic Number padrão / filtro opcional</label>
-                            <input type="number" id="fRobotMagic" placeholder="26002601 (ou vazio = aceitar todos)">
-                            <div class="field-hint">SMC Dual EA = 26002601 (V900 = 20250321). Trades de Magic diferente se somam na curva; mesmo Magic + mesma data avisa duplicidade.</div>
+                            <input type="number" id="fRobotMagic" placeholder="26002801 (ou vazio = aceitar todos)">
+                            <div class="field-hint">POI Determinístico V8 = 26002801. Filtre por Magic específico ou deixe vazio para exibir todos os trades de robô salvos.</div>
                         </div>
                         <div class="field">
                             <label>Símbolo (filtro opcional)</label>
-                            <input type="text" id="fRobotSymbol" placeholder="Ex: WINQ25 (vazio = todos)">
+                            <input type="text" id="fRobotSymbol" placeholder="Ex: WINZ26 (vazio = todos)">
                         </div>
                         <div class="field full">
-                            <label>Arquivo CSV do MT5 (MQL5/Files/robo_smc_export.csv)</label>
+                            <label>Arquivo CSV do MT5 (MQL5/Files/poideter_v8_trades.csv)</label>
                             <input type="file" id="fRobotFile" accept=".csv,text/csv">
                         </div>
                         <div class="field full" style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -1431,8 +1431,8 @@ tbody tr:hover { background: rgba(123, 92, 255, 0.05); }
 <script src="diario-backtests.js?v=20261011-backtest-unified"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="diario-archives.js?v=20261028-multiple-images"></script>
-<script src="diario-robot-live.js?v=20261114-robot-live-v3"></script>
+<script src="diario-robot-live.js?v=20261124-poi-v8"></script>
 <script src="diario-statistical-checklist.js?v=20261119-stat-checklist-v1"></script>
-<script src="diario-core.js?v=20261119-stat-checklist-v1"></script>
+<script src="diario-core.js?v=20261124-poi-v8"></script>
 </body>
 </html>

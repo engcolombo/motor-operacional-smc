@@ -158,8 +158,10 @@ function boot(options = {}) {
         robotCfgPos > robotTradesPos,
         "Monitor ao vivo, estatísticas/curva e últimos trades devem aparecer antes da Importação manual no final de #view-robot"
     );
-    assert.match(html, /diario-pro-plus\.css\?v=20261114-robot-live-v3/);
-    assert.match(html, /diario-robot-live\.js\?v=20261114-robot-live-v3/);
+    assert.match(html, /diario-pro-plus\.css\?v=20261124-poi-v8/);
+    assert.match(html, /diario-robot-live\.js\?v=20261124-poi-v8/);
+    assert.match(html, /diario-core\.js\?v=20261124-poi-v8/);
+    assert.match(html, /26002801/);
     assert.ok(html.indexOf("diario-robot-live.js") < html.indexOf("diario-core.js"),
         "diario-robot-live.js precisa carregar antes de diario-core.js");
 
@@ -183,32 +185,47 @@ function boot(options = {}) {
     assert.equal(missingTbl.node("robotLiveBadge").textContent, "Erro de leitura");
     assert.match(missingTbl.node("robotLiveAlert").textContent, /supabase-robot-live\.sql/);
 
-    // 4. Real telemetry rendering & XSS escaping
+    // 4. Real POI V8 telemetry rendering & XSS escaping
     const freshIso = new Date(Date.now() - 5000).toISOString();
     const live = boot({
         initialRow: {
             telemetry_updated_at: freshIso,
             telemetry: {
+                engine: "poi_deterministico_v8",
+                robot_name: "SMC POI Deterministico V8",
                 generated_at_utc: freshIso,
-                session_date: "2026-11-10",
+                session_date: "2026-11-24",
                 symbol: "WINZ26<img src=x>",
-                python: {
-                    online: true,
+                magic: 26002801,
+                v8: {
+                    setup_name: "V8_BC75_NL_AV2",
+                    lunch_blocked: true,
+                    lunch_window: "12:00-15:00",
+                    target_rr: 4.0,
+                    barrier_opp: true,
+                    barrier_opp_r: 2.0,
+                    avwap_dir_rule: false,
+                    avwap_tf: "M5",
+                    avwap_days: 5,
+                    order_mode: "Limite 1:1",
+                    risk_per_trade_brl: 100.0,
+                    max_contracts: 5,
                     warmup_ready: true,
                     emergency_paused: false,
                     operating_state: "OPERACIONAL · MONITORANDO",
-                    context_status: "AUTORIZADO: Liq M5 LOW @ 170100 (BUY)",
-                    setup_detail: "ARMADO: POI BUY <img src=x>",
-                    trend_m5: "ALTA",
-                    trend_h1: "BAIXA",
-                    pois_active: 2,
-                    armed_candidates_count: 1,
-                    total_ticks: 900,
-                    last_evaluation: { setup: "poi", side: "buy", p_gru: 0.4123, threshold: 0.52, approved: false }
+                    ctx_buy: { a: true, a_min: 12, b: false, b_min: -1, c: false, d: true, d_min: 4 },
+                    ctx_sell: { a: false, a_min: -1, b: true, b_min: 20, c: false, d: false, d_min: -1 },
+                    avwap: { tf: "M5", buy_count: 1, nearest_buy: 166100, sell_count: 2, nearest_sell: 166900, rule_dir: "COMPRA", atr42: 145 },
+                    engine_counts: { session_idx: 12, blocks: 18, levels: 9, captures: 3, pois_today: 7 },
+                    armed_zones_count: 1,
+                    armed_detail: "COMPRA 50%:166250 SL:166020 <img src=x>",
+                    last_gate_log: "REPROVADO: BARREIRA AVWAP",
+                    last_signal_info: "COMPRA 166250 SL:166020 TP:167170 1c"
                 },
                 mt5: {
                     connected: true,
                     mode: "DEMO",
+                    magic: 26002801,
                     has_position: false,
                     has_pending: false,
                     daily_closed_pl: -96.0,
@@ -220,7 +237,7 @@ function boot(options = {}) {
                     balance: 9904.0,
                     equity: 9904.0,
                     accumulated: {
-                        magic: 26002601,
+                        magic: 26002801,
                         trades: 20,
                         wins: 8,
                         losses: 12,
@@ -241,16 +258,14 @@ function boot(options = {}) {
                     }
                 },
                 daily_stats: {
-                    total_evaluations: 5,
-                    total_signals_dispatched: 1,
-                    total_trades_filled: 1,
+                    pois_formed_today: 7,
+                    signals_executed: 1,
                     rejections: {
-                        gru: { total: 4, reasons: { gru_below_threshold: 4 } },
-                        risco: { total: 2, reasons: { veto_daily_loss: 1, stop_out_of_bounds: 1 } },
-                        deterministico: { total: 3, reasons: { timeout: 2, choch_rejected_missing_prior_m1_bos: 1 } }
+                        gate_v8: { total: 3, reasons: { v8_avwap_barrier: 2, v8_lunch_block: 1 } },
+                        risco: { total: 2, reasons: { veto_daily_loss: 1, blocked_by_emergency_pause: 1 } }
                     },
                     recent_events: [
-                        { time_brt: "14:20:01", kind: "rejection", category: "gru", reason: "gru_below_threshold", detail: "GRU_V2_POI: 0.4123 < 0.52" }
+                        { time_brt: "14:20:01", kind: "rejection", category: "gate_v8", reason: "v8_avwap_barrier", detail: "REPROVADO: BARREIRA AVWAP" }
                     ]
                 }
             },
@@ -259,16 +274,17 @@ function boot(options = {}) {
         }
     });
     await live.monitor.refresh();
-    assert.equal(live.node("robotLiveBadge").textContent, "Ao vivo");
+    assert.equal(live.node("robotLiveBadge").textContent, "Ao vivo · MT5");
     assert.doesNotMatch(live.node("robotLiveStateRows").innerHTML, /<img/);
     assert.match(live.node("robotLiveStateRows").innerHTML, /&lt;img src=x&gt;/);
+    assert.match(live.node("robotLiveStateRows").innerHTML, /A:12m · B:- · C:- · D:4m/);
     assert.match(live.node("robotLiveKpis").innerHTML, /-R\$ 96,00/);
-    assert.match(live.node("robotLiveKpis").innerHTML, />9</); // 4 + 2 + 3 rejections
-    assert.match(live.node("robotLiveRejections").innerHTML, /Score GRU abaixo do threshold/);
+    assert.match(live.node("robotLiveKpis").innerHTML, /4\.0R/);
+    assert.match(live.node("robotLiveRejections").innerHTML, /Gate V8: barreira AVWAP oposta no caminho/);
     assert.match(live.node("robotLiveRejections").innerHTML, /EA: limite de perda diária atingido/);
-    assert.match(live.node("robotLiveRejections").innerHTML, /CHoCH M1 sem BOS interno prévio/);
+    assert.doesNotMatch(live.node("robotLiveRejections").innerHTML, /Modelo GRU/);
     assert.equal(live.node("robotLiveAccBlock").hidden, false);
-    assert.match(live.node("robotLiveAccMeta").textContent, /Magic 26002601/);
+    assert.match(live.node("robotLiveAccMeta").textContent, /Magic 26002801/);
     assert.match(live.node("robotLiveAccKpis").innerHTML, /R\$ 479,00/);
     assert.match(live.node("robotLiveAccKpis").innerHTML, /taxas: R\$ 200,00/);
     assert.match(live.node("robotLiveAccKpis").innerHTML, /40\.0%/);
@@ -281,13 +297,15 @@ function boot(options = {}) {
     live.setRow({
         telemetry_updated_at: freshIso,
         telemetry: {
+            engine: "poi_deterministico_v8",
             generated_at_utc: freshIso,
             symbol: "WINZ26",
-            python: { online: true, emergency_paused: false, warmup_ready: true },
+            magic: 26002801,
+            v8: { emergency_paused: false, warmup_ready: true },
             mt5: {
                 connected: true,
                 accumulated: {
-                    magic: 26002601,
+                    magic: 26002801,
                     trades: 2,
                     wins: 2,
                     losses: 0,
@@ -302,7 +320,7 @@ function boot(options = {}) {
                     r_trades: 0
                 }
             },
-            daily_stats: { rejections: { gru: { total: 0 }, risco: { total: 0 }, deterministico: { total: 0 } } }
+            daily_stats: { rejections: { gate_v8: { total: 0 }, risco: { total: 0 } } }
         },
         control: { paused: false, flatten_seq: 2 },
         control_ack: { paused: false, last_flatten_seq: 2 }
@@ -316,7 +334,7 @@ function boot(options = {}) {
     assert.equal(live.updates.length, 1);
     assert.equal(live.updates[0].control.paused, true);
     assert.equal(live.updates[0].control.flatten_seq, 2);
-    assert.equal(Object.hasOwn(live.updates[0], "telemetry"), false, "Comando web nunca sobrescreve telemetria do Python");
+    assert.equal(Object.hasOwn(live.updates[0], "telemetry"), false, "Comando web nunca sobrescreve telemetria do MT5");
     assert.equal(live.node("btnRobotLivePause").textContent, "Retomar entradas");
 
     // 6. Flatten cancels when confirmation rejected, and increments flatten_seq when confirmed
@@ -334,11 +352,12 @@ function boot(options = {}) {
     live.setRow({
         telemetry_updated_at: staleIso,
         telemetry: {
+            engine: "poi_deterministico_v8",
             generated_at_utc: staleIso,
             symbol: "WINZ26",
-            python: { emergency_paused: false },
+            v8: { emergency_paused: false },
             mt5: { connected: true },
-            daily_stats: { rejections: { gru: { total: 0 }, risco: { total: 0 }, deterministico: { total: 0 } } }
+            daily_stats: { rejections: { gate_v8: { total: 0 }, risco: { total: 0 } } }
         },
         control: { paused: false, flatten_seq: 3 },
         control_ack: { paused: false, last_flatten_seq: 3 }
@@ -346,7 +365,7 @@ function boot(options = {}) {
     await live.monitor.refresh();
     assert.equal(live.node("robotLiveBadge").textContent, "Desatualizado / Offline");
 
-    console.log("PASS: robot live HTML placement, SQL RLS, guest/missing-table/stale states, real telemetry, XSS escape, pause & confirmed flatten controls.");
+    console.log("PASS: POI Determinístico V8 robot live HTML placement, SQL RLS, guest/missing-table/stale states, real V8 telemetry, XSS escape, pause & confirmed flatten controls.");
 })().catch((err) => {
     console.error(err);
     process.exitCode = 1;

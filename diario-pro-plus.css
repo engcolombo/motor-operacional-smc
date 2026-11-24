@@ -1,4 +1,4 @@
-﻿/* Pro+: restrained surfaces, readable figures, and the complete Pro workflow. */
+/* Pro+: restrained surfaces, readable figures, and the complete Pro workflow. */
 .pro-plus {
     --bg: #111417;
     --bg-elev: #171b20;
@@ -350,7 +350,7 @@
 .pro-plus .robot-live-card { min-width: 0; padding: 14px 16px; background: var(--bg); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); }
 .pro-plus .robot-live-card h3 { margin: 0 0 10px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
 .pro-plus .robot-live-card .metric-row strong { white-space: normal; text-align: right; overflow-wrap: anywhere; font-weight: 600; }
-.pro-plus .robot-live-rej-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.pro-plus .robot-live-rej-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .pro-plus .robot-live-rej-col { min-width: 0; border-right: 1px solid var(--line-soft); padding-right: 10px; }
 .pro-plus .robot-live-rej-col:last-child { border-right: 0; padding-right: 0; }
 .pro-plus .robot-live-rej-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); font-size: 12px; }

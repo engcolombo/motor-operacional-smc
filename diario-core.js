@@ -27,18 +27,18 @@ const state = {
     chartMonth: localDateTimeValue().slice(0, 7),
     chartDay: null,
     fees: { cripto: 0, win: 0, wdo: 0 },
-    robot: { magic: 26002601, symbol: "" },
+    robot: { magic: 26002801, symbol: "" },
     editAttachment: null
 };
 
-const ROBOT_DEFAULTS = { magic: 26002601, symbol: "" };
+const ROBOT_DEFAULTS = { magic: 26002801, symbol: "" };
 const ROBOT_STORAGE_KEY = "diarioProRobot_v1";
 const ROBOT_SOURCE = "robo_smc";
 
 function loadRobotConfig() {
     try {
         const saved = JSON.parse(localStorage.getItem(ROBOT_STORAGE_KEY) || "{}");
-        if (Number(saved.magic) === 20250321) saved.magic = 26002601;
+        if (Number(saved.magic) === 20250321 || Number(saved.magic) === 26002601) saved.magic = 26002801;
         return { ...ROBOT_DEFAULTS, ...saved };
     }
     catch (e) { return { ...ROBOT_DEFAULTS }; }
@@ -485,18 +485,27 @@ function robotRowToTrade(r) {
     const tp = Number(r.get("tp") || 0);
     const volume = Number(r.get("volume") || 0);
     const symbol = String(r.get("symbol") || "").toUpperCase();
-    const magic = Number(r.get("magic") || state.robot.magic || 26002601);
+    const magic = Number(r.get("magic") || state.robot.magic || 26002801);
     const score = Number(r.get("score") || 0);
     const threshold = Number(r.get("threshold") || 0);
-    const obType = String(r.get("ob_type") || "").toLowerCase();
-    const obPts = Number(r.get("ob_pts") || 0);
+    const setupName = String(r.get("setup") || r.get("ob_type") || "").trim();
+    const obType = setupName.toLowerCase();
+    const context = String(r.get("context") || "").trim();
+    const stopPts = Number(r.get("stop_pts") || r.get("ob_pts") || 0);
+    const obPts = stopPts;
+    const riskPts = sl > 0 && entry > 0 ? Math.abs(entry - sl) : 0;
+    const ptsDelta = side === "long" ? (exit - entry) : (entry - exit);
+    const calcR = riskPts > 0 ? Number((ptsDelta / riskPts).toFixed(2)) : null;
     return {
-        id: `robo-${ticket}`,
+        id: `robo-${magic}-${ticket}`,
         date: parseMt5Date(r.get("time_open")),
         closeDate: parseMt5Date(r.get("time_close")),
         symbol,
         side,
-        setup: obType ? `Robô SMC · ${obType}` : "Robô SMC",
+        setup: setupName ? `POI V8 · ${setupName}` : "POI V8",
+        setupName,
+        context,
+        stopPts,
         initQty: volume,
         qty: volume,
         entry,
@@ -509,12 +518,12 @@ function robotRowToTrade(r) {
         partials: [],
         riskMoney: 0,
         pnl,
-        r: null,
-        rPending: true,
+        r: calcR,
+        rPending: calcR === null,
         fees: 0,
-        tags: ["robo", obType].filter(Boolean),
+        tags: ["robo", "poi_v8", obType].filter(Boolean),
         mistakes: [],
-        notes: `Ticket ${ticket} | magic ${magic} | score ${score.toFixed(4)} thr ${threshold.toFixed(4)} | OB ${obType || "?"}/${obPts}pts | comm ${commission.toFixed(2)} | swap ${swap.toFixed(2)} | comment: ${r.get("comment") || "-"}`,
+        notes: `Ticket ${ticket} | magic ${magic} | ${setupName || "POI V8"}${context ? ` (${context})` : ""} | stop ${stopPts}pts | comm ${commission.toFixed(2)} | swap ${swap.toFixed(2)} | comment: ${r.get("comment") || "-"}`,
         source: ROBOT_SOURCE,
         ticket,
         magic,
@@ -532,8 +541,8 @@ function robotRowToTrade(r) {
 
 function isDuplicateRobotTradeSameMagic(existing, incoming) {
     if (!existing || !incoming) return false;
-    const exMagic = Number(existing.magic || 26002601);
-    const inMagic = Number(incoming.magic || 26002601);
+    const exMagic = Number(existing.magic || 26002801);
+    const inMagic = Number(incoming.magic || 26002801);
     if (exMagic !== inMagic) return false;
     if (String(existing.ticket || "") && String(existing.ticket || "") === String(incoming.ticket || "")) return true;
     if (existing.id && existing.id === incoming.id) return true;
@@ -568,7 +577,7 @@ async function importRobotFile(file) {
         const dup = existingRobos.find((ex) => isDuplicateRobotTradeSameMagic(ex, t));
         if (dup) {
             duplicates++;
-            dupMagics.add(Number(t.magic || 26002601));
+            dupMagics.add(Number(t.magic || 26002801));
             continue;
         }
         if (byId.has(t.id)) {
@@ -578,7 +587,7 @@ async function importRobotFile(file) {
         existingRobos.push(t);
         byId.set(t.id, t);
         added++;
-        addedMagics.add(Number(t.magic || 26002601));
+        addedMagics.add(Number(t.magic || 26002801));
         toUpsert.push(t);
     }
 
@@ -618,12 +627,12 @@ window.syncRobotTradesFromLive = function (recentTrades, accumulatedCount) {
     const accCnt = Number(accumulatedCount || 0);
     if (Array.isArray(recentTrades) && recentTrades.length > 0) {
         const liveIds = new Set(recentTrades.map((r) => r && r.id).filter(Boolean));
-        const liveMagics = new Set(recentTrades.map((r) => Number(r?.magic || 26002601)).filter(Boolean));
+        const liveMagics = new Set(recentTrades.map((r) => Number(r?.magic || 26002801)).filter(Boolean));
         if (accCnt > 0 && recentTrades.length >= accCnt) {
             const beforeLen = state.trades.length;
             state.trades = state.trades.filter((t) => {
                 if (!isRobotTrade(t)) return true;
-                const m = Number(t.magic || 26002601);
+                const m = Number(t.magic || 26002801);
                 if (!liveMagics.has(m)) return true;
                 return liveIds.has(t.id);
             });
@@ -640,8 +649,8 @@ window.syncRobotTradesFromLive = function (recentTrades, accumulatedCount) {
             } else if (
                 Number(existing.pnl || 0) !== Number(raw.pnl || 0) ||
                 existing.closeDate !== raw.closeDate ||
-                Number(existing.score || 0) !== Number(raw.score || 0) ||
-                existing.obType !== raw.obType
+                existing.setupName !== raw.setupName ||
+                existing.context !== raw.context
             ) {
                 Object.assign(existing, raw, { source: ROBOT_SOURCE });
                 changed = true;
@@ -682,14 +691,18 @@ function renderRobot() {
     $("fRobotMagic").value = state.robot.magic ?? "";
     $("fRobotSymbol").value = state.robot.symbol ?? "";
 
+    const magicFilter = Number(state.robot.magic || 0);
     const symFilter = String(state.robot.symbol || "").trim().toUpperCase();
     const robos = [...robotTrades()]
+        .filter((t) => !magicFilter || Number(t.magic || 0) === magicFilter)
         .filter((t) => !symFilter || String(t.symbol || "").toUpperCase() === symFilter)
         .sort((a, b) => new Date(a.closeDate || a.date) - new Date(b.closeDate || b.date));
     if (!robos.length) {
-        $("robotSummary").textContent = "Aguardando trades sincronizados do Supabase (ou importe CSV abaixo)";
+        $("robotSummary").textContent = magicFilter
+            ? `Aguardando trades do POI Determinístico V8 (Magic ${magicFilter}) via Supabase`
+            : "Aguardando trades sincronizados do Supabase (ou importe CSV abaixo)";
         $("robotKpis").innerHTML = "";
-        $("robotTradesBox").innerHTML = `<div class="panel-body"><span class="muted">Os trades fechados pelo robô no MT5 aparecerão aqui automaticamente via Supabase.</span></div>`;
+        $("robotTradesBox").innerHTML = `<div class="panel-body"><span class="muted">Os trades fechados pelo POI Determinístico V8 no MT5 aparecerão aqui automaticamente via Supabase.</span></div>`;
         const c = $("robotEquityCanvas");
         if (c.getContext) { const ctx = c.getContext("2d"); ctx.clearRect(0, 0, c.width, c.height); }
         return;
@@ -715,10 +728,10 @@ function renderRobot() {
 
     const first = new Date(robos[0].closeDate || robos[0].date);
     const last = new Date(robos[robos.length - 1].closeDate || robos[robos.length - 1].date);
-    const distinctMagics = [...new Set(robos.map((t) => Number(t.magic || state.robot.magic || 26002601)).filter(Boolean))];
+    const distinctMagics = [...new Set(robos.map((t) => Number(t.magic || state.robot.magic || 26002801)).filter(Boolean))];
     const magicLabel = distinctMagics.length > 1
         ? `magics ${distinctMagics.join(" + ")} (somados)`
-        : `magic ${distinctMagics[0] || state.robot.magic || 26002601}`;
+        : `magic ${distinctMagics[0] || state.robot.magic || 26002801}`;
     $("robotSummary").textContent = `${robos.length} trades · ${first.toLocaleDateString("pt-BR")} → ${last.toLocaleDateString("pt-BR")} · ${magicLabel}`;
 
     const cls = (v) => v > 0 ? "win" : v < 0 ? "loss" : "neutral";
@@ -741,17 +754,18 @@ function renderRobot() {
         const swinrate = sdec ? (sw / sdec) * 100 : 0;
         return { count: subset.length, pnl: stot, winrate: swinrate, wins: sw, losses: sl, bes: sb };
     };
-    const sInt = splitStats(robos.filter((t) => t.obType === "internal"));
-    const sSwg = splitStats(robos.filter((t) => t.obType === "swing"));
-    const sPoi = splitStats(robos.filter((t) => t.obType === "poi"));
-    const sChoch = splitStats(robos.filter((t) => t.obType === "choch"));
+    const hasCtx = (t, letter) => new RegExp(`\\b${letter}\\b`, "i").test(String(t.context || ""));
+    const sCtxA = splitStats(robos.filter((t) => hasCtx(t, "A")));
+    const sCtxB = splitStats(robos.filter((t) => hasCtx(t, "B")));
+    const sCtxC = splitStats(robos.filter((t) => hasCtx(t, "C")));
+    const sCtxD = splitStats(robos.filter((t) => hasCtx(t, "D")));
 
-    const obKpis = [];
-    if (sPoi) obKpis.push({ label: "Setup POI", value: fmtCurrency(sPoi.pnl), meta: `${sPoi.count} trades · ${fmtPct(sPoi.winrate)} (${sPoi.wins}W/${sPoi.losses}L)`, cls: cls(sPoi.pnl) });
-    if (sChoch) obKpis.push({ label: "Setup CHoCH", value: fmtCurrency(sChoch.pnl), meta: `${sChoch.count} trades · ${fmtPct(sChoch.winrate)} (${sChoch.wins}W/${sChoch.losses}L)`, cls: cls(sChoch.pnl) });
-    if (sInt) obKpis.push({ label: "OB Internal", value: fmtCurrency(sInt.pnl), meta: `${sInt.count} trades · ${fmtPct(sInt.winrate)} (${sInt.wins}W/${sInt.losses}L)`, cls: cls(sInt.pnl) });
-    if (sSwg) obKpis.push({ label: "OB Swing", value: fmtCurrency(sSwg.pnl), meta: `${sSwg.count} trades · ${fmtPct(sSwg.winrate)} (${sSwg.wins}W/${sSwg.losses}L)`, cls: cls(sSwg.pnl) });
-    const allKpis = [...kpis, ...obKpis];
+    const ctxKpis = [];
+    if (sCtxA) ctxKpis.push({ label: "Contexto A (Liq)", value: fmtCurrency(sCtxA.pnl), meta: `${sCtxA.count} trades · ${fmtPct(sCtxA.winrate)} (${sCtxA.wins}W/${sCtxA.losses}L)`, cls: cls(sCtxA.pnl) });
+    if (sCtxB) ctxKpis.push({ label: "Contexto B (M15)", value: fmtCurrency(sCtxB.pnl), meta: `${sCtxB.count} trades · ${fmtPct(sCtxB.winrate)} (${sCtxB.wins}W/${sCtxB.losses}L)`, cls: cls(sCtxB.pnl) });
+    if (sCtxC) ctxKpis.push({ label: "Contexto C (H1)", value: fmtCurrency(sCtxC.pnl), meta: `${sCtxC.count} trades · ${fmtPct(sCtxC.winrate)} (${sCtxC.wins}W/${sCtxC.losses}L)`, cls: cls(sCtxC.pnl) });
+    if (sCtxD) ctxKpis.push({ label: "Contexto D (AVWAP)", value: fmtCurrency(sCtxD.pnl), meta: `${sCtxD.count} trades · ${fmtPct(sCtxD.winrate)} (${sCtxD.wins}W/${sCtxD.losses}L)`, cls: cls(sCtxD.pnl) });
+    const allKpis = [...kpis, ...ctxKpis];
 
     $("robotKpis").innerHTML = allKpis.map((k) => `
         <div class="kpi-card ${k.cls}">
@@ -769,8 +783,7 @@ function renderRobot() {
             <table>
                 <thead><tr>
                     <th>Data</th><th>Ticket</th><th>Magic</th><th>Ativo</th><th>Lado</th>
-                    <th>OB</th><th class="right">OB pts</th>
-                    <th class="right">Score</th><th class="right">Thr</th>
+                    <th>Setup</th><th>Contexto</th><th class="right">Stop (pts)</th>
                     <th class="right">Vol</th>
                     <th class="right">Entrada</th><th class="right">Saída</th><th class="right">P&L liq.</th>
                 </tr></thead>
@@ -779,13 +792,12 @@ function renderRobot() {
                     <tr>
                         <td>${new Date(t.date).toLocaleString("pt-BR")}</td>
                         <td>${escapeHtml(t.ticket || "")}</td>
-                        <td class="muted">${escapeHtml(String(t.magic || 26002601))}</td>
+                        <td class="muted">${escapeHtml(String(t.magic || 26002801))}</td>
                         <td>${escapeHtml(t.symbol)}</td>
                         <td>${t.side === "long" ? "Compra" : "Venda"}</td>
-                        <td>${escapeHtml(t.obType || "-")}</td>
-                        <td class="right">${t.obPts || "-"}</td>
-                        <td class="right">${t.score ? Number(t.score).toFixed(3) : "-"}</td>
-                        <td class="right muted">${t.threshold ? Number(t.threshold).toFixed(3) : "-"}</td>
+                        <td>${escapeHtml(t.setupName || t.obType || t.setup || "-")}</td>
+                        <td>${escapeHtml(t.context || "-")}</td>
+                        <td class="right">${t.stopPts || t.obPts || "-"}</td>
                         <td class="right">${t.qty}</td>
                         <td class="right">${t.entry}</td>
                         <td class="right">${t.exit}</td>
@@ -2738,7 +2750,11 @@ async function loadCloudSettings() {
             persistFees();
         }
         if (data?.payload?.robot) {
-            state.robot = { ...ROBOT_DEFAULTS, ...data.payload.robot };
+            const loadedRobot = { ...ROBOT_DEFAULTS, ...data.payload.robot };
+            if (Number(loadedRobot.magic) === 20250321 || Number(loadedRobot.magic) === 26002601) {
+                loadedRobot.magic = 26002801;
+            }
+            state.robot = loadedRobot;
             persistRobotConfig();
         }
         if (state.view === "fees" || state.view === "robot") renderAll();

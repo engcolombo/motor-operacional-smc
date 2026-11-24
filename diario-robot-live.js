@@ -1,4 +1,4 @@
-/* Monitor ao vivo e controle de emergência do Robô SMC (Python + MetaTrader 5 via Supabase). */
+/* Monitor ao vivo e controle remoto do Robô SMC POI Determinístico V8 (100% MT5 Nativo via Supabase). */
 window.RobotLiveMonitor = (() => {
     const TABLE = "robot_live_status";
     const NORMAL_POLL_MS = 10000;
@@ -7,60 +7,35 @@ window.RobotLiveMonitor = (() => {
     const STALE_AFTER_SECONDS = 50;
 
     const REASON_LABELS = {
-        gru_below_threshold: "Score GRU abaixo do threshold",
-        blocked_by_active_position: "Posição/pendente já ativa no MT5",
-        blocked_by_emergency_pause: "Pausa de emergência ativa",
-        another_position_submitted: "Outro sinal simultâneo já despachado",
-        emergency_pause: "Cancelado por pausa de emergência",
-        emergency_flatten: "Cancelado por zeragem de emergência",
-        stop_out_of_bounds: "Stop normalizado fora dos limites",
-        budget_exceeded_or_invalid_size: "1 contrato excede o orçamento de risco",
-        rejected: "Ordem rejeitada pelo EA/corretora",
-        veto_duplicate: "EA: candidato duplicado",
-        veto_time: "EA: fora do horário de entrada",
+        blocked_by_emergency_pause: "Pausa remota ativa (Diário Pro+)",
+        emergency_pause: "Pausa remota acionada",
+        emergency_resume: "Entradas retomadas remotamente",
+        emergency_flatten: "Zeragem de emergência (FLATTEN)",
+        rejected: "Ordem rejeitada pela corretora",
         veto_daily_loss: "EA: limite de perda diária atingido",
-        veto_max_dd: "EA: drawdown máximo atingido",
+        veto_max_dd: "EA: drawdown máximo global atingido",
         veto_max_trades: "EA: limite diário de trades",
         veto_consec_losses: "EA: limite de perdas seguidas",
-        veto_active_exposure: "EA: exposição ativa",
+        veto_time: "EA: sessão encerrada (zeragem)",
+        veto_algotrading: "AlgoTrading desligado no MT5",
         veto_demo_mode_on_real_account: "EA: trava DEMO em conta REAL",
-        veto_spread: "EA: spread acima do máximo",
-        veto_stop_distance: "EA: distância de stop fora dos limites",
-        veto_zero_lots: "EA: lote calculado zero",
-        veto_expired: "EA: sinal expirou por latência",
-        candidate_rejected_missing_wick_stop: "Sem pavio de formação para Stop",
-        candidate_context_rejected: "Sem captura M5 ou OB pós-captura",
-        poi_retest_not_armed: "POI sem re-teste / OB nativo ambíguo",
-        poi_rejected_invalid_risk: "Risco do POI inválido",
-        poi_rejected_stop_too_short: "Stop do POI abaixo do mínimo",
-        choch_rejected_missing_prior_m1_bos: "CHoCH M1 sem BOS interno prévio",
-        choch_rejected_missing_prior_m5_bos: "CHoCH M5 sem BOS interno prévio",
-        choch_rejected_formation_too_long: "Formação do CHoCH excedeu tempo máx.",
-        choch_missing_native_ob_link: "CHoCH sem Order Block nativo vinculado",
-        timeout: "Candidato expirou antes do toque",
-        entry_cutoff: "Horário limite de entradas atingido",
-        past_last_entry: "Fora do horário de entradas",
-        session_flatten: "Encerramento automático de sessão",
-        stop_or_zone_invalidated: "Preço violou stop/zona antes da entrada",
-        original_poi_target_reached: "Alvo original do POI já atingido",
-        poi_no_longer_active: "POI mitigado/inativo",
-        native_ob_no_longer_active: "OB nativo mitigado/inativo",
-        choch_stretched_2r_before_return: "Preço esticou 2R antes do pullback",
-        too_far_from_ob: "Preço afastou além do limite do OB",
-        entry_response_too_late: "Delay após gatilho excedido",
-        expired_in_wall_clock: "Candidato expirou no relógio",
-        context_no_longer_valid: "Contexto de liquidez/OB invalidado",
-        ai_context_warmup_m5_m10_unavailable: "Frames M5/M10 indisponíveis",
-        price_moved_after_trigger: "Desvio de preço após gatilho excedido",
-        opposing_approved_candidates: "Candidatos opostos simultâneos",
-        features_warming_up: "Indicadores em aquecimento",
-        evaluation_error: "Erro na avaliação do candidato"
+        veto_risk: "EA: veto de risco/conta",
+        v8_lunch_block: "Gate V8: filtro de almoço ativo",
+        v8_avwap_barrier: "Gate V8: barreira AVWAP oposta no caminho",
+        v8_avwap_dir: "Gate V8: regra de direção AVWAP ativa",
+        v8_no_context: "Gate V8: sem contexto A/B/C/D válido",
+        v8_stop_bounds: "Gate V8: distância de stop fora dos limites",
+        v8_expired: "Gate V8: zona 50% expirou ou invalidou",
+        gate_rejected: "Gate V8: condição não atendida",
+        signal_ok: "Ordem enviada pelo EA",
+        filled: "Posição aberta no MT5",
+        trade_win: "Trade encerrado no lucro",
+        trade_loss: "Trade encerrado no prejuízo"
     };
 
     const CATEGORY_LABEL = {
-        gru: "GRU",
-        risco: "Risco",
-        deterministico: "Determinístico"
+        gate_v8: "Gate V8",
+        risco: "Risco EA"
     };
 
     let rowData = null;
@@ -119,6 +94,15 @@ window.RobotLiveMonitor = (() => {
         return REASON_LABELS[reason] || String(reason);
     }
 
+    function formatCtxLine(ctx) {
+        if (!ctx || typeof ctx !== "object") return "—";
+        const a = ctx.a ? `A:${Math.round(Number(ctx.a_min || 0))}m` : "A:-";
+        const b = ctx.b ? `B:${Math.round(Number(ctx.b_min || 0))}m` : "B:-";
+        const c = ctx.c ? "C:ON" : "C:-";
+        const d = ctx.d ? `D:${Math.round(Number(ctx.d_min || 0))}m` : "D:-";
+        return `${a} · ${b} · ${c} · ${d}`;
+    }
+
     function isRobotActive() {
         return typeof state !== "undefined" && state.view === "robot";
     }
@@ -163,10 +147,10 @@ window.RobotLiveMonitor = (() => {
     }
 
     function renderReasonsList(bucket) {
-        if (!bucket) return `<div class="muted robot-live-empty">Aguardando dados do Python.</div>`;
+        if (!bucket) return `<div class="muted robot-live-empty">Aguardando dados do MT5.</div>`;
         const reasons = bucket.reasons || {};
         const entries = Object.entries(reasons).sort((a, b) => Number(b[1]) - Number(a[1]));
-        if (!entries.length) return `<div class="muted robot-live-empty">Nenhuma rejeição hoje.</div>`;
+        if (!entries.length) return `<div class="muted robot-live-empty">Nenhum veto registrado hoje.</div>`;
         return entries
             .map(([reason, count]) => (
                 `<div class="metric-row"><span>${esc(reasonLabel(reason))}</span><strong>${esc(count)}</strong></div>`
@@ -180,16 +164,16 @@ window.RobotLiveMonitor = (() => {
         }
         return [...events]
             .reverse()
-            .slice(0, 15)
+            .slice(0, 20)
             .map((ev) => {
                 const time = esc(ev.time_brt || "—");
                 const isRej = ev.kind === "rejection";
                 const tagText = isRej
-                    ? `REJ · ${CATEGORY_LABEL[ev.category] || ev.category || "Regra"}`
+                    ? `VETO · ${CATEGORY_LABEL[ev.category] || ev.category || "Regra"}`
                     : String(ev.kind || "EVENTO").toUpperCase();
                 const tagCls = isRej
                     ? "is-rej"
-                    : (ev.kind === "filled" || ev.kind === "signal_dispatched" || ev.kind === "emergency_resume")
+                    : (ev.kind === "filled" || ev.kind === "signal_dispatched" || ev.kind === "emergency_resume" || ev.kind === "closed")
                         ? "is-ok"
                         : "is-warn";
                 const text = ev.detail || reasonLabel(ev.reason);
@@ -232,7 +216,7 @@ window.RobotLiveMonitor = (() => {
             if (alertBox) {
                 alertBox.hidden = false;
                 alertBox.className = "robot-live-alert is-warn";
-                alertBox.textContent = "Conecte sua conta na barra lateral (Conta e sincronização) para acompanhar o robô em tempo real e acionar comandos.";
+                alertBox.textContent = "Conecte sua conta na barra lateral (Conta e sincronização) para acompanhar o POI Determinístico V8 e acionar comandos.";
             }
             if (kpisBox) kpisBox.innerHTML = "";
             if (stateRowsBox) stateRowsBox.innerHTML = `<div class="muted robot-live-empty">Aguardando autenticação na nuvem.</div>`;
@@ -265,10 +249,12 @@ window.RobotLiveMonitor = (() => {
         }
 
         const tel = rowData && typeof rowData.telemetry === "object" ? rowData.telemetry : null;
-        const hasTel = Boolean(tel && Object.keys(tel).length > 0);
+        const isV8 = Boolean(tel && tel.engine === "poi_deterministico_v8" && tel.v8);
+        const hasTel = Boolean(tel && Object.keys(tel).length > 0 && isV8);
+        const hasLegacyTel = Boolean(tel && Object.keys(tel).length > 0 && !isV8);
         const ctrl = (rowData && rowData.control) || { paused: false, flatten_seq: 0 };
         const ack = (rowData && rowData.control_ack) || { paused: false, last_flatten_seq: 0 };
-        const py = (tel && tel.python) || {};
+        const v8 = (tel && tel.v8) || {};
         const mt5 = (tel && tel.mt5) || {};
         const stats = (tel && tel.daily_stats) || {};
         const rej = stats.rejections || {};
@@ -277,8 +263,8 @@ window.RobotLiveMonitor = (() => {
 
         const ctrlPaused = Boolean(ctrl.paused);
         const ackPaused = Boolean(ack.paused);
-        const pyPaused = hasTel ? Boolean(py.emergency_paused) : ackPaused;
-        const effectivePaused = rowData?.control_updated_at ? ctrlPaused : pyPaused;
+        const eaPaused = hasTel ? Boolean(v8.emergency_paused) : ackPaused;
+        const effectivePaused = rowData?.control_updated_at ? ctrlPaused : eaPaused;
         const pausePending = Boolean(rowData?.control_updated_at) && ctrlPaused !== ackPaused;
         const flattenPending = Number(ctrl.flatten_seq || 0) > Number(ack.last_flatten_seq || 0);
 
@@ -290,22 +276,26 @@ window.RobotLiveMonitor = (() => {
         if (flattenBtn) flattenBtn.disabled = commandBusy;
 
         if (!hasTel) {
-            if (badge) { badge.className = "robot-live-badge is-warn"; badge.textContent = "Aguardando Python"; }
-            if (updatedEl) updatedEl.textContent = "Nenhuma telemetria enviada ainda.";
+            if (badge) { badge.className = "robot-live-badge is-warn"; badge.textContent = "Aguardando MT5"; }
+            if (updatedEl) {
+                updatedEl.textContent = hasLegacyTel
+                    ? "Telemetria antiga do robô anterior detectada. Aguardando primeiro envio do POI Determinístico V8..."
+                    : "Nenhuma telemetria do POI Determinístico V8 recebida ainda.";
+            }
             if (alertBox) {
                 alertBox.hidden = false;
                 alertBox.className = "robot-live-alert is-warn";
-                alertBox.textContent = "Conexão com Supabase pronta. Ligue o robô com configs/supabase.local.json configurado para iniciar os envios.";
+                alertBox.textContent = "No MetaTrader 5, mantenha o EA SMC_POI_Deterministico_V8_EA no gráfico e o serviço POI_V8_DiarioSync ativo em Navegador -> Serviços.";
             }
         } else if (flattenPending || pausePending) {
             if (badge) { badge.className = "robot-live-badge is-warn"; badge.textContent = "Comando enviado"; }
-            if (updatedEl) updatedEl.textContent = `Aguardando confirmação do Python (${age ? age.text : "—"})`;
+            if (updatedEl) updatedEl.textContent = `Aguardando confirmação do MT5 (${age ? age.text : "—"})`;
             if (alertBox) {
                 alertBox.hidden = false;
                 alertBox.className = "robot-live-alert is-warn";
                 alertBox.textContent = flattenPending
-                    ? "Comando ZERAR TUDO (FLATTEN) enviado na fila. Aguardando execução no Python e no MetaTrader 5..."
-                    : (ctrlPaused ? "Comando PAUSAR ENTRADAS enviado. Aguardando confirmação do Python..." : "Comando RETOMAR ENTRADAS enviado. Aguardando confirmação do Python...");
+                    ? "Comando ZERAR TUDO (FLATTEN) enviado na fila. Aguardando execução no MetaTrader 5..."
+                    : (ctrlPaused ? "Comando PAUSAR ENTRADAS enviado. Aguardando confirmação do MT5..." : "Comando RETOMAR ENTRADAS enviado. Aguardando confirmação do MT5...");
             }
         } else if (stale) {
             if (badge) { badge.className = "robot-live-badge is-danger"; badge.textContent = "Desatualizado / Offline"; }
@@ -313,47 +303,37 @@ window.RobotLiveMonitor = (() => {
             if (alertBox) {
                 alertBox.hidden = false;
                 alertBox.className = "robot-live-alert is-danger";
-                alertBox.textContent = `Sem telemetria recente do Python (${age ? age.text : "—"}). O robô pode estar desligado, fora do pregão ou sem internet.`;
+                alertBox.textContent = `Sem telemetria recente do MetaTrader 5 (${age ? age.text : "—"}). O terminal pode estar fechado, fora do pregão ou com o serviço POI_V8_DiarioSync parado.`;
             }
-        } else if (pyPaused) {
+        } else if (eaPaused) {
             if (badge) { badge.className = "robot-live-badge is-warn"; badge.textContent = "Pausado"; }
-            if (updatedEl) updatedEl.textContent = `${tel.symbol || "—"} · Atualizado ${age.text}`;
+            if (updatedEl) updatedEl.textContent = `${tel.symbol || "—"} · Magic ${tel.magic || mt5.magic || "26002801"} · Atualizado ${age.text}`;
             if (alertBox) {
                 alertBox.hidden = false;
                 alertBox.className = "robot-live-alert is-warn";
-                alertBox.textContent = "PAUSA DE EMERGÊNCIA ATIVA: Python monitora o mercado normalmente, porém bloqueia novas entradas até você clicar em Retomar entradas.";
-            }
-        } else if (!mt5.connected) {
-            if (badge) { badge.className = "robot-live-badge is-warn"; badge.textContent = "Python ON · MT5 OFF"; }
-            if (updatedEl) updatedEl.textContent = `${tel.symbol || "—"} · Atualizado ${age.text}`;
-            if (alertBox) {
-                alertBox.hidden = false;
-                alertBox.className = "robot-live-alert is-warn";
-                alertBox.textContent = "Python está online, mas o MetaTrader 5 EA não está enviando ticks/heartbeat no momento.";
+                alertBox.textContent = "PAUSA REMOTA ATIVA: o POI Determinístico V8 continua analisando contextos SMC/AVWAP no MT5, mas bloqueia novas entradas até você clicar em Retomar entradas.";
             }
         } else {
-            if (badge) { badge.className = "robot-live-badge is-ok"; badge.textContent = "Ao vivo"; }
-            if (updatedEl) updatedEl.textContent = `${tel.symbol || "—"} · Sessão ${tel.session_date || "—"} · Atualizado ${age.text}`;
+            if (badge) { badge.className = "robot-live-badge is-ok"; badge.textContent = "Ao vivo · MT5"; }
+            if (updatedEl) updatedEl.textContent = `${tel.symbol || "—"} · ${v8.setup_name || "V8"} · Sessão ${tel.session_date || "—"} · Atualizado ${age.text}`;
             if (alertBox) alertBox.hidden = true;
         }
 
-        const totalRej = hasTel
-            ? Number(rej.gru?.total || 0) + Number(rej.risco?.total || 0) + Number(rej.deterministico?.total || 0)
-            : null;
         const dayPl = mt5.daily_total_pl !== null && mt5.daily_total_pl !== undefined
             ? Number(mt5.daily_total_pl)
             : (mt5.daily_closed_pl !== null && mt5.daily_closed_pl !== undefined ? Number(mt5.daily_closed_pl) : null);
         const plCls = dayPl === null ? "neutral" : dayPl > 0 ? "win" : dayPl < 0 ? "loss" : "neutral";
         const tradesCount = mt5.daily_trades_count !== null && mt5.daily_trades_count !== undefined
             ? mt5.daily_trades_count
-            : (hasTel ? stats.total_trades_filled : null);
+            : (hasTel ? stats.signals_executed : null);
+        const engCounts = v8.engine_counts || {};
 
         if (kpisBox) {
             kpisBox.innerHTML = hasTel ? `
-                <div class="kpi-card ${pyPaused ? "loss" : "neutral"}">
-                    <div class="label">Estado Python + MT5</div>
-                    <div class="value robot-live-kpi-text">${esc(py.operating_state || "—")}</div>
-                    <div class="meta">EA: ${mt5.connected ? "CONECTADO" : "DESCONECTADO"}${mt5.mode ? ` · ${esc(mt5.mode)}` : ""} · Warm-up: ${py.warmup_ready ? "OK" : "CARREGANDO"}</div>
+                <div class="kpi-card ${eaPaused ? "loss" : "neutral"}">
+                    <div class="label">Estado do Robô (MT5)</div>
+                    <div class="value robot-live-kpi-text">${esc(v8.operating_state || "—")}</div>
+                    <div class="meta">${mt5.mode ? esc(mt5.mode) : "DEMO"} · Magic ${esc(tel.magic || mt5.magic || "26002801")} · Warm-up: ${v8.warmup_ready ? "OK" : "CARREGANDO"}</div>
                 </div>
                 <div class="kpi-card ${plCls}">
                     <div class="label">Resultado do Dia (MT5)</div>
@@ -361,14 +341,14 @@ window.RobotLiveMonitor = (() => {
                     <div class="meta">Fechado: ${esc(fmtMoney(mt5.daily_closed_pl))} · Flut.: ${esc(fmtMoney(mt5.floating_pl))}</div>
                 </div>
                 <div class="kpi-card neutral">
-                    <div class="label">Operações Hoje</div>
+                    <div class="label">Operações &amp; POIs Hoje</div>
                     <div class="value">${esc(fmtNum(tradesCount))}</div>
-                    <div class="meta">Sinais: ${esc(fmtNum(stats.total_signals_dispatched))} · Avaliações GRU: ${esc(fmtNum(stats.total_evaluations))}${mt5.daily_consec_losses !== null && mt5.daily_consec_losses !== undefined ? ` · Losses seg.: ${esc(mt5.daily_consec_losses)}` : ""}</div>
+                    <div class="meta">POIs M1: ${esc(fmtNum(stats.pois_formed_today ?? engCounts.pois_today ?? 0))} · Armados: ${esc(fmtNum(v8.armed_zones_count || 0))}${mt5.daily_consec_losses !== null && mt5.daily_consec_losses !== undefined ? ` · Losses seg.: ${esc(mt5.daily_consec_losses)}` : ""}</div>
                 </div>
-                <div class="kpi-card ${totalRej ? "loss" : "neutral"}">
-                    <div class="label">Operações Rejeitadas</div>
-                    <div class="value">${esc(fmtNum(totalRej))}</div>
-                    <div class="meta">GRU: ${esc(fmtNum(rej.gru?.total || 0))} · Risco: ${esc(fmtNum(rej.risco?.total || 0))} · Determ.: ${esc(fmtNum(rej.deterministico?.total || 0))}</div>
+                <div class="kpi-card neutral">
+                    <div class="label">Setup &amp; Risco Ativo</div>
+                    <div class="value robot-live-kpi-text">${esc(v8.target_rr ? `${Number(v8.target_rr).toFixed(1)}R` : "4.0R")} · ${esc(fmtMoney(v8.risk_per_trade_brl))}</div>
+                    <div class="meta">${v8.lunch_blocked ? `Almoço bloq. (${esc(v8.lunch_window || "12:00-15:00")})` : "Almoço liberado"} · Máx ${esc(fmtNum(v8.max_contracts))}ct · ${esc(v8.order_mode || "Limite 1:1")}</div>
                 </div>
             ` : "";
         }
@@ -376,45 +356,36 @@ window.RobotLiveMonitor = (() => {
         const posDesc = !hasTel
             ? "—"
             : mt5.has_position
-                ? `${mt5.pos_side || ""} ${Number(mt5.pos_vol || 0).toFixed(0)}ct @ ${Number(mt5.pos_price || 0).toFixed(0)}${mt5.pos_ticket ? ` (#${mt5.pos_ticket})` : ""}`
-                : (mt5.has_pending ? "Ordem limite pendente no book" : "Sem posição aberta (FLAT)");
-        const lastEval = py.last_evaluation;
-        const evalDesc = lastEval
-            ? `${String(lastEval.setup || "-").toUpperCase()} ${String(lastEval.side || "-").toUpperCase()} · ${Number(lastEval.p_gru || 0).toFixed(4)} / ${Number(lastEval.threshold || 0).toFixed(2)} · ${lastEval.approved ? "APROVADA" : "REJEITADA"}${lastEval.inference_ms !== undefined ? ` (${Number(lastEval.inference_ms).toFixed(1)}ms)` : ""}`
-            : "Nenhuma avaliação GRU registrada hoje";
-        const drift = py.feature_drift;
-        const driftDesc = drift && typeof drift === "object"
-            ? (drift.alert
-                ? `ALERTA DRIFT: ${Number(drift.outliers_5sigma || 0)} feat >= 5σ (máx ${esc(drift.top_feature || "?")} ${Number(drift.max_abs_z || 0).toFixed(1)}σ)`
-                : `Estável (máx |z|=${Number(drift.max_abs_z || 0).toFixed(1)}σ em ${esc(drift.top_feature || "-")})`)
-            : null;
+                ? `${mt5.pos_side || ""} ${Number(mt5.pos_vol || 0).toFixed(0)}ct @ ${Number(mt5.pos_price || 0).toFixed(0)}${mt5.pos_sl ? ` · SL ${Number(mt5.pos_sl).toFixed(0)}` : ""}${mt5.pos_tp ? ` · TP ${Number(mt5.pos_tp).toFixed(0)}` : ""}${mt5.pos_ticket ? ` (#${mt5.pos_ticket})` : ""}`
+                : (mt5.has_pending ? "Ordem Limite apregoada no book" : "ZERADO (Monitorando)");
+        const avwap = v8.avwap || {};
+        const avwapDesc = `${esc(avwap.tf || "M5")}: ${esc(fmtNum(avwap.buy_count || 0))}B/${esc(fmtNum(avwap.nearest_buy || 0))} · ${esc(fmtNum(avwap.sell_count || 0))}V/${esc(fmtNum(avwap.nearest_sell || 0))} · Regra: ${esc(avwap.rule_dir || "NENHUMA")} · ATR42: ${esc(fmtNum(avwap.atr42 || 0))}`;
+        const setupCfgDesc = `${esc(v8.setup_name || "—")} · BarrOpp: ${v8.barrier_opp ? `SIM (${Number(v8.barrier_opp_r || 0).toFixed(1)}R)` : "NÃO"} · AVDir: ${v8.avwap_dir_rule ? "SIM" : "NÃO"} · TF ${esc(v8.avwap_tf || "M5")} (${esc(fmtNum(v8.avwap_days || 5))}d)`;
 
         if (stateRowsBox) {
             stateRowsBox.innerHTML = hasTel ? `
-                <div class="metric-row"><span>Ação atual (Python)</span><strong>${esc(py.setup_detail || "—")}</strong></div>
-                <div class="metric-row"><span>Contexto SMC</span><strong>${esc(py.context_status || "—")}</strong></div>
-                <div class="metric-row"><span>Tendência M5 / H1</span><strong>${esc(py.trend_m5 || "—")} / ${esc(py.trend_h1 || "—")} · POIs M1: ${esc(fmtNum(py.pois_active))} · Armados: ${esc(fmtNum(py.armed_candidates_count))}</strong></div>
+                <div class="metric-row"><span>Setup ativo</span><strong>${setupCfgDesc}</strong></div>
+                <div class="metric-row"><span>Contextos BUY</span><strong>${esc(formatCtxLine(v8.ctx_buy))}</strong></div>
+                <div class="metric-row"><span>Contextos SELL</span><strong>${esc(formatCtxLine(v8.ctx_sell))}</strong></div>
+                <div class="metric-row"><span>AVWAP &amp; ATR</span><strong>${avwapDesc}</strong></div>
+                <div class="metric-row"><span>POI 50% (M1)</span><strong>${esc(v8.armed_detail || "Nenhum POI 50% armado")}</strong></div>
+                <div class="metric-row"><span>Último Gate V8</span><strong>${esc(v8.last_gate_log || "Aguardando...")}</strong></div>
+                <div class="metric-row"><span>Último gatilho</span><strong>${esc(v8.last_signal_info || "—")}</strong></div>
                 <div class="metric-row"><span>Posição no MT5</span><strong>${esc(posDesc)}</strong></div>
-                <div class="metric-row"><span>Última avaliação GRU</span><strong>${esc(evalDesc)}</strong></div>
-                ${driftDesc ? `<div class="metric-row"><span>Distribuição Features (WIN$)</span><strong style="${drift.alert ? "color:var(--amber, #f59e0b)" : ""}">${driftDesc}</strong></div>` : ""}
-                <div class="metric-row"><span>Status de risco (EA)</span><strong>${esc(mt5.risk_status || "Aguardando atualização do EA")}</strong></div>
-                <div class="metric-row"><span>Saldo / Equity · Ticks</span><strong>${esc(fmtMoney(mt5.balance))} / ${esc(fmtMoney(mt5.equity))} · ${esc(fmtNum(py.total_ticks))} ticks</strong></div>
-            ` : `<div class="muted robot-live-empty">Sem leitura ao vivo disponível.</div>`;
+                <div class="metric-row"><span>Status de risco (EA)</span><strong>${esc(mt5.risk_status || "SISTEMA OPERACIONAL (OK)")}</strong></div>
+                <div class="metric-row"><span>Saldo / Equity · Núcleo</span><strong>${esc(fmtMoney(mt5.balance))} / ${esc(fmtMoney(mt5.equity))} · OBs:${esc(fmtNum(engCounts.blocks || 0))} NivA:${esc(fmtNum(engCounts.levels || 0))} CapA:${esc(fmtNum(engCounts.captures || 0))}</strong></div>
+            ` : `<div class="muted robot-live-empty">Sem leitura ao vivo do POI Determinístico V8 disponível.</div>`;
         }
 
         if (rejectionsBox) {
             rejectionsBox.innerHTML = hasTel ? `
                 <div class="robot-live-rej-col">
-                    <div class="robot-live-rej-head"><span>Modelo GRU</span><strong>${esc(fmtNum(rej.gru?.total || 0))}</strong></div>
-                    ${renderReasonsList(rej.gru)}
+                    <div class="robot-live-rej-head"><span>Gate V8 (Determinístico)</span><strong>${esc(fmtNum(rej.gate_v8?.total || 0))}</strong></div>
+                    ${renderReasonsList(rej.gate_v8)}
                 </div>
                 <div class="robot-live-rej-col">
-                    <div class="robot-live-rej-head"><span>Sistema de Risco</span><strong>${esc(fmtNum(rej.risco?.total || 0))}</strong></div>
+                    <div class="robot-live-rej-head"><span>Sistema de Risco (EA)</span><strong>${esc(fmtNum(rej.risco?.total || 0))}</strong></div>
                     ${renderReasonsList(rej.risco)}
-                </div>
-                <div class="robot-live-rej-col">
-                    <div class="robot-live-rej-head"><span>Determinístico (SMC)</span><strong>${esc(fmtNum(rej.deterministico?.total || 0))}</strong></div>
-                    ${renderReasonsList(rej.deterministico)}
                 </div>
             ` : "";
         }
@@ -424,7 +395,7 @@ window.RobotLiveMonitor = (() => {
         const acc = hasTel && mt5.accumulated && typeof mt5.accumulated === "object" ? mt5.accumulated : null;
         if (hasTel && typeof window.syncRobotTradesFromLive === "function") {
             try {
-                window.syncRobotTradesFromLive(py.recent_closed_trades, acc ? acc.trades : null);
+                window.syncRobotTradesFromLive(tel.recent_closed_trades, acc ? acc.trades : null);
             } catch (_e) {}
         }
         if (accBlock) accBlock.hidden = !hasTel;
@@ -455,7 +426,7 @@ window.RobotLiveMonitor = (() => {
                     ? (firstDate === lastDate ? firstDate : `${firstDate} → ${lastDate}`)
                     : "Histórico carregado";
 
-                accMeta.textContent = `Magic ${acc.magic || "—"} · ${accTrades} fechado(s) · ${rangeText}`;
+                accMeta.textContent = `Magic ${acc.magic || "26002801"} · ${accTrades} fechado(s) · ${rangeText}`;
 
                 const valCls = (v) => v > 0 ? "win" : v < 0 ? "loss" : "neutral";
                 const pfText = pfInf ? "∞" : accPf.toFixed(2);
@@ -580,8 +551,8 @@ window.RobotLiveMonitor = (() => {
             fastUntilMs = Date.now() + FAST_WINDOW_MS;
             if (typeof toast === "function") {
                 toast(nextControl.flatten_seq > Number((rowData?.control_ack || {}).last_flatten_seq || 0)
-                    ? "Comando ZERAR TUDO (FLATTEN) enviado!"
-                    : (nextControl.paused ? "Comando de PAUSA enviado!" : "Comando para RETOMAR enviado!"));
+                    ? "Comando ZERAR TUDO (FLATTEN) enviado ao MT5!"
+                    : (nextControl.paused ? "Comando de PAUSA enviado ao MT5!" : "Comando para RETOMAR enviado ao MT5!"));
             }
             return true;
         } catch (err) {
@@ -597,8 +568,8 @@ window.RobotLiveMonitor = (() => {
     async function togglePause() {
         const ctrl = (rowData && rowData.control) || { paused: false, flatten_seq: 0 };
         const ack = (rowData && rowData.control_ack) || { paused: false, last_flatten_seq: 0 };
-        const pyPaused = Boolean(rowData?.telemetry?.python?.emergency_paused);
-        const currentPaused = rowData?.control_updated_at ? Boolean(ctrl.paused) : (rowData?.telemetry ? pyPaused : Boolean(ack.paused));
+        const eaPaused = Boolean(rowData?.telemetry?.v8?.emergency_paused);
+        const currentPaused = rowData?.control_updated_at ? Boolean(ctrl.paused) : (rowData?.telemetry ? eaPaused : Boolean(ack.paused));
         const nextPaused = !currentPaused;
         await writeControl({
             paused: nextPaused,
@@ -610,10 +581,10 @@ window.RobotLiveMonitor = (() => {
     async function triggerFlatten() {
         const ok = window.confirm(
             "ATENÇÃO — ZERAGEM DE EMERGÊNCIA (FLATTEN):\n\n" +
-            "Isso irá:\n" +
-            "1. Pausar novas entradas no Python\n" +
-            "2. Cancelar todas as ordens pendentes no MetaTrader 5\n" +
-            "3. Fechar a mercado qualquer posição aberta do robô\n\n" +
+            "Isso irá acionar o EA POI Determinístico V8 no MetaTrader 5 para:\n" +
+            "1. Pausar novas entradas no EA\n" +
+            "2. Cancelar todas as ordens pendentes no MT5\n" +
+            "3. Fechar a mercado qualquer posição aberta do Magic 26002801\n\n" +
             "Deseja realmente zerar tudo agora?"
         );
         if (!ok) return;
