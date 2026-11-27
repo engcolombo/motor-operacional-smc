@@ -754,17 +754,40 @@ function renderRobot() {
         const swinrate = sdec ? (sw / sdec) * 100 : 0;
         return { count: subset.length, pnl: stot, winrate: swinrate, wins: sw, losses: sl, bes: sb };
     };
-    const hasCtx = (t, letter) => new RegExp(`\\b${letter}\\b`, "i").test(String(t.context || ""));
+    const hasCtx = (t, letter) => {
+        const raw = String(t.context || "").trim();
+        if (!raw) return false;
+        const kv = raw.match(new RegExp(`\\b${letter}\\s*:\\s*([^\\s,;|·]+)`, "i"));
+        if (kv) {
+            const val = kv[1].trim();
+            if (!val || val === "-" || val === "0" || /^0+[a-z]*$/i.test(val) || /^(false|off|no|nao|não)$/i.test(val)) {
+                return false;
+            }
+            const num = Number(val.replace(/[^\d.-]/g, ""));
+            if (Number.isFinite(num) && /\d/.test(val)) return num > 0;
+            return true;
+        }
+        return new RegExp(`(?:^|[\\s+,;|/·])${letter}(?=$|[\\s+,;|/·])`, "i").test(raw);
+    };
+    const isGapTrade = (t) => {
+        const setup = `${t.setupName || ""} ${t.setup || ""}`;
+        const ctx = String(t.context || "");
+        const notes = String(t.notes || "");
+        return /ABERTURA_GAP/i.test(setup) || /^GAP[+\-\d]/i.test(ctx.trim()) || /POI_V8_ABG_/i.test(notes);
+    };
     const sCtxA = splitStats(robos.filter((t) => hasCtx(t, "A")));
     const sCtxB = splitStats(robos.filter((t) => hasCtx(t, "B")));
     const sCtxC = splitStats(robos.filter((t) => hasCtx(t, "C")));
     const sCtxD = splitStats(robos.filter((t) => hasCtx(t, "D")));
+    const sGap = splitStats(robos.filter(isGapTrade));
 
+    const fmtCardMeta = (s) => `${s.count} ${s.count === 1 ? "trade" : "trades"} · ${fmtPct(s.winrate)} (${s.wins}W/${s.losses}L)`;
     const ctxKpis = [];
-    if (sCtxA) ctxKpis.push({ label: "Contexto A (Liq)", value: fmtCurrency(sCtxA.pnl), meta: `${sCtxA.count} trades · ${fmtPct(sCtxA.winrate)} (${sCtxA.wins}W/${sCtxA.losses}L)`, cls: cls(sCtxA.pnl) });
-    if (sCtxB) ctxKpis.push({ label: "Contexto B (M15)", value: fmtCurrency(sCtxB.pnl), meta: `${sCtxB.count} trades · ${fmtPct(sCtxB.winrate)} (${sCtxB.wins}W/${sCtxB.losses}L)`, cls: cls(sCtxB.pnl) });
-    if (sCtxC) ctxKpis.push({ label: "Contexto C (H1)", value: fmtCurrency(sCtxC.pnl), meta: `${sCtxC.count} trades · ${fmtPct(sCtxC.winrate)} (${sCtxC.wins}W/${sCtxC.losses}L)`, cls: cls(sCtxC.pnl) });
-    if (sCtxD) ctxKpis.push({ label: "Contexto D (AVWAP)", value: fmtCurrency(sCtxD.pnl), meta: `${sCtxD.count} trades · ${fmtPct(sCtxD.winrate)} (${sCtxD.wins}W/${sCtxD.losses}L)`, cls: cls(sCtxD.pnl) });
+    if (sCtxA) ctxKpis.push({ label: "Contexto A (Liq)", value: fmtCurrency(sCtxA.pnl), meta: fmtCardMeta(sCtxA), cls: cls(sCtxA.pnl) });
+    if (sCtxB) ctxKpis.push({ label: "Contexto B (M15)", value: fmtCurrency(sCtxB.pnl), meta: fmtCardMeta(sCtxB), cls: cls(sCtxB.pnl) });
+    if (sCtxC) ctxKpis.push({ label: "Contexto C (H1)", value: fmtCurrency(sCtxC.pnl), meta: fmtCardMeta(sCtxC), cls: cls(sCtxC.pnl) });
+    if (sCtxD) ctxKpis.push({ label: "Contexto D (AVWAP)", value: fmtCurrency(sCtxD.pnl), meta: fmtCardMeta(sCtxD), cls: cls(sCtxD.pnl) });
+    if (sGap) ctxKpis.push({ label: "Abertura Gap", value: fmtCurrency(sGap.pnl), meta: fmtCardMeta(sGap), cls: cls(sGap.pnl) });
     const allKpis = [...kpis, ...ctxKpis];
 
     $("robotKpis").innerHTML = allKpis.map((k) => `

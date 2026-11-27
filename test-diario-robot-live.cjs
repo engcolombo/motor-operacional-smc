@@ -160,7 +160,7 @@ function boot(options = {}) {
     );
     assert.match(html, /diario-pro-plus\.css\?v=20261124-poi-v8/);
     assert.match(html, /diario-robot-live\.js\?v=20261124-poi-v8/);
-    assert.match(html, /diario-core\.js\?v=20261124-poi-v8/);
+    assert.match(html, /diario-core\.js\?v=20261126-poi-v8-ctx/);
     assert.match(html, /26002801/);
     assert.ok(html.indexOf("diario-robot-live.js") < html.indexOf("diario-core.js"),
         "diario-robot-live.js precisa carregar antes de diario-core.js");
@@ -413,6 +413,137 @@ function boot(options = {}) {
     assert.match(live.node("robotLiveKpis").innerHTML, /Rng20d: 2150pts/);
     assert.match(live.node("robotLiveStateRows").innerHTML, /Modulação D1/);
     assert.match(live.node("robotLiveStateRows").innerHTML, /Alvo 3\.0R \(base 4\.0R · Rng20d: 2150 pts\)/);
+
+    // 9. Contexto A/B/C/D & Abertura Gap breakdown in diario-core.js renderRobot()
+    function bootCore(trades) {
+        const coreSrc = fs.readFileSync(__dirname + "/diario-core.js", "utf8");
+        const initAt = coreSrc.indexOf("\nBacktests.init();");
+        assert.ok(initAt > 0, "Marcador Backtests.init() não encontrado em diario-core.js");
+        const coreNodes = new Map();
+        const getEl = (id) => {
+            if (!coreNodes.has(id)) {
+                coreNodes.set(id, {
+                    id,
+                    value: "",
+                    innerHTML: "",
+                    textContent: "",
+                    hidden: false,
+                    style: {},
+                    dataset: {},
+                    parentElement: { clientWidth: 800 },
+                    querySelectorAll: () => [],
+                    addEventListener() {},
+                    getContext: null
+                });
+            }
+            return coreNodes.get(id);
+        };
+        const coreCtx = vm.createContext({
+            console,
+            Date,
+            Math,
+            Number,
+            String,
+            Boolean,
+            Object,
+            Array,
+            JSON,
+            RegExp,
+            Set,
+            Map,
+            clearTimeout() {},
+            requestAnimationFrame() {},
+            document: { getElementById: getEl, querySelectorAll: () => [], createElement: () => ({ click() {} }) },
+            window: {},
+            localStorage: { getItem: () => null, setItem() {} }
+        });
+        vm.runInContext(`${coreSrc.slice(0, initAt)}\ndrawCapitalCurve = () => {};\nthis.api = { state, renderRobot };`, coreCtx);
+        coreCtx.api.state.robot = { magic: 26002801, symbol: "" };
+        coreCtx.api.state.trades = trades;
+        coreCtx.api.renderRobot();
+        return { html: getEl("robotKpis").innerHTML, summary: getEl("robotSummary").textContent };
+    }
+
+    const realCase = bootCore([
+        {
+            id: "robo-26002801-2601624729",
+            date: "2026-11-25T09:04:00-03:00",
+            closeDate: "2026-11-25T09:04:29-03:00",
+            symbol: "WINZ26",
+            side: "long",
+            setupName: "V8_BC75_AV2",
+            context: "",
+            notes: "Ticket 2601624729 | comment: POI_V8_ABG_20261125_M",
+            source: "robo_smc",
+            magic: 26002801,
+            pnl: -60
+        },
+        {
+            id: "robo-26002801-2603095145",
+            date: "2026-11-26T09:04:00-03:00",
+            closeDate: "2026-11-26T09:04:01-03:00",
+            symbol: "WINZ26",
+            side: "short",
+            setupName: "ABERTURA_GAP_EXTREMO",
+            context: "GAP+2065_D1P85%_M1#1",
+            notes: "Ticket 2603095145 | comment: POI_V8_ABG_20261126_M",
+            source: "robo_smc",
+            magic: 26002801,
+            pnl: -60
+        },
+        {
+            id: "robo-26002801-2603807558",
+            date: "2026-11-26T12:18:26-03:00",
+            closeDate: "2026-11-26T12:22:37-03:00",
+            symbol: "WINZ26",
+            side: "short",
+            setupName: "V8_BC75_AV2",
+            context: "A:27 B:0 C:0 D:0",
+            source: "robo_smc",
+            magic: 26002801,
+            pnl: -87
+        },
+        {
+            id: "robo-26002801-2603823497",
+            date: "2026-11-26T12:25:12-03:00",
+            closeDate: "2026-11-26T12:39:18-03:00",
+            symbol: "WINZ26",
+            side: "short",
+            setupName: "V8_BC75_AV2",
+            context: "A:27 B:0 C:0 D:0",
+            source: "robo_smc",
+            magic: 26002801,
+            pnl: -55
+        },
+        {
+            id: "robo-26002801-2604161366",
+            date: "2026-11-26T15:31:23-03:00",
+            closeDate: "2026-11-26T15:58:05-03:00",
+            symbol: "WINZ26",
+            side: "long",
+            setupName: "V8_BC75_AV2",
+            context: "A:0 B:0 C:0 D:2",
+            source: "robo_smc",
+            magic: 26002801,
+            pnl: 248
+        }
+    ]);
+    assert.match(realCase.html, /Contexto A \(Liq\)<\/div>\s*<div class="value">-R\$\s142,00<\/div>\s*<div class="meta">2 trades · 0\.0% \(0W\/2L\)<\/div>/);
+    assert.doesNotMatch(realCase.html, /Contexto B \(M15\)/);
+    assert.doesNotMatch(realCase.html, /Contexto C \(H1\)/);
+    assert.match(realCase.html, /Contexto D \(AVWAP\)<\/div>\s*<div class="value">R\$\s248,00<\/div>\s*<div class="meta">1 trade · 100\.0% \(1W\/0L\)<\/div>/);
+    assert.match(realCase.html, /Abertura Gap<\/div>\s*<div class="value">-R\$\s120,00<\/div>\s*<div class="meta">2 trades · 0\.0% \(0W\/2L\)<\/div>/);
+
+    const multiCase = bootCore([
+        { id: "m1", date: "2026-11-26T10:00:00-03:00", symbol: "WINZ26", setupName: "V8_BC75_AV2", context: "A:5 B:0 C:1 D:2", source: "robo_smc", magic: 26002801, pnl: 100 },
+        { id: "m2", date: "2026-11-26T11:00:00-03:00", symbol: "WINZ26", setupName: "V8_BC75_AV2", context: "A:12m · B:- · C:ON · D:0m", source: "robo_smc", magic: 26002801, pnl: 50 },
+        { id: "m3", date: "2026-11-26T12:00:00-03:00", symbol: "WINZ26", setupName: "V8_BC75_AV2", context: "A+D", source: "robo_smc", magic: 26002801, pnl: 40 }
+    ]);
+    assert.match(multiCase.html, /Contexto A \(Liq\)<\/div>\s*<div class="value">R\$\s190,00<\/div>\s*<div class="meta">3 trades · 100\.0% \(3W\/0L\)<\/div>/);
+    assert.doesNotMatch(multiCase.html, /Contexto B \(M15\)/);
+    assert.match(multiCase.html, /Contexto C \(H1\)<\/div>\s*<div class="value">R\$\s150,00<\/div>\s*<div class="meta">2 trades · 100\.0% \(2W\/0L\)<\/div>/);
+    assert.match(multiCase.html, /Contexto D \(AVWAP\)<\/div>\s*<div class="value">R\$\s140,00<\/div>\s*<div class="meta">2 trades · 100\.0% \(2W\/0L\)<\/div>/);
+    assert.doesNotMatch(multiCase.html, /Abertura Gap/);
 
     console.log("PASS: POI Determinístico V8 robot live HTML placement, SQL RLS, guest/missing-table/stale states, real V8 telemetry, D1 target modulation, XSS escape, pause & confirmed flatten controls.");
 })().catch((err) => {
